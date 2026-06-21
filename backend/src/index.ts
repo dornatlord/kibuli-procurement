@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import session from "express-session";
 import cors from "cors";
 import connectPgSimple from "connect-pg-simple";
@@ -15,16 +15,29 @@ const PORT = process.env.PORT || 3001;
 
 app.set("trust proxy", 1);
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://kibuli-procurement.onrender.com",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:5173",
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS: ${origin} not allowed`));
+    },
     credentials: true,
   })
 );
+
 app.use(express.json());
 
 const PgSession = connectPgSimple(session);
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
 app.use(
   session({
@@ -48,6 +61,12 @@ app.use("/api/budget", budgetRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/lookup", lookupRouter);
 app.use("/api/saved-items", savedItemsRouter);
+
+// Global error handler — keeps CORS headers on 500s
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: err.message || "Internal server error" });
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
