@@ -39,8 +39,9 @@ router.post("/login", async (req, res) => {
       department: user.department,
     });
   } catch (err) {
-    console.error("Login error:", err);
-    res.status(500).json({ error: "Server error during login" });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Login error:", msg);
+    res.status(500).json({ error: msg });
   }
 });
 

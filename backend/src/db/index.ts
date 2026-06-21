@@ -4,5 +4,5 @@ import * as schema from "./schema.js";
 
 const connectionString = process.env.DATABASE_URL!;
 
-const client = postgres(connectionString, { max: 10 });
+const client = postgres(connectionString, { max: 10, ssl: "require" });
 export const db = drizzle(client, { schema });
