@@ -67,177 +67,210 @@ function fmt(n: string | number | null | undefined) {
 }
 
 function printTForm(request: Request) {
-  const sig = (role: string) => request.signatures.find((s) => s.role === role);
+  const sigOf = (role: string) => request.signatures.find((s) => s.role === role);
 
-  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
-
-  // Pad items to at least 5 rows for the table
+  // Pad items to at least 6 rows
   const itemRows = [...request.items];
-  while (itemRows.length < 5) itemRows.push({ id: 0, itemNo: itemRows.length + 1, description: "", quantity: "", unitOfMeasure: "", estimatedUnitCost: "", marketPrice: "", totalCost: "" });
+  while (itemRows.length < 6) itemRows.push({ id: 0, itemNo: itemRows.length + 1, description: "", quantity: "", unitOfMeasure: "", estimatedUnitCost: "", marketPrice: "", totalCost: "" });
 
-  const rows = itemRows.map((it, i) => `
-    <tr style="height:22px;">
-      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${it.description ? i + 1 : ""}</td>
-      <td style="border:1px solid #000;padding:3px 5px;">${it.description || ""}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${it.quantity || ""}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${it.unitOfMeasure || ""}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : ""}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${it.marketPrice ? Number(it.marketPrice).toLocaleString("en-UG") : ""}</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:right;font-weight:bold;">${it.totalCost ? Number(it.totalCost).toLocaleString("en-UG") : ""}</td>
+  const itemRowsHtml = itemRows.map((it, i) => `
+    <tr>
+      <td class="c">${it.description ? i + 1 : ""}</td>
+      <td>${it.description || ""}</td>
+      <td class="c">${it.quantity || ""}</td>
+      <td class="c">${it.unitOfMeasure || ""}</td>
+      <td class="r">${it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : ""}</td>
+      <td class="r">${it.marketPrice ? Number(it.marketPrice).toLocaleString("en-UG") : ""}</td>
     </tr>`).join("");
 
   const totalCost = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
+  const userSig   = sigOf("user_dept");
+  const hodSig    = sigOf("head_of_dept");
+  const aoSig     = sigOf("accounting_officer");
 
-  const cell = (label: string, value: string, colspan = 1, rowspan = 1) =>
-    `<td colspan="${colspan}" rowspan="${rowspan}" style="border:1px solid #000;padding:0;vertical-align:top;">
-      <div style="font-size:8px;font-weight:bold;color:#333;padding:2px 4px 0;text-transform:uppercase;">${label}</div>
-      <div style="font-size:11px;padding:2px 4px 4px;">${value}</div>
-    </td>`;
+  const sigLine = (s: ReturnType<typeof sigOf>) => `
+    <div style="margin-top:4px;">Name:&nbsp;&nbsp;&nbsp;${s ? s.name : "................................................"}</div>
+    <div style="margin-top:4px;">Title:&nbsp;&nbsp;&nbsp;&nbsp;${s ? (s.title || "") : "................................................"}</div>
+    <div style="margin-top:4px;">Signature: ................................................</div>
+    <div style="margin-top:4px;">Date:&nbsp;&nbsp;&nbsp;&nbsp;${s ? new Date(s.signedAt).toLocaleDateString("en-UG") : "................................................"}</div>`;
 
-  const sigCell = (label: string, role: string) => {
-    const s = sig(role);
-    return `<td style="border:1px solid #000;padding:6px;vertical-align:top;width:33%;">
-      <div style="font-size:8px;font-weight:bold;text-transform:uppercase;margin-bottom:2px;">${label}</div>
-      <div style="font-size:10px;font-weight:bold;min-height:16px;">${s ? s.name : ""}</div>
-      <div style="border-top:1px solid #000;margin:18px 0 2px;"></div>
-      <div style="font-size:8px;color:#555;">Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date: ${s ? new Date(s.signedAt).toLocaleDateString("en-UG") : "___________"}</div>
-    </td>`;
-  };
+  const refParts = request.referenceNumber.split("/");
+  const seqNo    = refParts[refParts.length - 1] || "";
+  const finYear  = refParts[2] || String(request.year);
 
   const html = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>TFORM5 — ${request.referenceNumber}</title>
+<title>TFORM 5 &mdash; ${request.referenceNumber}</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 12mm 14mm; }
-  .header { text-align: center; margin-bottom: 8px; }
-  .header h1 { font-size: 15px; font-weight: bold; letter-spacing: 0.5px; }
-  .header p { font-size: 10px; margin-top: 2px; }
-  .ref-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
-  .ref-num { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
-  .status-badge { border: 2px solid #000; padding: 3px 14px; font-weight: bold; font-size: 12px; }
-  .part-header { background: #1a5c2a; color: #fff; padding: 4px 8px; font-weight: bold; font-size: 10px; margin: 8px 0 0; }
-  table.form { width: 100%; border-collapse: collapse; }
-  table.form td { border: 1px solid #000; padding: 0; vertical-align: top; }
-  table.items { width: 100%; border-collapse: collapse; margin: 0; }
-  table.items th { border: 1px solid #000; padding: 4px 5px; background: #1a5c2a; color: #fff; font-size: 9px; text-align: left; }
-  table.items td { border: 1px solid #000; padding: 3px 5px; font-size: 10px; }
-  table.items tfoot td { font-weight: bold; background: #f0f0f0; }
-  .fl { font-size: 8px; font-weight: bold; color: #333; padding: 2px 4px 0; text-transform: uppercase; display: block; }
-  .fv { font-size: 11px; padding: 2px 4px 5px; display: block; min-height: 18px; }
-  @media print { body { padding: 8mm 10mm; } @page { size: A4; margin: 0; } }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: Arial, sans-serif; font-size: 9.5px; color: #000; padding: 10mm 12mm; }
+h1  { font-size: 11px; font-weight: bold; text-align: center; }
+.sub { font-size: 9px; text-align: center; }
+.title-block { text-align: center; margin: 6px 0 4px; }
+t, table { width: 100%; border-collapse: collapse; }
+td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-size: 9px; }
+.lbl { font-size: 7.5px; font-style: italic; color: #333; display: block; }
+.val { font-size: 9.5px; display: block; min-height: 13px; }
+.c   { text-align: center; }
+.r   { text-align: right; }
+.sec { font-weight: bold; text-align: center; background: #e8e8e8; font-size: 9px; }
+.no-border { border: none; }
+.sig-outer { border: 1px solid #000; padding: 4px 6px; font-size: 9px; }
+@media print { body { padding: 6mm 8mm; } @page { size: A4 portrait; margin: 0; } }
 </style>
 </head>
 <body>
 
-<div class="header">
-  <h1>KIBULI SECONDARY SCHOOL</h1>
-  <p>Procurement Management System &mdash; PPDA Act 2003 &nbsp;|&nbsp; <strong>TFORM 5</strong></p>
-</div>
-
-<div class="ref-row">
-  <span class="ref-num">${request.referenceNumber}</span>
-  <span class="status-badge">${request.status.replace(/_/g," ").toUpperCase()}</span>
+<!-- Header -->
+<div style="text-align:center;margin-bottom:3px;">
+  <div style="font-size:9px;">†FORM 5</div>
+  <div style="font-size:8px;font-style:italic;">Regulation 3(1), 13(3), 15(1), 17(3) 24(2), 53(6), 54(3)</div>
+  <div style="font-size:9px;font-weight:bold;margin-top:2px;">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
+  <div style="font-size:9.5px;font-weight:bold;">REQUEST FOR APPROVAL OF PROCUREMENT</div>
 </div>
 
 <!-- PART I -->
-<div class="part-header">PART I &mdash; IDENTIFICATION</div>
-<table class="form">
+<table>
   <tr>
-    ${cell("Entity Code", "Kibuli Secondary School")}
-    ${cell("Sequence No.", request.referenceNumber.split("/").pop() || "—")}
-    ${cell("Category", cap(request.category))}
-    ${cell("Year Type", cap(request.yearType || "Calendar"))}
+    <td colspan="6" class="sec">PART I: REQUEST BY USER DEPARTMENT FOR APPROVAL OF PROCUREMENT</td>
   </tr>
   <tr>
-    ${cell("Year", String(request.year))}
-    ${cell("Week No.", "W" + request.weekNumber)}
-    ${cell("Budget Category", cap(request.budgetCategory))}
-    ${cell("Procurement Size", cap(request.procurementSize))}
+    <td colspan="3"><span class="lbl">PROCUREMENT REFERENCE NUMBER</span></td>
+    <td colspan="1"><span class="lbl">Financial year</span><span class="val">${finYear}</span></td>
+    <td colspan="2"><span class="lbl">Sequence Number</span><span class="val">${seqNo}</span></td>
   </tr>
-</table>
-
-<!-- PART II -->
-<div class="part-header">PART II &mdash; PROCUREMENT DETAILS</div>
-<table class="form">
   <tr>
-    <td colspan="4" style="border:1px solid #000;padding:0;vertical-align:top;">
-      <span class="fl">Subject of Procurement</span>
-      <span class="fv" style="font-size:12px;font-weight:bold;">${request.subjectOfProcurement || "—"}</span>
+    <td style="width:6%;"><span class="lbl">No.</span><span class="val">1</span></td>
+    <td colspan="2"><span class="lbl">Code of Procuring and Disposing Entity</span><span class="val">Kibuli SS</span></td>
+    <td colspan="2"><span class="lbl">Supplies/ works/ Non Consultancy services</span><span class="val">${request.category || ""}</span></td>
+    <td><span class="lbl">Week</span><span class="val">W${request.weekNumber}</span></td>
+  </tr>
+  <tr>
+    <td colspan="6"><span class="lbl">Category of procurement and budget</span>
+      <table style="margin-top:2px;border:none;">
+        <tr>
+          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Recurrent Budget</span><span class="val">${request.budgetCategory === "recurrent" ? "✓" : ""}</span></td>
+          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Development Budget</span><span class="val">${request.budgetCategory === "development" ? "✓" : ""}</span></td>
+          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Project Code</span><span class="val"></span></td>
+          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Project Title</span><span class="val"></span></td>
+        </tr>
+      </table>
     </td>
   </tr>
   <tr>
-    ${cell("Procurement Plan Reference", request.procurementPlanReference || "—", 2)}
-    ${cell("Location for Delivery", request.locationForDelivery || "—", 2)}
-  </tr>
-  <tr>
-    ${cell("Date Required", request.dateRequired || "—", 2)}
-    ${cell("Estimated Total Cost (UGX)", Number(request.estimatedTotalCost || 0).toLocaleString("en-UG"), 2)}
-  </tr>
-  <tr>
-    <td colspan="4" style="border:1px solid #000;padding:0;vertical-align:top;">
-      <span class="fl">Multi-year Procurement</span>
-      <span class="fv">${request.isMultiyear ? "Yes" : "No"}</span>
-    </td>
-  </tr>
-</table>
-
-<!-- ITEMS TABLE -->
-<div class="part-header">DETAILS RELATING TO PROCUREMENT</div>
-<table class="items">
-  <thead>
-    <tr>
-      <th style="width:4%;text-align:center;">#</th>
-      <th style="width:36%;">Description of Goods / Works / Services</th>
-      <th style="width:7%;text-align:center;">Qty</th>
-      <th style="width:8%;text-align:center;">Unit</th>
-      <th style="width:15%;text-align:right;">Unit Cost (UGX)</th>
-      <th style="width:15%;text-align:right;">Market Price (UGX)</th>
-      <th style="width:15%;text-align:right;">Total Cost (UGX)</th>
-    </tr>
-  </thead>
-  <tbody>${rows}</tbody>
-  <tfoot>
-    <tr>
-      <td colspan="6" style="border:1px solid #000;padding:3px 5px;text-align:right;font-weight:bold;background:#f0f0f0;">GRAND TOTAL (UGX)</td>
-      <td style="border:1px solid #000;padding:3px 5px;text-align:right;font-weight:bold;background:#f0f0f0;">${totalCost.toLocaleString("en-UG")}</td>
-    </tr>
-  </tfoot>
-</table>
-
-<!-- PART III -->
-<div class="part-header">PART III &mdash; FUND AVAILABILITY CHECK</div>
-<table class="form">
-  <tr>
-    ${cell("Vote", (request as any).voteName || "—", 2)}
-    ${cell("Sub-Programme", (request as any).subProgrammeName || "—", 2)}
-  </tr>
-  <tr>
-    ${cell("Budget Item", (request as any).budgetItemName || "—", 2)}
-    ${cell("Balance Remaining (UGX)", (request as any).balanceRemaining ? Number((request as any).balanceRemaining).toLocaleString("en-UG") : "—", 2)}
-  </tr>
-  <tr>
-    <td colspan="4" style="border:1px solid #000;padding:0;">
-      <span class="fl">Certification: I certify that funds are available for this procurement</span>
-      <span class="fv" style="min-height:14px;"></span>
+    <td colspan="6">
+      <span class="lbl">Is procurement going to result into multiyear contracting?&nbsp;&nbsp;&nbsp;${request.isMultiyear ? "<strong>YES</strong>" : "No"}</span>
+      <table style="margin-top:2px;border:none;">
+        <tr>
+          <td style="border:1px solid #000;padding:2px 4px;width:25%;"><span class="lbl">Required Resources (UGX Bn) Year One</span><span class="val"></span></td>
+          <td style="border:1px solid #000;padding:2px 4px;width:25%;"><span class="lbl">Required Resources (UGX Bn) Year Two</span><span class="val"></span></td>
+          <td style="border:1px solid #000;padding:2px 4px;width:25%;"><span class="lbl">Required Resources (UGX Bn) Year Three</span><span class="val"></span></td>
+          <td style="border:1px solid #000;padding:2px 4px;width:25%;"><span class="lbl">Required Resources (UGX Bn) Year Four</span><span class="val"></span></td>
+        </tr>
+      </table>
     </td>
   </tr>
 </table>
 
-<!-- SIGNATURES -->
-<div class="part-header">APPROVAL CHAIN &mdash; AUTHORISATION SIGNATURES</div>
-<table style="width:100%;border-collapse:collapse;">
+<!-- Particulars -->
+<table style="margin-top:4px;">
+  <tr><td colspan="4" class="sec">Particulars of procurement</td></tr>
   <tr>
-    ${sigCell("User Dept Member", "user_dept")}
-    ${sigCell("Head of Department", "head_of_dept")}
-    ${sigCell("Accounting Officer", "accounting_officer")}
+    <td style="width:30%;"><span class="lbl">Subject of procurement</span></td>
+    <td colspan="3"><span class="val">${request.subjectOfProcurement || ""}</span></td>
+  </tr>
+  <tr>
+    <td><span class="lbl">Procurement plan reference</span></td>
+    <td colspan="3"><span class="val">${request.procurementPlanReference || ""}</span></td>
+  </tr>
+  <tr>
+    <td><span class="lbl">Location for Delivery</span></td>
+    <td colspan="3"><span class="val">${request.locationForDelivery || ""}</span></td>
+  </tr>
+  <tr>
+    <td><span class="lbl">Date Required</span></td>
+    <td colspan="3"><span class="val">${request.dateRequired || ""}</span></td>
   </tr>
 </table>
 
-<div style="margin-top:8px;font-size:8px;color:#777;text-align:right;border-top:1px solid #ccc;padding-top:4px;">
-  Printed: ${new Date().toLocaleString("en-UG")} &nbsp;|&nbsp; Kibuli SS Procurement System &nbsp;|&nbsp; PPDA Act 2003 — TFORM 5
+<!-- Details / Items -->
+<table style="margin-top:4px;">
+  <tr><td colspan="6" class="sec">Details Relating to the Procurement</td></tr>
+  <tr>
+    <th style="width:5%;" class="c">Item<br/>No</th>
+    <th style="width:38%;">Description (attach sections, terms of<br/>reference or scope of works)</th>
+    <th style="width:7%;" class="c">Qty</th>
+    <th style="width:10%;" class="c">Unit of<br/>measure</th>
+    <th style="width:20%;" class="r">Estimated<br/>unit cost</th>
+    <th style="width:20%;" class="r">Market price of<br/>the procurement</th>
+  </tr>
+  ${itemRowsHtml}
+  <tr>
+    <td colspan="4" style="border:none;"></td>
+    <td colspan="2" style="text-align:right;font-weight:bold;background:#f5f5f5;">
+      Estimated Total Cost:&nbsp;&nbsp;&nbsp;${totalCost ? totalCost.toLocaleString("en-UG") : ""}
+    </td>
+  </tr>
+</table>
+
+<!-- Signatures row: User Dept left, HoD right -->
+<table style="margin-top:4px;border:1px solid #000;">
+  <tr>
+    <td style="width:50%;border:1px solid #000;padding:6px;vertical-align:top;">
+      <div style="font-weight:bold;margin-bottom:4px;">Request for Procurement<br/>(User Department)</div>
+      ${sigLine(userSig)}
+    </td>
+    <td style="width:50%;border:1px solid #000;padding:6px;vertical-align:top;">
+      <div style="font-weight:bold;margin-bottom:4px;">Confirmation of Request<br/>(Head of User Department)</div>
+      ${sigLine(hodSig)}
+    </td>
+  </tr>
+</table>
+
+<!-- Fund availability -->
+<table style="margin-top:4px;">
+  <tr>
+    <td colspan="5" style="font-size:9px;font-style:italic;border:1px solid #000;padding:3px 4px;">
+      Availability of funds to be confirmed prior to approval by Accounting officer/ Head teacher
+    </td>
+  </tr>
+  <tr>
+    <th style="width:20%;">Vote</th>
+    <th style="width:20%;">Programme</th>
+    <th style="width:20%;">Sub-Programme</th>
+    <th style="width:20%;">Item</th>
+    <th style="width:20%;">Balance remaining</th>
+  </tr>
+  <tr>
+    <td><span class="val">${(request as any).voteName || ""}</span></td>
+    <td><span class="val"></span></td>
+    <td><span class="val">${(request as any).subProgrammeName || ""}</span></td>
+    <td><span class="val">${(request as any).budgetItemName || ""}</span></td>
+    <td class="r"><span class="val">${(request as any).balanceRemaining ? Number((request as any).balanceRemaining).toLocaleString("en-UG") : ""}</span></td>
+  </tr>
+</table>
+
+<!-- Accounting Officer confirmation -->
+<table style="margin-top:4px;border:1px solid #000;">
+  <tr>
+    <td style="padding:6px;vertical-align:top;">
+      <div style="font-weight:bold;margin-bottom:4px;">Confirmation of Funding and Approval to Procure<br/>(Accounting Officer/ Head teacher)</div>
+      <table style="border:none;width:100%;">
+        <tr>
+          <td style="border:none;width:50%;padding:2px 0;">
+            ${sigLine(aoSig)}
+          </td>
+          <td style="border:none;width:50%;padding:2px 0;"></td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+<div style="margin-top:6px;font-size:7.5px;color:#777;text-align:right;">
+  Printed: ${new Date().toLocaleString("en-UG")} &mdash; Kibuli SS Procurement System
 </div>
 
 </body>
