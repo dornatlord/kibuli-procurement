@@ -1,8 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
 import session from "express-session";
 import cors from "cors";
-import connectPgSimple from "connect-pg-simple";
-import pg from "pg";
 import authRouter from "./routes/auth.js";
 import requestsRouter from "./routes/requests.js";
 import budgetRouter from "./routes/budget.js";
@@ -33,15 +31,11 @@ app.use(
 
 app.use(express.json());
 
-const PgSession = connectPgSimple(session);
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
-
+// Use memory store to avoid DB dependency at startup
+// Sessions reset on redeploy — acceptable for free tier
 app.use(
   session({
-    store: new PgSession({ pool, createTableIfMissing: true }),
+    store: new session.MemoryStore(),
     secret: process.env.SESSION_SECRET || "kibuli-secret-change-me",
     resave: false,
     saveUninitialized: false,
