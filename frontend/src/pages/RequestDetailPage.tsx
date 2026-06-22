@@ -67,27 +67,42 @@ function fmt(n: string | number | null | undefined) {
 }
 
 function printTForm(request: Request) {
-  const sigBlock = (label: string, role: string) => {
-    const sig = request.signatures.find((s) => s.role === role);
-    return `
-      <div class="sig-block">
-        <div class="sig-label">${label}</div>
-        <div class="sig-name">${sig ? sig.name : ""}</div>
-        <div class="sig-line"></div>
-        <div class="sig-date">${sig ? new Date(sig.signedAt).toLocaleDateString("en-UG") : ""}</div>
-      </div>`;
-  };
+  const sig = (role: string) => request.signatures.find((s) => s.role === role);
 
-  const rows = request.items.map((it, i) => `
-    <tr>
-      <td>${i + 1}</td>
-      <td>${it.description}</td>
-      <td>${it.quantity || ""}</td>
-      <td>${it.unitOfMeasure || ""}</td>
-      <td class="num">${fmt(it.estimatedUnitCost)}</td>
-      <td class="num">${fmt(it.marketPrice)}</td>
-      <td class="num"><strong>${fmt(it.totalCost)}</strong></td>
+  const cap = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "—";
+
+  // Pad items to at least 5 rows for the table
+  const itemRows = [...request.items];
+  while (itemRows.length < 5) itemRows.push({ id: 0, itemNo: itemRows.length + 1, description: "", quantity: "", unitOfMeasure: "", estimatedUnitCost: "", marketPrice: "", totalCost: "" });
+
+  const rows = itemRows.map((it, i) => `
+    <tr style="height:22px;">
+      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${it.description ? i + 1 : ""}</td>
+      <td style="border:1px solid #000;padding:3px 5px;">${it.description || ""}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${it.quantity || ""}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:center;">${it.unitOfMeasure || ""}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : ""}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:right;">${it.marketPrice ? Number(it.marketPrice).toLocaleString("en-UG") : ""}</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:right;font-weight:bold;">${it.totalCost ? Number(it.totalCost).toLocaleString("en-UG") : ""}</td>
     </tr>`).join("");
+
+  const totalCost = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
+
+  const cell = (label: string, value: string, colspan = 1, rowspan = 1) =>
+    `<td colspan="${colspan}" rowspan="${rowspan}" style="border:1px solid #000;padding:0;vertical-align:top;">
+      <div style="font-size:8px;font-weight:bold;color:#333;padding:2px 4px 0;text-transform:uppercase;">${label}</div>
+      <div style="font-size:11px;padding:2px 4px 4px;">${value}</div>
+    </td>`;
+
+  const sigCell = (label: string, role: string) => {
+    const s = sig(role);
+    return `<td style="border:1px solid #000;padding:6px;vertical-align:top;width:33%;">
+      <div style="font-size:8px;font-weight:bold;text-transform:uppercase;margin-bottom:2px;">${label}</div>
+      <div style="font-size:10px;font-weight:bold;min-height:16px;">${s ? s.name : ""}</div>
+      <div style="border-top:1px solid #000;margin:18px 0 2px;"></div>
+      <div style="font-size:8px;color:#555;">Signature &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date: ${s ? new Date(s.signedAt).toLocaleDateString("en-UG") : "___________"}</div>
+    </td>`;
+  };
 
   const html = `<!DOCTYPE html>
 <html>
@@ -95,78 +110,136 @@ function printTForm(request: Request) {
 <meta charset="utf-8"/>
 <title>TFORM5 — ${request.referenceNumber}</title>
 <style>
-  body { font-family: Arial, sans-serif; font-size: 11px; color: #000; margin: 20mm; }
-  h2 { text-align: center; font-size: 14px; margin: 0; }
-  .subtitle { text-align: center; font-size: 11px; margin-bottom: 12px; }
-  .ref { text-align: center; font-size: 12px; font-weight: bold; margin-bottom: 16px; letter-spacing: 1px; }
-  .part-header { background: #1a5c2a; color: #fff; padding: 4px 8px; font-weight: bold; font-size: 11px; margin: 12px 0 6px; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; margin-bottom: 8px; }
-  .field { border-bottom: 1px solid #555; padding-bottom: 2px; }
-  .field label { display: block; font-size: 9px; text-transform: uppercase; color: #555; }
-  .field span { font-size: 11px; }
-  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-  th { background: #1a5c2a; color: #fff; padding: 4px 6px; text-align: left; font-size: 10px; }
-  td { border-bottom: 1px solid #ccc; padding: 4px 6px; font-size: 10px; }
-  .num { text-align: right; }
-  .sig-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 16px; }
-  .sig-block { border: 1px solid #555; padding: 8px; min-height: 60px; }
-  .sig-label { font-size: 9px; text-transform: uppercase; font-weight: bold; margin-bottom: 20px; }
-  .sig-name { font-size: 10px; font-weight: bold; }
-  .sig-line { border-top: 1px solid #000; margin: 4px 0; }
-  .sig-date { font-size: 9px; color: #555; }
-  .status-box { border: 2px solid #1a5c2a; display: inline-block; padding: 2px 10px; font-weight: bold; font-size: 12px; float: right; margin-top: -8px; }
-  @media print { body { margin: 10mm 15mm; } }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 12mm 14mm; }
+  .header { text-align: center; margin-bottom: 8px; }
+  .header h1 { font-size: 15px; font-weight: bold; letter-spacing: 0.5px; }
+  .header p { font-size: 10px; margin-top: 2px; }
+  .ref-row { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
+  .ref-num { font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+  .status-badge { border: 2px solid #000; padding: 3px 14px; font-weight: bold; font-size: 12px; }
+  .part-header { background: #1a5c2a; color: #fff; padding: 4px 8px; font-weight: bold; font-size: 10px; margin: 8px 0 0; }
+  table.form { width: 100%; border-collapse: collapse; }
+  table.form td { border: 1px solid #000; padding: 0; vertical-align: top; }
+  table.items { width: 100%; border-collapse: collapse; margin: 0; }
+  table.items th { border: 1px solid #000; padding: 4px 5px; background: #1a5c2a; color: #fff; font-size: 9px; text-align: left; }
+  table.items td { border: 1px solid #000; padding: 3px 5px; font-size: 10px; }
+  table.items tfoot td { font-weight: bold; background: #f0f0f0; }
+  .fl { font-size: 8px; font-weight: bold; color: #333; padding: 2px 4px 0; text-transform: uppercase; display: block; }
+  .fv { font-size: 11px; padding: 2px 4px 5px; display: block; min-height: 18px; }
+  @media print { body { padding: 8mm 10mm; } @page { size: A4; margin: 0; } }
 </style>
 </head>
 <body>
-<h2>KIBULI SECONDARY SCHOOL</h2>
-<div class="subtitle">Procurement Management System — PPDA Act 2003 (TFORM 5)</div>
-<div class="ref">${request.referenceNumber} <span class="status-box">${request.status.replace(/_/g," ").toUpperCase()}</span></div>
 
-<div class="part-header">PART I — IDENTIFICATION</div>
-<div class="grid">
-  <div class="field"><label>Entity Code</label><span>Kibuli SS</span></div>
-  <div class="field"><label>Category</label><span>${request.category}</span></div>
-  <div class="field"><label>Year Type</label><span>${request.yearType || "Calendar Year"}</span></div>
-  <div class="field"><label>Year / Week</label><span>${request.year} / W${request.weekNumber}</span></div>
-  <div class="field"><label>Budget Category</label><span>${request.budgetCategory}</span></div>
-  <div class="field"><label>Procurement Size</label><span>${request.procurementSize}</span></div>
+<div class="header">
+  <h1>KIBULI SECONDARY SCHOOL</h1>
+  <p>Procurement Management System &mdash; PPDA Act 2003 &nbsp;|&nbsp; <strong>TFORM 5</strong></p>
 </div>
 
-<div class="part-header">PART II — PROCUREMENT DETAILS</div>
-<div class="grid">
-  <div class="field" style="grid-column:span 2"><label>Subject of Procurement</label><span>${request.subjectOfProcurement || "—"}</span></div>
-  <div class="field"><label>Procurement Plan Reference</label><span>${request.procurementPlanReference || "—"}</span></div>
-  <div class="field"><label>Location for Delivery</label><span>${request.locationForDelivery || "—"}</span></div>
-  <div class="field"><label>Date Required</label><span>${request.dateRequired || "—"}</span></div>
-  <div class="field"><label>Estimated Total Cost (UGX)</label><span><strong>${fmt(request.estimatedTotalCost)}</strong></span></div>
-  <div class="field"><label>Multi-year Procurement</label><span>${request.isMultiyear ? "Yes" : "No"}</span></div>
+<div class="ref-row">
+  <span class="ref-num">${request.referenceNumber}</span>
+  <span class="status-badge">${request.status.replace(/_/g," ").toUpperCase()}</span>
 </div>
 
-<div class="part-header">DETAILS RELATING TO PROCUREMENT</div>
-<table>
-  <thead><tr><th>#</th><th>Description</th><th>Qty</th><th>Unit</th><th class="num">Unit Cost</th><th class="num">Market Price</th><th class="num">Total</th></tr></thead>
-  <tbody>${rows}</tbody>
+<!-- PART I -->
+<div class="part-header">PART I &mdash; IDENTIFICATION</div>
+<table class="form">
+  <tr>
+    ${cell("Entity Code", "Kibuli Secondary School")}
+    ${cell("Sequence No.", request.referenceNumber.split("/").pop() || "—")}
+    ${cell("Category", cap(request.category))}
+    ${cell("Year Type", cap(request.yearType || "Calendar"))}
+  </tr>
+  <tr>
+    ${cell("Year", String(request.year))}
+    ${cell("Week No.", "W" + request.weekNumber)}
+    ${cell("Budget Category", cap(request.budgetCategory))}
+    ${cell("Procurement Size", cap(request.procurementSize))}
+  </tr>
 </table>
 
-<div class="part-header">PART III — FUND AVAILABILITY CHECK</div>
-<div class="grid">
-  <div class="field"><label>Vote</label><span>${(request as any).voteName || "—"}</span></div>
-  <div class="field"><label>Sub-Programme</label><span>${(request as any).subProgrammeName || "—"}</span></div>
-  <div class="field"><label>Budget Item</label><span>${(request as any).budgetItemName || "—"}</span></div>
-  <div class="field"><label>Balance Remaining (UGX)</label><span>${fmt((request as any).balanceRemaining)}</span></div>
+<!-- PART II -->
+<div class="part-header">PART II &mdash; PROCUREMENT DETAILS</div>
+<table class="form">
+  <tr>
+    <td colspan="4" style="border:1px solid #000;padding:0;vertical-align:top;">
+      <span class="fl">Subject of Procurement</span>
+      <span class="fv" style="font-size:12px;font-weight:bold;">${request.subjectOfProcurement || "—"}</span>
+    </td>
+  </tr>
+  <tr>
+    ${cell("Procurement Plan Reference", request.procurementPlanReference || "—", 2)}
+    ${cell("Location for Delivery", request.locationForDelivery || "—", 2)}
+  </tr>
+  <tr>
+    ${cell("Date Required", request.dateRequired || "—", 2)}
+    ${cell("Estimated Total Cost (UGX)", Number(request.estimatedTotalCost || 0).toLocaleString("en-UG"), 2)}
+  </tr>
+  <tr>
+    <td colspan="4" style="border:1px solid #000;padding:0;vertical-align:top;">
+      <span class="fl">Multi-year Procurement</span>
+      <span class="fv">${request.isMultiyear ? "Yes" : "No"}</span>
+    </td>
+  </tr>
+</table>
+
+<!-- ITEMS TABLE -->
+<div class="part-header">DETAILS RELATING TO PROCUREMENT</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th style="width:4%;text-align:center;">#</th>
+      <th style="width:36%;">Description of Goods / Works / Services</th>
+      <th style="width:7%;text-align:center;">Qty</th>
+      <th style="width:8%;text-align:center;">Unit</th>
+      <th style="width:15%;text-align:right;">Unit Cost (UGX)</th>
+      <th style="width:15%;text-align:right;">Market Price (UGX)</th>
+      <th style="width:15%;text-align:right;">Total Cost (UGX)</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+  <tfoot>
+    <tr>
+      <td colspan="6" style="border:1px solid #000;padding:3px 5px;text-align:right;font-weight:bold;background:#f0f0f0;">GRAND TOTAL (UGX)</td>
+      <td style="border:1px solid #000;padding:3px 5px;text-align:right;font-weight:bold;background:#f0f0f0;">${totalCost.toLocaleString("en-UG")}</td>
+    </tr>
+  </tfoot>
+</table>
+
+<!-- PART III -->
+<div class="part-header">PART III &mdash; FUND AVAILABILITY CHECK</div>
+<table class="form">
+  <tr>
+    ${cell("Vote", (request as any).voteName || "—", 2)}
+    ${cell("Sub-Programme", (request as any).subProgrammeName || "—", 2)}
+  </tr>
+  <tr>
+    ${cell("Budget Item", (request as any).budgetItemName || "—", 2)}
+    ${cell("Balance Remaining (UGX)", (request as any).balanceRemaining ? Number((request as any).balanceRemaining).toLocaleString("en-UG") : "—", 2)}
+  </tr>
+  <tr>
+    <td colspan="4" style="border:1px solid #000;padding:0;">
+      <span class="fl">Certification: I certify that funds are available for this procurement</span>
+      <span class="fv" style="min-height:14px;"></span>
+    </td>
+  </tr>
+</table>
+
+<!-- SIGNATURES -->
+<div class="part-header">APPROVAL CHAIN &mdash; AUTHORISATION SIGNATURES</div>
+<table style="width:100%;border-collapse:collapse;">
+  <tr>
+    ${sigCell("User Dept Member", "user_dept")}
+    ${sigCell("Head of Department", "head_of_dept")}
+    ${sigCell("Accounting Officer", "accounting_officer")}
+  </tr>
+</table>
+
+<div style="margin-top:8px;font-size:8px;color:#777;text-align:right;border-top:1px solid #ccc;padding-top:4px;">
+  Printed: ${new Date().toLocaleString("en-UG")} &nbsp;|&nbsp; Kibuli SS Procurement System &nbsp;|&nbsp; PPDA Act 2003 — TFORM 5
 </div>
 
-<div class="part-header">APPROVAL CHAIN — SIGNATURES</div>
-<div class="sig-row">
-  ${sigBlock("User Dept Member", "user_dept")}
-  ${sigBlock("Head of Department", "head_of_dept")}
-  ${sigBlock("Accounting Officer", "accounting_officer")}
-</div>
-
-<div style="margin-top:10px;font-size:9px;color:#777;text-align:right;">
-  Printed: ${new Date().toLocaleString("en-UG")} — Kibuli SS Procurement System
-</div>
 </body>
 </html>`;
 
