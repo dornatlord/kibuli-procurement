@@ -153,8 +153,8 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-siz
         <tr>
           <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Recurrent Budget</span><span class="val">${request.budgetCategory === "recurrent" ? "✓" : ""}</span></td>
           <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Development Budget</span><span class="val">${request.budgetCategory === "development" ? "✓" : ""}</span></td>
-          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Project Code</span><span class="val"></span></td>
-          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Project Title</span><span class="val"></span></td>
+          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Project Code (Vote)</span><span class="val">${(request as any).voteCode || ""}</span></td>
+          <td style="border:1px solid #000;padding:2px 6px;width:25%;"><span class="lbl">Project Title (Budget Item)</span><span class="val">${(request as any).budgetItemName || ""}</span></td>
         </tr>
       </table>
     </td>
@@ -237,18 +237,16 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-siz
     </td>
   </tr>
   <tr>
-    <th style="width:20%;">Vote</th>
-    <th style="width:20%;">Programme</th>
-    <th style="width:20%;">Sub-Programme</th>
-    <th style="width:20%;">Item</th>
-    <th style="width:20%;">Balance remaining</th>
+    <th style="width:25%;">Programme</th>
+    <th style="width:25%;">Sub-Programme</th>
+    <th style="width:25%;">Item</th>
+    <th style="width:25%;">Balance remaining</th>
   </tr>
   <tr>
     <td><span class="val">${(request as any).voteName || ""}</span></td>
-    <td><span class="val"></span></td>
     <td><span class="val">${(request as any).subProgrammeName || ""}</span></td>
     <td><span class="val">${(request as any).budgetItemName || ""}</span></td>
-    <td class="r"><span class="val">${(request as any).balanceRemaining ? Number((request as any).balanceRemaining).toLocaleString("en-UG") : ""}</span></td>
+    <td class="r"><span class="val">${(request as any).balanceRemainingManual ? Number((request as any).balanceRemainingManual).toLocaleString("en-UG") : ""}</span></td>
   </tr>
 </table>
 

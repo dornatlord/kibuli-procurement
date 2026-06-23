@@ -6,6 +6,9 @@ import {
   savedItems,
   requestSignatures,
   contractsCommitteeDecisions,
+  votes,
+  subProgrammes,
+  budgetItems,
 } from "../db/schema.js";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { requireAuth, requireRole } from "../middleware/auth.js";
@@ -71,7 +74,28 @@ router.get("/:id", requireAuth, async (req, res) => {
     .select()
     .from(contractsCommitteeDecisions)
     .where(eq(contractsCommitteeDecisions.procurementRequestId, request.id));
-  res.json({ ...request, items, signatures, decision: decision || null });
+
+  // Resolve names for vote, sub-programme, budget item
+  const [vote] = request.voteId
+    ? await db.select().from(votes).where(eq(votes.id, request.voteId))
+    : [null];
+  const [subProg] = request.subProgrammeId
+    ? await db.select().from(subProgrammes).where(eq(subProgrammes.id, request.subProgrammeId))
+    : [null];
+  const [budgetItem] = request.budgetItemId
+    ? await db.select().from(budgetItems).where(eq(budgetItems.id, request.budgetItemId))
+    : [null];
+
+  res.json({
+    ...request,
+    items,
+    signatures,
+    decision: decision || null,
+    voteCode: vote?.code || null,
+    voteName: vote?.name || null,
+    subProgrammeName: subProg ? `${subProg.romanNumeral ? subProg.romanNumeral + " " : ""}${subProg.name}` : null,
+    budgetItemName: budgetItem?.name || null,
+  });
 });
 
 router.post("/", requireAuth, async (req, res) => {
