@@ -96,78 +96,258 @@ function printTForm(request: Request) {
   const seqNo   = refParts[refParts.length - 1] || "";
   const finYear = refParts[2] || String(request.year);
 
-  const macroPartII = isMacro ? `
-<div style="page-break-before:always;"></div>
+  // Macro-only pages (4 & 5)
+  const macroPages = isMacro ? `
 
-<!-- PART II header -->
-<div style="text-align:center;font-weight:bold;font-size:10px;margin:8px 0 6px;">
-  PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
+<!-- PAGE 4: Part II Contracts Committee table -->
+<div style="page-break-before:always;padding:12mm 15mm;">
+  <div style="text-align:center;font-weight:bold;font-size:10px;margin-bottom:10px;">
+    PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
+  </div>
+  <table style="width:100%;border-collapse:collapse;">
+    <tr>
+      <td style="width:5%;border:1px solid #000;padding:3px;"></td>
+      <td style="width:45%;border:1px solid #000;padding:4px;font-weight:bold;text-align:center;">Submission by the Procurement<br/>and Disposal Unit</td>
+      <td style="width:25%;border:1px solid #000;padding:4px;font-weight:bold;text-align:center;">Decision of the<br/>Contracts Committee</td>
+      <td style="width:25%;border:1px solid #000;padding:4px;font-weight:bold;text-align:center;">Conditions/<br/>Justification for Decision</td>
+    </tr>
+    <tr>
+      <td style="border:1px solid #000;padding:3px;"></td>
+      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date of Submission to Contracts Committee:</td>
+      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date/Reference of Contracts<br/>Committee Meeting:</td>
+      <td style="border:1px solid #000;"></td>
+    </tr>
+    <tr style="height:55px;">
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;">1.</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Recommended method of procurement and justification</td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+    </tr>
+    <tr style="height:55px;">
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;">2.</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Names of shortlisted provider (s) and justification for selection</td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+    </tr>
+    <tr style="height:55px;">
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;">3.</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Bidding document. Persons involved in preparation of proposal document <em>(Names and positions)</em></td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+    </tr>
+    <tr style="height:55px;">
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;">4.</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Names of persons recommended to constitute the Evaluation Committee and the justification <em>(Names and positions)</em></td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+    </tr>
+    <tr style="height:35px;">
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;">5.</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Cost of the bidding document, if any</td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+    </tr>
+    <tr style="height:35px;">
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;">6.</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Any other information</td>
+      <td style="border:1px solid #000;"></td>
+      <td style="border:1px solid #000;"></td>
+    </tr>
+  </table>
 </div>
 
-<table>
+<!-- PAGE 5: Documents Attached + Declarations -->
+<div style="page-break-before:always;padding:12mm 15mm;">
+
+  <div style="font-size:9px;margin-bottom:16px;">
+    <div><em><strong>Documents attached:</strong></em></div>
+    <div style="margin-left:20px;margin-top:4px;">Bidding Document</div>
+  </div>
+
+  <div style="font-size:9px;margin-bottom:24px;">
+    <div style="font-weight:bold;">Declaration by Procurement and Disposal Unit</div>
+    <div style="margin-top:4px;">The information contained in this form and the attached documents is complete, true and accurate and in accordance with the Public Procurement and Disposal of Public Assets Act, 2003.</div>
+    <table style="width:100%;border-collapse:collapse;border:none;margin-top:18px;">
+      <tr>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", "")}</td>
+      </tr>
+      <tr>
+        <td style="border:none;">${dotLine("Position:", "")}</td>
+        <td style="border:none;">${dotLine("Date:", "")}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div style="font-size:9px;">
+    <div style="font-weight:bold;">Declaration by Contracts Committee</div>
+    <div style="margin-top:4px;">The information contained in this form is a true and accurate record of the decision of the Contracts Committee meeting held on the above date.</div>
+
+    <table style="width:100%;border-collapse:collapse;border:none;margin-top:18px;">
+      <tr>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", "")}</td>
+      </tr>
+      <tr>
+        <td style="border:none;">Position: &nbsp;<strong>Chairperson Contracts Committee</strong></td>
+        <td style="border:none;">${dotLine("Date:", "")}</td>
+      </tr>
+    </table>
+
+    <table style="width:100%;border-collapse:collapse;border:none;margin-top:24px;">
+      <tr>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", "")}</td>
+      </tr>
+      <tr>
+        <td style="border:none;">Position: &nbsp;<strong>Secretary Contracts Committee</strong></td>
+        <td style="border:none;">${dotLine("Date:", "")}</td>
+      </tr>
+    </table>
+  </div>
+
+</div>` : "";
+
+  const pg = (content: string) =>
+    `<div style="padding:12mm 15mm;min-height:${isMacro ? "257mm" : "auto"};">${content}</div>`;
+
+  const pageHeader = `
+<div style="text-align:right;font-size:9px;font-weight:bold;">FORM 5</div>
+<div style="text-align:right;font-size:8.5px;font-style:italic;">Regulation 3(1), 13(3), 15(3), 17(3) 24(2), 53(6), 54(5)</div>
+<div style="text-align:center;font-size:10px;margin-top:6px;">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
+<div style="text-align:center;font-size:10.5px;font-weight:bold;margin-top:4px;">REQUEST FOR APPROVAL OF PROCUREMENT</div>
+<div style="text-align:center;font-size:10px;font-weight:bold;margin-top:4px;">PART I: REQUEST BY USER DEPARTMENT FOR APPROVAL OF PROCUREMENT</div>`;
+
+  const page1Content = `
+${pageHeader}
+
+<table style="width:100%;border-collapse:collapse;margin-top:8px;">
+  <tr><td colspan="4" style="border:1px solid #000;padding:4px;text-align:center;font-weight:bold;">Procurement Reference Number</td></tr>
   <tr>
-    <td style="width:5%;border:1px solid #000;"></td>
-    <td style="width:45%;border:1px solid #000;padding:3px;font-weight:bold;text-align:center;">Submission by the Procurement<br/>and Disposal Unit</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;font-weight:bold;text-align:center;">Decision of the<br/>Contracts Committee</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;font-weight:bold;text-align:center;">Conditions/<br/>Justification for Decision</td>
+    <td style="width:30%;border:1px solid #000;padding:3px;text-align:center;">Code of Procuring and Disposing Entity</td>
+    <td style="width:30%;border:1px solid #000;padding:3px;text-align:center;">Supplies/Works/Non-consultancy<br/>services</td>
+    <td style="width:20%;border:1px solid #000;padding:3px;text-align:center;">Financial Year</td>
+    <td style="width:20%;border:1px solid #000;padding:3px;text-align:center;">Sequence Number</td>
   </tr>
-  <tr>
-    <td style="border:1px solid #000;"></td>
-    <td style="border:1px solid #000;padding:3px;font-weight:bold;">Date of Submission to Contracts Committee:</td>
-    <td style="border:1px solid #000;padding:3px;font-weight:bold;">Date/Reference of Contracts<br/>Committee Meeting:</td>
-    <td style="border:1px solid #000;"></td>
+  <tr style="height:22px;">
+    <td style="border:1px solid #000;padding:3px;">Kibuli Secondary School</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${request.category || ""}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${finYear}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${seqNo}</td>
   </tr>
-  ${[
-    ["1.", "Recommended method of procurement and justification"],
-    ["2.", "Names of shortlisted provider (s) and justification for selection"],
-    ["3.", "Bidding document. Persons involved in preparation of proposal document (Names and positions)"],
-    ["4.", "Names of persons recommended to constitute the Evaluation Committee and the justification (Names and positions)"],
-    ["5.", "Cost of the bidding document, if any"],
-    ["6.", "Any other information"],
-  ].map(([n, label]) => `
-  <tr style="height:40px;">
-    <td style="border:1px solid #000;padding:3px;vertical-align:top;">${n}</td>
-    <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${label}</td>
-    <td style="border:1px solid #000;"></td>
-    <td style="border:1px solid #000;"></td>
-  </tr>`).join("")}
 </table>
 
-<!-- Documents attached -->
-<div style="margin-top:12px;font-size:9px;">
-  <div><em><strong>Documents attached:</strong></em></div>
-  <div style="margin-left:16px;">Bidding Document</div>
-</div>
+<div style="margin-top:8px;font-size:9px;">Category of procurement and budget</div>
+<table style="width:100%;border-collapse:collapse;margin-top:2px;">
+  <tr>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Recurrent Budget</td>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Development Budget</td>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Project Code</td>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Project Title</td>
+  </tr>
+  <tr style="height:22px;">
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${request.budgetCategory === "recurrent" ? "✓" : ""}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${request.budgetCategory === "development" ? "✓" : ""}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${(request as any).voteCode || ""}</td>
+    <td style="border:1px solid #000;padding:3px;">${(request as any).budgetItemName || ""}</td>
+  </tr>
+</table>
 
-<!-- Declaration PDU -->
-<div style="margin-top:12px;font-size:9px;">
-  <div style="font-weight:bold;">Declaration by Procurement and Disposal Unit</div>
-  <div style="margin-top:2px;">The information contained in this form and the attached documents is complete, true and accurate and in accordance with the Public Procurement and Disposal of Public Assets Act, 2003.</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 40px;margin-top:10px;">
-    <div>${dotLine("Signature:", "")}</div>
-    <div>${dotLine("Name:", "")}</div>
-    <div>${dotLine("Position:", "")}</div>
-    <div>${dotLine("Date:", "")}</div>
-  </div>
-</div>
+<div style="margin-top:8px;font-size:9px;">Is procurement going to result into multiyear contracting?</div>
+<table style="width:100%;border-collapse:collapse;margin-top:2px;">
+  <tr>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year One</td>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year Two</td>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year Three</td>
+    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year Four</td>
+  </tr>
+  <tr style="height:22px;"><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td></tr>
+</table>`;
 
-<!-- Declaration Contracts Committee -->
-<div style="margin-top:14px;font-size:9px;">
-  <div style="font-weight:bold;">Declaration by Contracts Committee</div>
-  <div style="margin-top:2px;">The information contained in this form is a true and accurate record of the decision of the Contracts Committee meeting held on the above date.</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 40px;margin-top:10px;">
-    <div>${dotLine("Signature:", "")}</div>
-    <div>${dotLine("Name:", "")}</div>
-    <div>${dotLine("Position:", "<strong>Chairperson Contracts Committee</strong>")}</div>
-    <div>${dotLine("Date:", "")}</div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 40px;margin-top:10px;">
-    <div>${dotLine("Signature:", "")}</div>
-    <div>${dotLine("Name:", "")}</div>
-    <div>${dotLine("Position:", "<strong>Secretary Contracts Committee</strong>")}</div>
-    <div>${dotLine("Date:", "")}</div>
-  </div>
-</div>` : "";
+  const page2Content = `
+<table style="width:100%;border-collapse:collapse;">
+  <tr><td colspan="2" style="border:1px solid #000;padding:4px;font-weight:bold;">Particulars of Procurement</td></tr>
+  <tr><td style="width:35%;border:1px solid #000;padding:3px;">Subject of Procurement</td><td style="border:1px solid #000;padding:3px;">${request.subjectOfProcurement || ""}</td></tr>
+  <tr><td style="border:1px solid #000;padding:3px;">Procurement Plan Reference</td><td style="border:1px solid #000;padding:3px;">${request.procurementPlanReference || ""}</td></tr>
+  <tr><td style="border:1px solid #000;padding:3px;">Location for Delivery</td><td style="border:1px solid #000;padding:3px;">${request.locationForDelivery || ""}</td></tr>
+  <tr><td style="border:1px solid #000;padding:3px;">Date Required</td><td style="border:1px solid #000;padding:3px;">${request.dateRequired || ""}</td></tr>
+</table>
+
+<table style="width:100%;border-collapse:collapse;margin-top:6px;">
+  <tr><td colspan="6" style="border:1px solid #000;padding:4px;text-align:center;font-weight:bold;">Details Relating to the Procurement</td></tr>
+  <tr>
+    <th style="width:5%;border:1px solid #000;padding:3px;text-align:center;">Item<br/>No.</th>
+    <th style="width:40%;border:1px solid #000;padding:3px;text-align:center;">Description<br/><em>(Attach specifications, terms of reference or scope of works)</em></th>
+    <th style="width:8%;border:1px solid #000;padding:3px;text-align:center;">Quantity</th>
+    <th style="width:10%;border:1px solid #000;padding:3px;text-align:center;">Unit of<br/>Measure</th>
+    <th style="width:18%;border:1px solid #000;padding:3px;text-align:center;">Estimated<br/>Unit Cost</th>
+    <th style="width:19%;border:1px solid #000;padding:3px;text-align:center;">Market price of the<br/>procurement</th>
+  </tr>
+  ${itemRowsHtml}
+  <tr>
+    <td colspan="4" style="border:none;"></td>
+    <td colspan="2" style="border:1px solid #000;padding:3px;font-weight:bold;text-align:right;">
+      Estimated Total Cost: (Ug: x)&nbsp;&nbsp;${totalCost ? totalCost.toLocaleString("en-UG") : ""}
+    </td>
+  </tr>
+</table>`;
+
+  const page3Content = `
+<table style="width:100%;border-collapse:collapse;border:none;">
+  <tr>
+    <td style="width:50%;border:none;vertical-align:top;padding-right:16px;">
+      <div style="font-size:9px;"><strong>(1)&nbsp; Request for Procurement</strong><br/><em>(Member of user department)</em></div>
+      <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
+      <div style="margin-top:4px;">${dotLine("Name:", userSig ? userSig.name : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Title:", userSig ? (userSig.title || "") : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Date:", userSig ? new Date(userSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
+    </td>
+    <td style="width:50%;border:none;vertical-align:top;padding-left:16px;">
+      <div style="font-size:9px;"><strong>(2)&nbsp; Confirmation of Request</strong><br/><em>(Head of user department)</em></div>
+      <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
+      <div style="margin-top:4px;">${dotLine("Name:", hodSig ? hodSig.name : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Title:", hodSig ? (hodSig.title || "") : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Date:", hodSig ? new Date(hodSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
+    </td>
+  </tr>
+</table>
+
+<div style="margin-top:16px;font-size:8.5px;font-style:italic;">Availability of funds to be confirmed prior to approval by Accounting Officer/ Head teacher:</div>
+<table style="width:100%;border-collapse:collapse;margin-top:4px;">
+  <tr>
+    <th style="width:20%;border:1px solid #000;padding:3px;text-align:center;">Vote/head No</th>
+    <th style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Programme</th>
+    <th style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Sub-programme</th>
+    <th style="width:15%;border:1px solid #000;padding:3px;text-align:center;">Item</th>
+    <th style="width:15%;border:1px solid #000;padding:3px;text-align:center;">Balance remaining</th>
+  </tr>
+  <tr style="height:24px;">
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${(request as any).voteCode || ""}</td>
+    <td style="border:1px solid #000;padding:3px;">${(request as any).voteName || ""}</td>
+    <td style="border:1px solid #000;padding:3px;">${(request as any).subProgrammeName || ""}</td>
+    <td style="border:1px solid #000;padding:3px;">${(request as any).budgetItemName || ""}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:right;">${(request as any).balanceRemainingManual ? Number((request as any).balanceRemainingManual).toLocaleString("en-UG") : ""}</td>
+  </tr>
+</table>
+
+<table style="width:100%;border-collapse:collapse;border:none;margin-top:16px;">
+  <tr>
+    <td style="width:50%;border:none;vertical-align:top;">
+      <div style="font-size:9px;"><strong>(3)&nbsp; Confirmation of Funding and Approval to Procure</strong><br/><em>(Accounting Officer)</em></div>
+      <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
+      <div style="margin-top:4px;">${dotLine("Title:", aoSig ? (aoSig.title || "Accounting Officer") : "")}</div>
+    </td>
+    <td style="width:50%;border:none;vertical-align:top;padding-left:16px;">
+      <div style="font-size:9px;">&nbsp;</div>
+      <div style="margin-top:10px;">${dotLine("Name:", aoSig ? aoSig.name : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Date:", aoSig ? new Date(aoSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
+    </td>
+  </tr>
+</table>
+
+<div style="margin-top:12px;font-size:7.5px;color:#777;text-align:right;border-top:1px solid #ccc;padding-top:3px;">
+  Printed: ${new Date().toLocaleString("en-UG")} &mdash; Kibuli Secondary School Procurement System
+</div>`;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -176,163 +356,18 @@ function printTForm(request: Request) {
 <title>FORM 5 &mdash; ${request.referenceNumber}</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; padding: 12mm 15mm; }
-table { width: 100%; border-collapse: collapse; }
-td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; }
-.c { text-align: center; }
-.r { text-align: right; }
-.bold { font-weight: bold; }
-.center { text-align: center; }
-.italic { font-style: italic; }
-@media print { body { padding: 8mm 10mm; } @page { size: A4 portrait; margin: 0; } }
+body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; }
+.page { padding: 12mm 15mm; }
+.page-break { page-break-before: always; }
+@media print { @page { size: A4 portrait; margin: 0; } }
 </style>
 </head>
 <body>
 
-<!-- Header -->
-<div style="text-align:right;font-size:9px;font-weight:bold;">FORM 5</div>
-<div style="text-align:right;font-size:8.5px;font-style:italic;">Regulation 3(1), 13(3), 15(3), 17(3) 24(2), 53(6), 54(5)</div>
-<div style="text-align:center;font-size:10px;margin-top:6px;">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
-<div style="text-align:center;font-size:10px;font-weight:bold;margin-top:4px;">REQUEST FOR APPROVAL OF PROCUREMENT</div>
-<div style="text-align:center;font-size:10px;font-weight:bold;margin-top:4px;">PART I: REQUEST BY USER DEPARTMENT FOR APPROVAL OF PROCUREMENT</div>
-
-<!-- Procurement Reference Number table -->
-<table style="margin-top:6px;">
-  <tr>
-    <td colspan="4" class="center bold" style="padding:3px;">Procurement Reference Number</td>
-  </tr>
-  <tr>
-    <td style="width:30%;" class="center">Code of Procuring and Disposing Entity</td>
-    <td style="width:30%;" class="center">Supplies/Works/Non-consultancy<br/>services</td>
-    <td style="width:20%;" class="center">Financial Year</td>
-    <td style="width:20%;" class="center">Sequence Number</td>
-  </tr>
-  <tr style="height:18px;">
-    <td>Kibuli Secondary School</td>
-    <td class="center">${request.category || ""}</td>
-    <td class="center">${finYear}</td>
-    <td class="center">${seqNo}</td>
-  </tr>
-</table>
-
-<!-- Category of procurement -->
-<div style="margin-top:6px;font-size:9px;">Category of procurement and budget</div>
-<table style="margin-top:2px;">
-  <tr>
-    <td style="width:25%;" class="center">Recurrent Budget</td>
-    <td style="width:25%;" class="center">Development Budget</td>
-    <td style="width:25%;" class="center">Project Code</td>
-    <td style="width:25%;" class="center">Project Title</td>
-  </tr>
-  <tr style="height:18px;">
-    <td class="center">${request.budgetCategory === "recurrent" ? "✓" : ""}</td>
-    <td class="center">${request.budgetCategory === "development" ? "✓" : ""}</td>
-    <td class="center">${(request as any).voteCode || ""}</td>
-    <td>${(request as any).budgetItemName || ""}</td>
-  </tr>
-</table>
-
-<!-- Multiyear -->
-<div style="margin-top:6px;font-size:9px;">Is procurement going to result into multiyear contracting?</div>
-<table style="margin-top:2px;">
-  <tr>
-    <td style="width:25%;" class="center">Required Resources (UGX Bn) Year<br/>One</td>
-    <td style="width:25%;" class="center">Required Resources (UGX Bn) Year<br/>Two</td>
-    <td style="width:25%;" class="center">Required Resources (UGX Bn)<br/>Year Three</td>
-    <td style="width:25%;" class="center">Required Resources (UGX Bn) Year<br/>Four</td>
-  </tr>
-  <tr style="height:18px;"><td></td><td></td><td></td><td></td></tr>
-</table>
-
-<!-- Particulars of Procurement -->
-<table style="margin-top:6px;">
-  <tr><td colspan="2" class="bold" style="background:#f0f0f0;">Particulars of Procurement</td></tr>
-  <tr><td style="width:35%;">Subject of Procurement</td><td>${request.subjectOfProcurement || ""}</td></tr>
-  <tr><td>Procurement Plan Reference</td><td>${request.procurementPlanReference || ""}</td></tr>
-  <tr><td>Location for Delivery</td><td>${request.locationForDelivery || ""}</td></tr>
-  <tr><td>Date Required</td><td>${request.dateRequired || ""}</td></tr>
-</table>
-
-<!-- Details Relating to the Procurement -->
-<table style="margin-top:6px;">
-  <tr><td colspan="6" class="center bold" style="background:#f0f0f0;">Details Relating to the Procurement</td></tr>
-  <tr>
-    <th style="width:5%;" class="c">Item<br/>No.</th>
-    <th style="width:40%;" class="c">Description<br/><em>(Attach specifications, terms of reference or scope of works)</em></th>
-    <th style="width:8%;" class="c">Quantity</th>
-    <th style="width:10%;" class="c">Unit of<br/>Measure</th>
-    <th style="width:18%;" class="c">Estimated<br/>Unit Cost</th>
-    <th style="width:19%;" class="c">Market price of the<br/>procurement</th>
-  </tr>
-  ${itemRowsHtml}
-  <tr>
-    <td colspan="4" style="border:none;background:white;"></td>
-    <td colspan="2" style="border:1px solid #000;padding:3px;font-weight:bold;">
-      Estimated Total Cost: (Ug: x)&nbsp;&nbsp;${totalCost ? totalCost.toLocaleString("en-UG") : ""}
-    </td>
-  </tr>
-</table>
-
-<!-- Signature blocks: (1) User Dept + (2) HoD -->
-<table style="margin-top:6px;border:none;">
-  <tr>
-    <td style="width:50%;border:none;vertical-align:top;padding-right:10px;">
-      <div style="font-size:9px;"><strong>(1)&nbsp; Request for Procurement</strong><br/><em>(Member of user department)</em></div>
-      <div style="margin-top:6px;">${dotLine("Signature:", "")}</div>
-      <div>${dotLine("Name:", userSig ? userSig.name : "")}</div>
-      <div>${dotLine("Title:", userSig ? (userSig.title || "") : "")}</div>
-      <div>${dotLine("Date:", userSig ? new Date(userSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
-    </td>
-    <td style="width:50%;border:none;vertical-align:top;padding-left:10px;">
-      <div style="font-size:9px;"><strong>(2)&nbsp; Confirmation of Request</strong><br/><em>(Head of user department)</em></div>
-      <div style="margin-top:6px;">${dotLine("Signature", "")}</div>
-      <div>${dotLine("Name", hodSig ? hodSig.name : "")}</div>
-      <div>${dotLine("Title", hodSig ? (hodSig.title || "") : "")}</div>
-      <div>${dotLine("Date", hodSig ? new Date(hodSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
-    </td>
-  </tr>
-</table>
-
-<!-- Fund availability -->
-<div style="margin-top:8px;font-size:8.5px;font-style:italic;">Availability of funds to be confirmed prior to approval by Accounting Officer/ Head teacher:</div>
-<table style="margin-top:2px;">
-  <tr>
-    <th style="width:20%;" class="c">Vote/head No</th>
-    <th style="width:25%;" class="c">Programme</th>
-    <th style="width:25%;" class="c">Sub-programme</th>
-    <th style="width:15%;" class="c">Item</th>
-    <th style="width:15%;" class="c">Balance remaining</th>
-  </tr>
-  <tr style="height:20px;">
-    <td class="c">${(request as any).voteCode || ""}</td>
-    <td>${(request as any).voteName || ""}</td>
-    <td>${(request as any).subProgrammeName || ""}</td>
-    <td>${(request as any).budgetItemName || ""}</td>
-    <td class="r">${(request as any).balanceRemainingManual ? Number((request as any).balanceRemainingManual).toLocaleString("en-UG") : ""}</td>
-  </tr>
-</table>
-
-<!-- (3) Accounting Officer -->
-<table style="margin-top:6px;border:none;">
-  <tr>
-    <td style="width:50%;border:none;vertical-align:top;">
-      <div style="font-size:9px;"><strong>(3)&nbsp; Confirmation of Funding and Approval to Procure</strong><br/><em>(Accounting Officer)</em></div>
-      <div style="margin-top:6px;">${dotLine("Signature:", "")}</div>
-      <div>${dotLine("Title:", aoSig ? (aoSig.title || "Accounting Officer") : "")}</div>
-    </td>
-    <td style="width:50%;border:none;vertical-align:top;padding-left:10px;">
-      <div style="font-size:9px;">&nbsp;</div>
-      <div style="margin-top:6px;">${dotLine("Name:", aoSig ? aoSig.name : "")}</div>
-      <div>${dotLine("Date:", aoSig ? new Date(aoSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
-    </td>
-  </tr>
-</table>
-
-${macroPartII}
-
-<div style="margin-top:8px;font-size:7.5px;color:#777;text-align:right;border-top:1px solid #ccc;padding-top:3px;">
-  Printed: ${new Date().toLocaleString("en-UG")} &mdash; Kibuli Secondary School Procurement System
-</div>
+<div class="page">${page1Content}</div>
+<div class="page page-break">${page2Content}</div>
+<div class="page page-break">${page3Content}</div>
+${macroPages}
 
 </body>
 </html>`;
