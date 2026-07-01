@@ -100,7 +100,7 @@ function printTForm(request: Request) {
   const macroPages = isMacro ? `
 
 <!-- PAGE 4: Part II Contracts Committee table -->
-<div class="page">
+<div class="page p4">
   <div style="text-align:center;font-weight:bold;font-size:10px;margin-bottom:10px;">
     PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
   </div>
@@ -157,7 +157,7 @@ function printTForm(request: Request) {
 </div>
 
 <!-- PAGE 5: Documents Attached + Declarations -->
-<div class="page">
+<div class="page p5">
 
   <div style="font-size:9px;margin-bottom:16px;">
     <div><em><strong>Documents attached:</strong></em></div>
@@ -354,24 +354,37 @@ ${pageHeader}
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
+
+/* Named page orientations */
+@page land { size: A4 landscape; margin: 0; }
+@page port { size: A4 portrait;  margin: 0; }
+
+/* Page 1: Landscape */
+.p1 { page: land; width: 297mm; height: 210mm; padding: 12mm 16mm; }
+/* Page 2: Portrait */
+.p2 { page: port; width: 210mm; height: 297mm; padding: 12mm 16mm; }
+/* Page 3: Portrait */
+.p3 { page: port; width: 210mm; height: 297mm; padding: 12mm 16mm; }
+/* Page 4: Landscape (macro only) */
+.p4 { page: land; width: 297mm; height: 210mm; padding: 12mm 16mm; }
+/* Page 5: Portrait (macro only) */
+.p5 { page: port; width: 210mm; height: 297mm; padding: 12mm 16mm; }
+
 .page {
-  width: 210mm;
-  height: 297mm;
-  padding: 15mm 18mm;
   overflow: hidden;
   page-break-after: always;
   page-break-inside: avoid;
   display: block;
 }
 .page:last-of-type { page-break-after: auto; }
+
 @media screen {
-  body { background: #ccc; }
-  .page { background: #fff; margin: 8mm auto; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+  body { background: #888; }
+  .page { background: #fff; margin: 8mm auto; box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
 }
 @media print {
   body { background: #fff; }
   .page { margin: 0; box-shadow: none; }
-  @page { size: A4 portrait; margin: 0; }
 }
 table { width: 100%; border-collapse: collapse; }
 td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-size: 9px; }
@@ -379,9 +392,9 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-siz
 </head>
 <body>
 
-<div class="page">${page1Content}</div>
-<div class="page">${page2Content}</div>
-<div class="page">${page3Content}</div>
+<div class="page p1">${page1Content}</div>
+<div class="page p2">${page2Content}</div>
+<div class="page p3">${page3Content}</div>
 ${macroPages}
 
 </body>
