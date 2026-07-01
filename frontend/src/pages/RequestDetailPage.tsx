@@ -99,8 +99,8 @@ function printTForm(request: Request) {
   // Macro-only pages (4 & 5)
   const macroPages = isMacro ? `
 
-<!-- PAGE 4: Part II Contracts Committee table -->
-<div class="page p4">
+<!-- PAGE 4: Part II Contracts Committee table (landscape content on portrait page) -->
+<div class="page"><div class="land-content">
   <div style="text-align:center;font-weight:bold;font-size:10px;margin-bottom:10px;">
     PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
   </div>
@@ -154,10 +154,10 @@ function printTForm(request: Request) {
       <td style="border:1px solid #000;"></td>
     </tr>
   </table>
-</div>
+</div></div>
 
-<!-- PAGE 5: Documents Attached + Declarations -->
-<div class="page p5">
+<!-- PAGE 5: Documents Attached + Declarations (portrait) -->
+<div class="page"><div class="port-content">
 
   <div style="font-size:9px;margin-bottom:16px;">
     <div><em><strong>Documents attached:</strong></em></div>
@@ -206,7 +206,7 @@ function printTForm(request: Request) {
     </table>
   </div>
 
-</div>` : "";
+</div></div>` : "";
 
   const pageHeader = `
 <div style="text-align:right;font-size:9px;font-weight:bold;">FORM 5</div>
@@ -355,28 +355,41 @@ ${pageHeader}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
 
-/* Named page orientations */
-@page land { size: A4 landscape; margin: 0; }
-@page port { size: A4 portrait;  margin: 0; }
+@page { size: A4 portrait; margin: 0; }
 
-/* Page 1: Landscape */
-.p1 { page: land; width: 297mm; height: 210mm; padding: 12mm 16mm; }
-/* Page 2: Portrait */
-.p2 { page: port; width: 210mm; height: 297mm; padding: 12mm 16mm; }
-/* Page 3: Portrait */
-.p3 { page: port; width: 210mm; height: 297mm; padding: 12mm 16mm; }
-/* Page 4: Landscape (macro only) */
-.p4 { page: land; width: 297mm; height: 210mm; padding: 12mm 16mm; }
-/* Page 5: Portrait (macro only) */
-.p5 { page: port; width: 210mm; height: 297mm; padding: 12mm 16mm; }
-
+/*
+  All pages are portrait paper (210mm × 297mm).
+  Content that should appear landscape is rotated 90° and scaled
+  to fill the portrait sheet sideways.
+*/
 .page {
+  width: 210mm;
+  height: 297mm;
   overflow: hidden;
   page-break-after: always;
   page-break-inside: avoid;
   display: block;
+  position: relative;
 }
 .page:last-of-type { page-break-after: auto; }
+
+/* Portrait content — fills the page normally top-to-bottom */
+.port-content {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 14mm 16mm;
+}
+
+/* Landscape content — rotated 90° CCW and repositioned to fill the portrait page */
+.land-content {
+  width: 277mm;   /* = 297mm page height minus top+bottom padding */
+  padding: 14mm 16mm;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  transform: rotate(90deg) translateY(-210mm);
+}
 
 @media screen {
   body { background: #888; }
@@ -392,9 +405,9 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-siz
 </head>
 <body>
 
-<div class="page p1">${page1Content}</div>
-<div class="page p2">${page2Content}</div>
-<div class="page p3">${page3Content}</div>
+<div class="page"><div class="land-content">${page1Content}</div></div>
+<div class="page"><div class="port-content">${page2Content}</div></div>
+<div class="page"><div class="port-content">${page3Content}</div></div>
 ${macroPages}
 
 </body>
