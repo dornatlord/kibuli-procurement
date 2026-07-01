@@ -56,14 +56,16 @@ export default function NewRequestPage() {
   const [error, setError] = useState("");
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
+  // Procurement type gate — must be chosen before form is shown
+  const [procurementSize, setProcurementSize] = useState<"micro" | "macro" | "">("");
+
   // Form state
   const [yearType, setYearType] = useState<"calendar" | "financial">("calendar");
   const [category, setCategory] = useState("supplies");
   const [budgetCategory, setBudgetCategory] = useState("recurrent");
-  const [procurementSize, setProcurementSize] = useState("micro");
   const [subject, setSubject] = useState("");
   const [planRef, setPlanRef] = useState("");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState("Kibuli Secondary School");
   const [dateRequired, setDateRequired] = useState("");
   const [estimatedTotal, setEstimatedTotal] = useState("");
   const [isMultiyear, setIsMultiyear] = useState(false);
@@ -201,6 +203,38 @@ export default function NewRequestPage() {
   const isMicro = procurementSize === "micro";
   const catCode = category === "supplies" ? "SUPPLIES" : category === "works" ? "WORKS" : "NONCONSULT";
 
+  // Gate: must choose procurement type first
+  if (!procurementSize) {
+    return (
+      <div className="max-w-xl mx-auto mt-20 text-center space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">New Procurement Request</h1>
+          <p className="text-gray-500 mt-2">Select the procurement type to continue</p>
+        </div>
+        <div className="grid grid-cols-2 gap-6">
+          <button
+            onClick={() => setProcurementSize("micro")}
+            className="border-2 border-green-700 rounded-2xl p-8 text-left hover:bg-green-50 transition group"
+          >
+            <div className="text-3xl mb-3">📋</div>
+            <div className="text-lg font-bold text-green-800">Micro Procurement</div>
+            <div className="text-sm text-gray-500 mt-1">Below UGX 1,000,000</div>
+            <div className="text-xs text-gray-400 mt-3">Direct procurement, approved by Head of Department and Accounting Officer</div>
+          </button>
+          <button
+            onClick={() => setProcurementSize("macro")}
+            className="border-2 border-gray-300 rounded-2xl p-8 text-left hover:bg-gray-50 transition group"
+          >
+            <div className="text-3xl mb-3">📑</div>
+            <div className="text-lg font-bold text-gray-800">Macro Procurement</div>
+            <div className="text-sm text-gray-500 mt-1">UGX 1,000,000 and above</div>
+            <div className="text-xs text-gray-400 mt-3">Goes to Contracts Committee for approval of procurement method</div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
@@ -325,7 +359,7 @@ export default function NewRequestPage() {
           </div>
           <div>
             <label className="label">Location for Delivery</label>
-            <input value={location} onChange={(e) => setLocation(e.target.value)} className="input" />
+            <input value={location} readOnly className="input bg-gray-100 cursor-not-allowed" />
           </div>
           <div>
             <label className="label">Date Required</label>
