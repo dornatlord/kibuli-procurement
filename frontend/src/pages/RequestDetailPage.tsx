@@ -100,7 +100,7 @@ function printTForm(request: Request) {
   const macroPages = isMacro ? `
 
 <!-- PAGE 4: Part II Contracts Committee table -->
-<div style="page-break-before:always;padding:12mm 15mm;">
+<div class="page">
   <div style="text-align:center;font-weight:bold;font-size:10px;margin-bottom:10px;">
     PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
   </div>
@@ -157,7 +157,7 @@ function printTForm(request: Request) {
 </div>
 
 <!-- PAGE 5: Documents Attached + Declarations -->
-<div style="page-break-before:always;padding:12mm 15mm;">
+<div class="page">
 
   <div style="font-size:9px;margin-bottom:16px;">
     <div><em><strong>Documents attached:</strong></em></div>
@@ -207,9 +207,6 @@ function printTForm(request: Request) {
   </div>
 
 </div>` : "";
-
-  const pg = (content: string) =>
-    `<div style="padding:12mm 15mm;min-height:${isMacro ? "257mm" : "auto"};">${content}</div>`;
 
   const pageHeader = `
 <div style="text-align:right;font-size:9px;font-weight:bold;">FORM 5</div>
@@ -356,17 +353,35 @@ ${pageHeader}
 <title>FORM 5 &mdash; ${request.referenceNumber}</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; }
-.page { padding: 12mm 15mm; }
-.page-break { page-break-before: always; }
-@media print { @page { size: A4 portrait; margin: 0; } }
+body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
+.page {
+  width: 210mm;
+  height: 297mm;
+  padding: 15mm 18mm;
+  overflow: hidden;
+  page-break-after: always;
+  page-break-inside: avoid;
+  display: block;
+}
+.page:last-of-type { page-break-after: auto; }
+@media screen {
+  body { background: #ccc; }
+  .page { background: #fff; margin: 8mm auto; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+}
+@media print {
+  body { background: #fff; }
+  .page { margin: 0; box-shadow: none; }
+  @page { size: A4 portrait; margin: 0; }
+}
+table { width: 100%; border-collapse: collapse; }
+td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-size: 9px; }
 </style>
 </head>
 <body>
 
 <div class="page">${page1Content}</div>
-<div class="page page-break">${page2Content}</div>
-<div class="page page-break">${page3Content}</div>
+<div class="page">${page2Content}</div>
+<div class="page">${page3Content}</div>
 ${macroPages}
 
 </body>
