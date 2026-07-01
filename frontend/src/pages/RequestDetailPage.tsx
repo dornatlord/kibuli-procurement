@@ -208,7 +208,7 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; }
     <td style="width:20%;" class="center">Sequence Number</td>
   </tr>
   <tr style="height:18px;">
-    <td>Kibuli SS</td>
+    <td>Kibuli Secondary School</td>
     <td class="center">${request.category || ""}</td>
     <td class="center">${finYear}</td>
     <td class="center">${seqNo}</td>
@@ -331,7 +331,7 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; }
 ${macroPartII}
 
 <div style="margin-top:8px;font-size:7.5px;color:#777;text-align:right;border-top:1px solid #ccc;padding-top:3px;">
-  Printed: ${new Date().toLocaleString("en-UG")} &mdash; Kibuli SS Procurement System
+  Printed: ${new Date().toLocaleString("en-UG")} &mdash; Kibuli Secondary School Procurement System
 </div>
 
 </body>
