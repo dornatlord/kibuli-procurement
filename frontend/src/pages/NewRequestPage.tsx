@@ -506,8 +506,7 @@ export default function NewRequestPage() {
                 <th className="px-2 py-2 text-left w-20">Qty</th>
                 <th className="px-2 py-2 text-left w-24">Unit</th>
                 <th className="px-2 py-2 text-right w-32">Unit Cost</th>
-                <th className="px-2 py-2 text-right w-32">Market Price</th>
-                <th className="px-2 py-2 text-right w-32">Total</th>
+                <th className="px-2 py-2 text-right w-32">Estimated Cost</th>
                 <th className="px-2 py-2 w-8"></th>
               </tr>
             </thead>
@@ -570,16 +569,6 @@ export default function NewRequestPage() {
                       type="number"
                       value={item.estimatedUnitCost}
                       onChange={(e) => updateItem(item.key, { estimatedUnitCost: e.target.value })}
-                      className="input text-xs text-right"
-                      min="0"
-                      step="1"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="number"
-                      value={item.marketPrice}
-                      onChange={(e) => updateItem(item.key, { marketPrice: e.target.value })}
                       className="input text-xs text-right"
                       min="0"
                       step="1"

@@ -81,7 +81,7 @@ function printTForm(request: Request) {
       <td class="c" style="font-size:8px;">${it.quantity || ""}</td>
       <td class="c" style="font-size:8px;">${it.unitOfMeasure || ""}</td>
       <td class="r" style="font-size:8px;">${it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : ""}</td>
-      <td class="r" style="font-size:8px;">${it.marketPrice ? Number(it.marketPrice).toLocaleString("en-UG") : ""}</td>
+      <td class="r" style="font-size:8px;">${it.totalCost ? Number(it.totalCost).toLocaleString("en-UG") : ""}</td>
     </tr>`).join("");
 
   const totalCost = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
@@ -278,7 +278,7 @@ ${pageHeader}
     <th style="width:8%;border:1px solid #000;padding:3px;text-align:center;">Quantity</th>
     <th style="width:10%;border:1px solid #000;padding:3px;text-align:center;">Unit of<br/>Measure</th>
     <th style="width:18%;border:1px solid #000;padding:3px;text-align:center;">Estimated<br/>Unit Cost</th>
-    <th style="width:19%;border:1px solid #000;padding:3px;text-align:center;">Market price of the<br/>procurement</th>
+    <th style="width:19%;border:1px solid #000;padding:3px;text-align:center;">Estimated Cost</th>
   </tr>
   ${itemRowsHtml}
   <tr>
