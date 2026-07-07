@@ -100,7 +100,7 @@ function printTForm(request: Request) {
   const macroPages = isMacro ? `
 
 <!-- PAGE 4: Part II Contracts Committee table — landscape -->
-<div class="land">
+<div class="pg">
   <div style="text-align:center;font-weight:bold;font-size:10px;margin-bottom:10px;">
     PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
   </div>
@@ -157,7 +157,7 @@ function printTForm(request: Request) {
 </div>
 
 <!-- PAGE 5: Documents Attached + Declarations — portrait -->
-<div class="port">
+<div class="pg">
 
   <div style="font-size:9px;margin-bottom:16px;">
     <div><em><strong>Documents attached:</strong></em></div>
@@ -355,18 +355,24 @@ ${pageHeader}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
 
-@page { size: A4 landscape; margin: 15mm; }
+@page { size: A4 landscape; margin: 12mm 15mm; }
 
-.land, .port { width: 267mm; min-height: 180mm; page-break-after: always; page-break-inside: avoid; display: block; }
-.land:last-of-type, .port:last-of-type { page-break-after: auto; }
+.pg {
+  width: 267mm;
+  min-height: 171mm;
+  page-break-after: always;
+  page-break-inside: avoid;
+  display: block;
+}
+.pg:last-of-type { page-break-after: auto; }
 
 @media screen {
   body { background: #888; }
-  .land, .port { background:#fff; margin:8mm auto; padding:14mm 16mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
+  .pg { background:#fff; margin:8mm auto; padding:12mm 15mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
 }
 @media print {
   body { background: #fff; }
-  .land, .port { margin: 0; padding: 0; box-shadow: none; }
+  .pg { margin:0; padding:0; box-shadow:none; }
 }
 table { width: 100%; border-collapse: collapse; }
 td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-size: 9px; }
@@ -374,9 +380,9 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-siz
 </head>
 <body>
 
-<div class="land">${page1Content}</div>
-<div class="port">${page2Content}</div>
-<div class="port">${page3Content}</div>
+<div class="pg">${page1Content}</div>
+<div class="pg">${page2Content}</div>
+<div class="pg">${page3Content}</div>
 ${macroPages}
 
 </body>
