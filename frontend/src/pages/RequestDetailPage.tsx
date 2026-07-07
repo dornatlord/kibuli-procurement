@@ -355,17 +355,14 @@ ${pageHeader}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
 
-@page land { size: A4 landscape; margin: 15mm; }
-@page port { size: A4 portrait;  margin: 15mm; }
+@page { size: A4 landscape; margin: 15mm; }
 
-.land { page: land; width: 267mm; min-height: 180mm; page-break-after: always; page-break-inside: avoid; display: block; }
-.port { page: port; width: 180mm; min-height: 257mm; page-break-after: always; page-break-inside: avoid; display: block; }
+.land, .port { width: 267mm; min-height: 180mm; page-break-after: always; page-break-inside: avoid; display: block; }
 .land:last-of-type, .port:last-of-type { page-break-after: auto; }
 
 @media screen {
   body { background: #888; }
-  .land { background:#fff; width:267mm; min-height:180mm; margin:8mm auto; padding:14mm 16mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
-  .port { background:#fff; width:180mm; min-height:257mm; margin:8mm auto; padding:14mm 16mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
+  .land, .port { background:#fff; margin:8mm auto; padding:14mm 16mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
 }
 @media print {
   body { background: #fff; }
