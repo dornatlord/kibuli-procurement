@@ -355,35 +355,42 @@ ${pageHeader}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
 
-@page { size: A4 landscape; margin: 12mm 15mm; }
-
-.pg {
-  width: 267mm;
-  min-height: 171mm;
-  page-break-after: always;
-  page-break-inside: avoid;
-  display: block;
+${isMacro
+  ? `@page { size: A4 landscape; margin: 12mm 15mm; }
+.pg { width:267mm; min-height:171mm; page-break-after:always; page-break-inside:avoid; display:block; }
+.pg:last-of-type { page-break-after:auto; }`
+  : `@page { size: A4 portrait; margin: 10mm 12mm; }`
 }
-.pg:last-of-type { page-break-after: auto; }
 
 @media screen {
   body { background: #888; }
-  .pg { background:#fff; margin:8mm auto; padding:12mm 15mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
+  ${isMacro
+    ? `.pg { background:#fff; margin:8mm auto; padding:12mm 15mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }`
+    : `.micro-page { background:#fff; width:190mm; margin:8mm auto; padding:10mm 12mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }`
+  }
 }
 @media print {
-  body { background: #fff; }
-  .pg { margin:0; padding:0; box-shadow:none; }
+  body { background:#fff; }
+  .pg, .micro-page { margin:0; padding:0; box-shadow:none; }
 }
-table { width: 100%; border-collapse: collapse; }
-td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-size: 9px; }
+table { width:100%; border-collapse:collapse; }
+td, th { border:1px solid #000; padding:2px 4px; vertical-align:top; font-size:8.5px; }
 </style>
 </head>
 <body>
 
+${isMacro ? `
 <div class="pg">${page1Content}</div>
 <div class="pg">${page2Content}</div>
 <div class="pg">${page3Content}</div>
 ${macroPages}
+` : `
+<div class="micro-page">
+  ${page1Content}
+  <div style="margin-top:10px;">${page2Content}</div>
+  <div style="margin-top:10px;">${page3Content}</div>
+</div>
+`}
 
 </body>
 </html>`;
