@@ -99,8 +99,8 @@ function printTForm(request: Request) {
   // Macro-only pages (4 & 5)
   const macroPages = isMacro ? `
 
-<!-- PAGE 4: Part II Contracts Committee table (landscape content on portrait page) -->
-<div class="page"><div class="land-content">
+<!-- PAGE 4: Part II Contracts Committee table — landscape -->
+<div class="land">
   <div style="text-align:center;font-weight:bold;font-size:10px;margin-bottom:10px;">
     PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
   </div>
@@ -154,10 +154,10 @@ function printTForm(request: Request) {
       <td style="border:1px solid #000;"></td>
     </tr>
   </table>
-</div></div>
+</div>
 
-<!-- PAGE 5: Documents Attached + Declarations (portrait) -->
-<div class="page"><div class="port-content">
+<!-- PAGE 5: Documents Attached + Declarations — portrait -->
+<div class="port">
 
   <div style="font-size:9px;margin-bottom:16px;">
     <div><em><strong>Documents attached:</strong></em></div>
@@ -206,7 +206,7 @@ function printTForm(request: Request) {
     </table>
   </div>
 
-</div></div>` : "";
+</div>` : "";
 
   const pageHeader = `
 <div style="text-align:right;font-size:9px;font-weight:bold;">FORM 5</div>
@@ -355,49 +355,21 @@ ${pageHeader}
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
 
-@page { size: A4 portrait; margin: 0; }
+@page land { size: A4 landscape; margin: 15mm; }
+@page port { size: A4 portrait;  margin: 15mm; }
 
-/*
-  All pages are portrait paper (210mm × 297mm).
-  Content that should appear landscape is rotated 90° and scaled
-  to fill the portrait sheet sideways.
-*/
-.page {
-  width: 210mm;
-  height: 297mm;
-  overflow: hidden;
-  page-break-after: always;
-  page-break-inside: avoid;
-  display: block;
-  position: relative;
-}
-.page:last-of-type { page-break-after: auto; }
-
-/* Portrait content — fills the page normally top-to-bottom */
-.port-content {
-  width: 210mm;
-  min-height: 297mm;
-  padding: 14mm 16mm;
-}
-
-/* Landscape content — rotated 90° CCW and repositioned to fill the portrait page */
-.land-content {
-  width: 277mm;   /* = 297mm page height minus top+bottom padding */
-  padding: 14mm 16mm;
-  position: absolute;
-  top: 0;
-  left: 0;
-  transform-origin: top left;
-  transform: rotate(90deg) translateY(-210mm);
-}
+.land { page: land; width: 267mm; min-height: 180mm; page-break-after: always; page-break-inside: avoid; display: block; }
+.port { page: port; width: 180mm; min-height: 257mm; page-break-after: always; page-break-inside: avoid; display: block; }
+.land:last-of-type, .port:last-of-type { page-break-after: auto; }
 
 @media screen {
   body { background: #888; }
-  .page { background: #fff; margin: 8mm auto; box-shadow: 0 2px 10px rgba(0,0,0,0.4); }
+  .land { background:#fff; width:267mm; min-height:180mm; margin:8mm auto; padding:14mm 16mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
+  .port { background:#fff; width:180mm; min-height:257mm; margin:8mm auto; padding:14mm 16mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }
 }
 @media print {
   body { background: #fff; }
-  .page { margin: 0; box-shadow: none; }
+  .land, .port { margin: 0; padding: 0; box-shadow: none; }
 }
 table { width: 100%; border-collapse: collapse; }
 td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-size: 9px; }
@@ -405,9 +377,9 @@ td, th { border: 1px solid #000; padding: 2px 4px; vertical-align: top; font-siz
 </head>
 <body>
 
-<div class="page"><div class="land-content">${page1Content}</div></div>
-<div class="page"><div class="port-content">${page2Content}</div></div>
-<div class="page"><div class="port-content">${page3Content}</div></div>
+<div class="land">${page1Content}</div>
+<div class="port">${page2Content}</div>
+<div class="port">${page3Content}</div>
 ${macroPages}
 
 </body>
