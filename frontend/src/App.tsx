@@ -7,20 +7,48 @@ import RequestDetailPage from "./pages/RequestDetailPage";
 import RequestsListPage from "./pages/RequestsListPage";
 import BudgetAdminPage from "./pages/BudgetAdminPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
+import AccountPage from "./pages/AccountPage";
 import Layout from "./components/Layout";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen text-gray-500">Loading…</div>;
+  if (loading)
+    return (
+      <div className="flex items-center justify-center h-screen text-gray-500">
+        Loading…
+      </div>
+    );
   if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+/** Blocks a route unless the user holds one of the listed permissions. */
+function Guard({
+  permissions,
+  children,
+}: {
+  permissions: string[];
+  children: React.ReactNode;
+}) {
+  const { can } = useAuth();
+  if (!can(...permissions)) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
 function AppRoutes() {
   const { user } = useAuth();
+  const viewRequests = [
+    "requests.view.own",
+    "requests.view.department",
+    "requests.view.all",
+  ];
+
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route
+        path="/login"
+        element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+      />
       <Route
         path="/"
         element={
@@ -31,11 +59,49 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="requests" element={<RequestsListPage />} />
-        <Route path="requests/new" element={<NewRequestPage />} />
-        <Route path="requests/:id" element={<RequestDetailPage />} />
-        <Route path="admin/budget" element={<BudgetAdminPage />} />
-        <Route path="admin/users" element={<UsersAdminPage />} />
+        <Route path="account" element={<AccountPage />} />
+
+        <Route
+          path="requests"
+          element={
+            <Guard permissions={viewRequests}>
+              <RequestsListPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="requests/new"
+          element={
+            <Guard permissions={["requests.create"]}>
+              <NewRequestPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="requests/:id"
+          element={
+            <Guard permissions={viewRequests}>
+              <RequestDetailPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="admin/budget"
+          element={
+            <Guard permissions={["budget.edit"]}>
+              <BudgetAdminPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="admin/users"
+          element={
+            <Guard permissions={["users.view"]}>
+              <UsersAdminPage />
+            </Guard>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

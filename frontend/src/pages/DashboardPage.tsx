@@ -14,30 +14,40 @@ interface Request {
   createdAt: string;
 }
 
-const ROLE_FILTER: Record<string, string[]> = {
-  user_dept_member: ["draft", "pending_hod"],
-  head_of_dept: ["pending_hod"],
-  accounting_officer: ["pending_accounting_officer"],
-  procurement_unit: ["pending_contracts_committee"],
-  contracts_chair: ["pending_contracts_committee"],
-  contracts_secretary: ["pending_contracts_committee"],
+/**
+ * Which statuses each permission puts on your plate. A user sees the union of
+ * the buckets for every approval permission they hold.
+ */
+const PERMISSION_QUEUE: Record<string, string[]> = {
+  "requests.submit": ["draft"],
+  "requests.approve.hod": ["pending_hod"],
+  "requests.approve.accounting_officer": ["pending_accounting_officer"],
+  "requests.approve.committee": ["pending_contracts_committee"],
 };
 
 export default function DashboardPage() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Read-only roles and the administrator see everything; everyone else sees
+  // only what is waiting on them.
+  const seesEverything =
+    can("system.settings") ||
+    (can("requests.view.all") &&
+      !Object.keys(PERMISSION_QUEUE).some((p) => can(p)));
+
+  const myQueue = Object.entries(PERMISSION_QUEUE)
+    .filter(([permission]) => can(permission))
+    .flatMap(([, statuses]) => statuses);
 
   useEffect(() => {
     api
       .get<Request[]>("/requests")
       .then((all) => {
-        const filters = ROLE_FILTER[user?.role ?? ""] ?? [];
-        if (user?.role === "accounting_officer") {
-          setRequests(all);
-        } else {
-          setRequests(all.filter((r) => filters.includes(r.status)));
-        }
+        setRequests(
+          seesEverything ? all : all.filter((r) => myQueue.includes(r.status))
+        );
       })
       .finally(() => setLoading(false));
   }, [user]);
@@ -50,12 +60,14 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-        <Link
-          to="/requests/new"
-          className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800"
-        >
-          + New Procurement Request
-        </Link>
+        {can("requests.create") && (
+          <Link
+            to="/requests/new"
+            className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800"
+          >
+            + New Procurement Request
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -66,7 +78,7 @@ export default function DashboardPage() {
 
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="px-4 py-3 border-b border-gray-100 font-semibold text-sm text-gray-700">
-          {user?.role === "accounting_officer" ? "All Requests" : "Requests Needing Your Attention"}
+          {seesEverything ? "All Requests" : "Requests Needing Your Attention"}
         </div>
         {loading ? (
           <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>

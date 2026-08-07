@@ -9,11 +9,43 @@ import {
   votes,
   subProgrammes,
   budgetItems,
+  users,
 } from "../db/schema.js";
-import { eq, and, desc, sql } from "drizzle-orm";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { hasPermission, Permission } from "../lib/permissions.js";
 
 const router = Router();
+
+/**
+ * Which requests may this session see?
+ *  - requests.view.all        → everything
+ *  - requests.view.department → anything raised by someone in their department
+ *  - requests.view.own        → only what they created
+ */
+async function visibleRequestFilter(session: {
+  userId?: number;
+  role?: string;
+  department?: string | null;
+}) {
+  const role = session.role ?? "";
+
+  if (hasPermission(role, "requests.view.all")) return undefined;
+
+  if (hasPermission(role, "requests.view.department") && session.department) {
+    const deptUsers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.department, session.department));
+    const ids = deptUsers.map((u) => u.id);
+    if (session.userId && !ids.includes(session.userId)) ids.push(session.userId);
+    return ids.length
+      ? inArray(procurementRequests.createdBy, ids)
+      : eq(procurementRequests.createdBy, session.userId ?? -1);
+  }
+
+  return eq(procurementRequests.createdBy, session.userId ?? -1);
+}
 
 function getWeekNumber(date: Date, yearType: "calendar" | "financial"): { year: number; week: number } {
   let startOfYear: Date;
@@ -45,19 +77,37 @@ function categoryCode(cat: string): string {
   return "NONCONSULT";
 }
 
-router.get("/", requireAuth, async (req, res) => {
-  const rows = await db
-    .select()
-    .from(procurementRequests)
-    .orderBy(desc(procurementRequests.createdAt));
-  res.json(rows);
-});
+router.get(
+  "/",
+  requirePermission(
+    "requests.view.own",
+    "requests.view.department",
+    "requests.view.all"
+  ),
+  async (req, res) => {
+    const filter = await visibleRequestFilter(req.session);
+    const base = db.select().from(procurementRequests);
+    const rows = await (filter ? base.where(filter) : base).orderBy(
+      desc(procurementRequests.createdAt)
+    );
+    res.json(rows);
+  }
+);
 
-router.get("/:id", requireAuth, async (req, res) => {
+router.get(
+  "/:id",
+  requirePermission(
+    "requests.view.own",
+    "requests.view.department",
+    "requests.view.all"
+  ),
+  async (req, res) => {
+  const filter = await visibleRequestFilter(req.session);
+  const idMatch = eq(procurementRequests.id, Number(req.params.id));
   const [request] = await db
     .select()
     .from(procurementRequests)
-    .where(eq(procurementRequests.id, Number(req.params.id)));
+    .where(filter ? and(idMatch, filter) : idMatch);
   if (!request) {
     res.status(404).json({ error: "Not found" });
     return;
@@ -96,9 +146,10 @@ router.get("/:id", requireAuth, async (req, res) => {
     subProgrammeName: subProg ? `${subProg.romanNumeral ? subProg.romanNumeral + " " : ""}${subProg.name}` : null,
     budgetItemName: budgetItem?.name || null,
   });
-});
+  }
+);
 
-router.post("/", requireAuth, async (req, res) => {
+router.post("/", requirePermission("requests.create"), async (req, res) => {
   const body = req.body;
   const now = new Date();
   const yearType: "calendar" | "financial" = body.yearType || "calendar";
@@ -203,17 +254,33 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
   }
 
   const role = req.session.role!;
-  const allowedTransitions: Record<string, string[]> = {
-    head_of_dept: ["pending_accounting_officer", "rejected"],
-    accounting_officer: ["pending_contracts_committee", "rejected"],
-    contracts_chair: ["approved", "rejected"],
-    contracts_secretary: ["approved", "rejected"],
-    user_dept_member: ["pending_hod"],
+
+  // Each target status requires a specific permission. The administrator holds
+  // all of them, so it can move a request through any stage.
+  const statusPermission: Record<string, Permission> = {
+    pending_hod: "requests.submit",
+    pending_accounting_officer: "requests.approve.hod",
+    pending_contracts_committee: "requests.approve.accounting_officer",
+    approved: "requests.approve.committee",
   };
 
-  if (!allowedTransitions[role]?.includes(status)) {
-    res.status(403).json({ error: "Not allowed" });
-    return;
+  if (status === "rejected") {
+    const canReject =
+      hasPermission(role, "requests.approve.hod") ||
+      hasPermission(role, "requests.approve.accounting_officer") ||
+      hasPermission(role, "requests.approve.committee");
+    if (!canReject) {
+      res.status(403).json({ error: "You do not have permission to reject requests" });
+      return;
+    }
+  } else {
+    const needed = statusPermission[status];
+    if (!needed || !hasPermission(role, needed)) {
+      res.status(403).json({
+        error: "You do not have permission to move this request to that stage",
+      });
+      return;
+    }
   }
 
   await db
@@ -240,7 +307,7 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
-router.post("/:id/committee-decision", requireRole("contracts_chair", "contracts_secretary"), async (req, res) => {
+router.post("/:id/committee-decision", requirePermission("requests.approve.committee"), async (req, res) => {
   const id = Number(req.params.id);
   await db.insert(contractsCommitteeDecisions).values({
     procurementRequestId: id,

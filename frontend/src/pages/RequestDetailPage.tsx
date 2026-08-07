@@ -45,19 +45,28 @@ interface Request {
   decision: unknown;
 }
 
-const NEXT_STATUS: Record<string, { role: string; label: string; next: string }[]> = {
-  draft: [{ role: "user_dept_member", label: "Submit to HoD", next: "pending_hod" }],
+/**
+ * Actions available at each stage, gated by permission rather than role, so the
+ * administrator (who holds every permission) sees them all.
+ */
+const NEXT_STATUS: Record<
+  string,
+  { permission: string; label: string; next: string }[]
+> = {
+  draft: [
+    { permission: "requests.submit", label: "Submit to HoD", next: "pending_hod" },
+  ],
   pending_hod: [
-    { role: "head_of_dept", label: "Approve → Accounting Officer", next: "pending_accounting_officer" },
-    { role: "head_of_dept", label: "Reject", next: "rejected" },
+    { permission: "requests.approve.hod", label: "Approve → Accounting Officer", next: "pending_accounting_officer" },
+    { permission: "requests.approve.hod", label: "Reject", next: "rejected" },
   ],
   pending_accounting_officer: [
-    { role: "accounting_officer", label: "Approve → Contracts Committee", next: "pending_contracts_committee" },
-    { role: "accounting_officer", label: "Reject", next: "rejected" },
+    { permission: "requests.approve.accounting_officer", label: "Approve → Contracts Committee", next: "pending_contracts_committee" },
+    { permission: "requests.approve.accounting_officer", label: "Reject", next: "rejected" },
   ],
   pending_contracts_committee: [
-    { role: "contracts_chair", label: "Approve", next: "approved" },
-    { role: "contracts_chair", label: "Reject", next: "rejected" },
+    { permission: "requests.approve.committee", label: "Approve", next: "approved" },
+    { permission: "requests.approve.committee", label: "Reject", next: "rejected" },
   ],
 };
 
@@ -405,7 +414,7 @@ ${macroPages}
 
 export default function RequestDetailPage() {
   const { id } = useParams();
-  const { user } = useAuth();
+  const { can } = useAuth();
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -433,7 +442,7 @@ export default function RequestDetailPage() {
   if (loading) return <div className="text-center py-12 text-gray-400">Loading…</div>;
   if (!request) return <div className="text-center py-12 text-gray-500">Not found.</div>;
 
-  const actions = (NEXT_STATUS[request.status] || []).filter((a) => a.role === user?.role);
+  const actions = (NEXT_STATUS[request.status] || []).filter((a) => can(a.permission));
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -443,12 +452,14 @@ export default function RequestDetailPage() {
           <p className="text-sm text-gray-500 mt-0.5">{request.subjectOfProcurement || "—"}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => printTForm(request)}
-            className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-green-700 text-green-700 text-sm font-medium hover:bg-green-50 transition"
-          >
-            🖨 Print TFORM 5
-          </button>
+          {can("requests.print") && (
+            <button
+              onClick={() => printTForm(request)}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-green-700 text-green-700 text-sm font-medium hover:bg-green-50 transition"
+            >
+              🖨 Print TFORM 5
+            </button>
+          )}
           <StatusBadge status={request.status} />
         </div>
       </div>

@@ -8,7 +8,7 @@ interface SubProgramme { id: number; voteId: number; romanNumeral: string | null
 interface BudgetItem { id: number; voteId: number; subProgrammeId: number | null; name: string; budgetedAmount: string | null; displayOrder: number; }
 
 export default function BudgetAdminPage() {
-  const { user } = useAuth();
+  const { can } = useAuth();
   const [votes, setVotes] = useState<Vote[]>([]);
   const [subs, setSubs] = useState<SubProgramme[]>([]);
   const [items, setItems] = useState<BudgetItem[]>([]);
@@ -16,7 +16,7 @@ export default function BudgetAdminPage() {
   const [editing, setEditing] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
 
-  if (!["accounting_officer", "head_of_dept"].includes(user?.role ?? "")) {
+  if (!can("budget.edit")) {
     return <Navigate to="/dashboard" replace />;
   }
 

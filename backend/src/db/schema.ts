@@ -13,12 +13,14 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("user_role", [
+  "administrator",
   "user_dept_member",
   "head_of_dept",
   "accounting_officer",
   "procurement_unit",
   "contracts_chair",
   "contracts_secretary",
+  "viewer",
 ]);
 
 export const categoryEnum = pgEnum("procurement_category", [
@@ -67,6 +69,9 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   role: roleEnum("role").notNull(),
   department: text("department"),
+  isActive: boolean("is_active").notNull().default(true),
+  mustChangePassword: boolean("must_change_password").notNull().default(false),
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

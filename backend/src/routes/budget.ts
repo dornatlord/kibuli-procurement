@@ -2,11 +2,11 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { budgetItems } from "../db/schema.js";
 import { eq } from "drizzle-orm";
-import { requireRole } from "../middleware/auth.js";
+import { requirePermission } from "../middleware/auth.js";
 
 const router = Router();
 
-router.patch("/items/:id", requireRole("accounting_officer", "head_of_dept"), async (req, res) => {
+router.patch("/items/:id", requirePermission("budget.edit"), async (req, res) => {
   const { budgetedAmount } = req.body;
   await db
     .update(budgetItems)
