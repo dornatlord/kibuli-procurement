@@ -71,8 +71,28 @@ git push -u origin master
 ## After both are deployed
 
 - Go back to the backend service → update `FRONTEND_URL` to the static site URL → redeploy
-- Test login: `admin@kibulisss.local` / `admin1234`
+- Test login: `admin@kibuliss.sch.ug` / `admin1234`
 - UptimeRobot: monitor `https://kibuli-procurement-api.onrender.com/api/health`
+
+### Required: SPA rewrite rule
+
+This is a single-page app, so the server must return `index.html` for every
+path. Without this, opening or refreshing any URL other than `/` returns
+**Not Found** — `/login`, `/requests`, `/requests/1`, and so on.
+
+`frontend/public/_redirects` is a Netlify convention and **Render ignores it**.
+Set the rule in the Render dashboard instead:
+
+> Static site → **Redirects/Rewrites** → Add Rule
+> - Source: `/*`
+> - Destination: `/index.html`
+> - Action: **Rewrite** (not Redirect)
+
+Verify afterwards — all three should return `200`:
+
+```bash
+for p in /login /requests /dashboard; do curl -s -o /dev/null -w "$p %{http_code}\n" "https://kibuli-procurement.onrender.com$p"; done
+```
 
 ---
 
