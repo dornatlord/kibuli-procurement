@@ -88,8 +88,7 @@ export default function DashboardPage() {
       <div className="bg-white rounded-2xl border border-gray-200 p-6">
         <h2 className="font-semibold text-gray-800 mb-1">Quick Actions</h2>
         <p className="text-xs text-gray-500 mb-5">
-          Everything in the procurement cycle. Tiles marked <SoonPill /> are being
-          built next.
+          Everything in the procurement cycle, end to end.
         </p>
 
         <div className="space-y-7">
