@@ -28,6 +28,7 @@ export type Permission =
   | "requests.approve.hod"
   | "requests.approve.accounting_officer"
   | "requests.approve.committee"
+  | "requests.prepare.committee"
   | "requests.print"
   // Budget
   | "budget.view"
@@ -35,6 +36,33 @@ export type Permission =
   // Reserve prices
   | "reserve_prices.view"
   | "reserve_prices.manage"
+  // Suppliers
+  | "suppliers.view"
+  | "suppliers.manage"
+  // Purchase orders
+  | "purchase_orders.view"
+  | "purchase_orders.create"
+  | "purchase_orders.manage"
+  // Goods received
+  | "goods_received.view"
+  | "goods_received.create"
+  | "goods_received.inspect"
+  // Invoices
+  | "invoices.view"
+  | "invoices.create"
+  | "invoices.approve"
+  | "invoices.pay"
+  // Contracts
+  | "contracts.view"
+  | "contracts.manage"
+  // Procurement plan
+  | "procurement_plan.view"
+  | "procurement_plan.manage"
+  // Inventory & assets
+  | "inventory.view"
+  | "inventory.manage"
+  // Audit trail
+  | "audit.view"
   // Users
   | "users.view"
   | "users.create"
@@ -57,11 +85,31 @@ const ALL_PERMISSIONS: Permission[] = [
   "requests.approve.hod",
   "requests.approve.accounting_officer",
   "requests.approve.committee",
+  "requests.prepare.committee",
   "requests.print",
   "budget.view",
   "budget.edit",
   "reserve_prices.view",
   "reserve_prices.manage",
+  "suppliers.view",
+  "suppliers.manage",
+  "purchase_orders.view",
+  "purchase_orders.create",
+  "purchase_orders.manage",
+  "goods_received.view",
+  "goods_received.create",
+  "goods_received.inspect",
+  "invoices.view",
+  "invoices.create",
+  "invoices.approve",
+  "invoices.pay",
+  "contracts.view",
+  "contracts.manage",
+  "procurement_plan.view",
+  "procurement_plan.manage",
+  "inventory.view",
+  "inventory.manage",
+  "audit.view",
   "users.view",
   "users.create",
   "users.edit",
@@ -75,7 +123,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   // Full access — no restrictions
   administrator: ALL_PERMISSIONS,
 
-  // Creates requests for their department
+  // Creates requests for their department; receives goods they ordered
   user_dept_member: [
     "requests.view.own",
     "requests.create",
@@ -84,6 +132,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "requests.print",
     "budget.view",
     "reserve_prices.view",
+    "goods_received.view",
+    "goods_received.create",
   ],
 
   // Approves requests from their own department
@@ -97,10 +147,14 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "requests.print",
     "budget.view",
     "reserve_prices.view",
+    "goods_received.view",
+    "goods_received.inspect",
+    "procurement_plan.view",
+    "inventory.view",
     "reports.view",
   ],
 
-  // Confirms funding and approves to procure
+  // Confirms funding and approves to procure; financial oversight
   accounting_officer: [
     "requests.view.all",
     "requests.approve.accounting_officer",
@@ -108,16 +162,43 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "budget.view",
     "budget.edit",
     "reserve_prices.view",
+    "suppliers.view",
+    "purchase_orders.view",
+    "goods_received.view",
+    "invoices.view",
+    "invoices.create",
+    "invoices.approve",
+    "invoices.pay",
+    "contracts.view",
+    "procurement_plan.view",
+    "inventory.view",
     "reports.view",
   ],
 
-  // Prepares submissions to the Contracts Committee; owns the reserve price list
+  // The PDU — operates suppliers, POs, receiving, contracts and the plan
   procurement_unit: [
     "requests.view.all",
+    "requests.prepare.committee",
     "requests.print",
     "budget.view",
     "reserve_prices.view",
     "reserve_prices.manage",
+    "suppliers.view",
+    "suppliers.manage",
+    "purchase_orders.view",
+    "purchase_orders.create",
+    "purchase_orders.manage",
+    "goods_received.view",
+    "goods_received.create",
+    "goods_received.inspect",
+    "invoices.view",
+    "invoices.create",
+    "contracts.view",
+    "contracts.manage",
+    "procurement_plan.view",
+    "procurement_plan.manage",
+    "inventory.view",
+    "inventory.manage",
     "reports.view",
   ],
 
@@ -125,21 +206,40 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   contracts_chair: [
     "requests.view.all",
     "requests.approve.committee",
+    "requests.prepare.committee",
     "requests.print",
     "reserve_prices.view",
+    "suppliers.view",
+    "contracts.view",
+    "procurement_plan.view",
     "reports.view",
   ],
 
   contracts_secretary: [
     "requests.view.all",
     "requests.approve.committee",
+    "requests.prepare.committee",
     "requests.print",
     "reserve_prices.view",
+    "suppliers.view",
+    "contracts.view",
+    "procurement_plan.view",
     "reports.view",
   ],
 
-  // Read-only
-  viewer: ["requests.view.all", "reserve_prices.view", "reports.view"],
+  // Read-only across everything reasonable
+  viewer: [
+    "requests.view.all",
+    "reserve_prices.view",
+    "suppliers.view",
+    "purchase_orders.view",
+    "goods_received.view",
+    "invoices.view",
+    "contracts.view",
+    "procurement_plan.view",
+    "inventory.view",
+    "reports.view",
+  ],
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

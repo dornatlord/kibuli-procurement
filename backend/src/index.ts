@@ -8,6 +8,16 @@ import usersRouter from "./routes/users.js";
 import lookupRouter from "./routes/lookup.js";
 import savedItemsRouter from "./routes/savedItems.js";
 import reservePricesRouter from "./routes/reservePrices.js";
+import suppliersRouter from "./routes/suppliers.js";
+import purchaseOrdersRouter from "./routes/purchaseOrders.js";
+import goodsReceivedRouter from "./routes/goodsReceived.js";
+import invoicesRouter from "./routes/invoices.js";
+import contractsRouter from "./routes/contracts.js";
+import procurementPlanRouter from "./routes/procurementPlan.js";
+import inventoryRouter from "./routes/inventory.js";
+import auditLogsRouter from "./routes/auditLogs.js";
+import monthlyReportRouter from "./routes/monthlyReport.js";
+import reportsRouter from "./routes/reports.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -57,6 +67,16 @@ app.use("/api/users", usersRouter);
 app.use("/api/lookup", lookupRouter);
 app.use("/api/saved-items", savedItemsRouter);
 app.use("/api/reserve-prices", reservePricesRouter);
+app.use("/api/suppliers", suppliersRouter);
+app.use("/api/purchase-orders", purchaseOrdersRouter);
+app.use("/api/goods-received", goodsReceivedRouter);
+app.use("/api/invoices", invoicesRouter);
+app.use("/api/contracts", contractsRouter);
+app.use("/api/procurement-plan", procurementPlanRouter);
+app.use("/api/inventory", inventoryRouter);
+app.use("/api/audit-logs", auditLogsRouter);
+app.use("/api/monthly-report", monthlyReportRouter);
+app.use("/api/reports", reportsRouter);
 
 // Global error handler — keeps CORS headers on 500s
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

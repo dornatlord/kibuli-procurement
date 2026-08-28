@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import StatusBadge from "../components/StatusBadge";
@@ -23,6 +23,15 @@ interface Signature {
   signedAt: string;
 }
 
+interface CommitteeDecision {
+  id: number;
+  recommendedMethod: string | null;
+  methodJustification: string | null;
+  biddingDocumentCost: string | null;
+  decision: string | null;
+  decisionJustification: string | null;
+}
+
 interface Request {
   id: number;
   referenceNumber: string;
@@ -42,7 +51,7 @@ interface Request {
   createdAt: string;
   items: LineItem[];
   signatures: Signature[];
-  decision: unknown;
+  decision: CommitteeDecision | null;
 }
 
 /**
@@ -418,6 +427,16 @@ export default function RequestDetailPage() {
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  const [showDecisionForm, setShowDecisionForm] = useState(false);
+  const [decisionForm, setDecisionForm] = useState({
+    recommendedMethod: "",
+    methodJustification: "",
+    biddingDocumentCost: "",
+    decision: "",
+    decisionJustification: "",
+  });
+  const [decisionSaving, setDecisionSaving] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
 
   function load() {
     setLoading(true);
@@ -436,6 +455,24 @@ export default function RequestDetailPage() {
       load();
     } finally {
       setActing(false);
+    }
+  }
+
+  async function submitDecision(e: React.FormEvent) {
+    e.preventDefault();
+    setDecisionError("");
+    setDecisionSaving(true);
+    try {
+      await api.post(`/requests/${id}/committee-decision`, {
+        ...decisionForm,
+        decision: decisionForm.decision || null,
+      });
+      setShowDecisionForm(false);
+      load();
+    } catch (err: unknown) {
+      setDecisionError(err instanceof Error ? err.message : "Failed to record decision");
+    } finally {
+      setDecisionSaving(false);
     }
   }
 
@@ -565,6 +602,104 @@ export default function RequestDetailPage() {
           })}
         </div>
       </section>
+
+      {/* Contracts Committee — macro procurements only */}
+      {request.procurementSize === "macro" &&
+        can("requests.prepare.committee", "requests.approve.committee") && (
+          <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="bg-gray-50 px-4 py-2 text-sm font-semibold border-b border-gray-200 flex items-center justify-between">
+              Contracts Committee
+              {!showDecisionForm && (
+                <button onClick={() => setShowDecisionForm(true)} className="text-xs text-green-700 hover:underline font-normal">
+                  {request.decision ? "Update" : "Prepare Submission"}
+                </button>
+              )}
+            </div>
+            <div className="p-4 space-y-4">
+              {request.decision && !showDecisionForm && (
+                <div className="text-sm space-y-1">
+                  <div><span className="text-gray-500">Recommended Method:</span> {request.decision.recommendedMethod || "—"}</div>
+                  <div><span className="text-gray-500">Justification:</span> {request.decision.methodJustification || "—"}</div>
+                  <div><span className="text-gray-500">Bidding Document Cost:</span> {request.decision.biddingDocumentCost ? Number(request.decision.biddingDocumentCost).toLocaleString("en-UG") : "—"}</div>
+                  <div>
+                    <span className="text-gray-500">Decision:</span>{" "}
+                    {request.decision.decision ? (
+                      <span className={`font-semibold ${request.decision.decision === "approved" ? "text-green-700" : request.decision.decision === "rejected" ? "text-red-600" : "text-amber-600"}`}>
+                        {request.decision.decision.charAt(0).toUpperCase() + request.decision.decision.slice(1)}
+                      </span>
+                    ) : "Pending"}
+                  </div>
+                  {request.decision.decisionJustification && (
+                    <div><span className="text-gray-500">Decision Justification:</span> {request.decision.decisionJustification}</div>
+                  )}
+                </div>
+              )}
+
+              {!request.decision && !showDecisionForm && (
+                <div className="text-sm text-gray-400">No submission recorded yet.</div>
+              )}
+
+              {showDecisionForm && (
+                <form onSubmit={submitDecision} className="space-y-4">
+                  {decisionError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">{decisionError}</div>}
+                  <div>
+                    <label className="label">Recommended Method of Procurement</label>
+                    <input value={decisionForm.recommendedMethod} onChange={(e) => setDecisionForm((p) => ({ ...p, recommendedMethod: e.target.value }))} className="input" />
+                  </div>
+                  <div>
+                    <label className="label">Justification</label>
+                    <textarea value={decisionForm.methodJustification} onChange={(e) => setDecisionForm((p) => ({ ...p, methodJustification: e.target.value }))} className="input" rows={2} />
+                  </div>
+                  <div>
+                    <label className="label">Cost of Bidding Document (UGX)</label>
+                    <input type="number" value={decisionForm.biddingDocumentCost} onChange={(e) => setDecisionForm((p) => ({ ...p, biddingDocumentCost: e.target.value }))} className="input" min="0" />
+                  </div>
+                  {can("requests.approve.committee") && (
+                    <>
+                      <div>
+                        <label className="label">Committee Decision</label>
+                        <select value={decisionForm.decision} onChange={(e) => setDecisionForm((p) => ({ ...p, decision: e.target.value }))} className="input">
+                          <option value="">— Not decided yet —</option>
+                          <option value="approved">Approved</option>
+                          <option value="rejected">Rejected</option>
+                          <option value="deferred">Deferred</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="label">Decision Justification</label>
+                        <textarea value={decisionForm.decisionJustification} onChange={(e) => setDecisionForm((p) => ({ ...p, decisionJustification: e.target.value }))} className="input" rows={2} />
+                      </div>
+                    </>
+                  )}
+                  <div className="flex gap-2">
+                    <button type="submit" disabled={decisionSaving} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60">
+                      {decisionSaving ? "Saving…" : "Save"}
+                    </button>
+                    <button type="button" onClick={() => setShowDecisionForm(false)} className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </section>
+        )}
+
+      {/* Downstream actions once approved */}
+      {request.status === "approved" && (can("purchase_orders.create") || can("contracts.manage")) && (
+        <div className="flex gap-3">
+          {can("purchase_orders.create") && (
+            <Link to={`/purchase-orders/new?requestId=${request.id}`} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800">
+              + Create Purchase Order
+            </Link>
+          )}
+          {can("contracts.manage") && (
+            <Link to={`/contracts/new?requestId=${request.id}`} className="border border-green-700 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-50">
+              + Create Contract
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   );
 }

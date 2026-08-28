@@ -56,8 +56,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Procurement Plan",
     to: "/plan",
     group: "Procurement",
-    status: "soon",
-    permissions: ["requests.view.all", "budget.view"],
+    status: "live",
+    permissions: ["procurement_plan.view"],
     description: "Annual PPDA procurement plan for the calendar year",
     icon: (
       <Svg>
@@ -72,9 +72,9 @@ export const MODULES: ProcurementModule[] = [
     label: "Bids & Tenders",
     to: "/tenders",
     group: "Procurement",
-    status: "soon",
-    permissions: ["requests.view.all"],
-    description: "Invitations to bid, quotations and bid evaluation",
+    status: "live",
+    permissions: ["requests.prepare.committee", "requests.approve.committee", "requests.view.all"],
+    description: "Contracts Committee submissions and decisions",
     icon: (
       <Svg>
         <path d="M4 20h16" />
@@ -89,8 +89,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Purchase Orders",
     to: "/purchase-orders",
     group: "Procurement",
-    status: "soon",
-    permissions: ["requests.view.all"],
+    status: "live",
+    permissions: ["purchase_orders.view"],
     description: "Generate and issue purchase orders to providers",
     icon: (
       <Svg>
@@ -107,8 +107,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Suppliers",
     to: "/suppliers",
     group: "Providers & Contracts",
-    status: "soon",
-    permissions: ["requests.view.all"],
+    status: "live",
+    permissions: ["suppliers.view"],
     description: "Provider register, prequalification and performance",
     icon: (
       <Svg>
@@ -124,8 +124,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Contracts",
     to: "/contracts",
     group: "Providers & Contracts",
-    status: "soon",
-    permissions: ["requests.view.all"],
+    status: "live",
+    permissions: ["contracts.view"],
     description: "Signed contracts, amendments and completion",
     icon: (
       <Svg>
@@ -143,8 +143,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Goods Received",
     to: "/goods-received",
     group: "Receiving & Payment",
-    status: "soon",
-    permissions: ["requests.view.all", "requests.view.department"],
+    status: "live",
+    permissions: ["goods_received.view"],
     description: "Delivery notes, inspection and acceptance",
     icon: (
       <Svg>
@@ -158,8 +158,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Invoices",
     to: "/invoices",
     group: "Receiving & Payment",
-    status: "soon",
-    permissions: ["budget.view"],
+    status: "live",
+    permissions: ["invoices.view"],
     description: "Match invoices to orders and deliveries, then pay",
     icon: (
       <Svg>
@@ -173,8 +173,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Inventory & Assets",
     to: "/inventory",
     group: "Receiving & Payment",
-    status: "soon",
-    permissions: ["requests.view.all"],
+    status: "live",
+    permissions: ["inventory.view"],
     description: "Stock levels and the school asset register",
     icon: (
       <Svg>
@@ -225,7 +225,7 @@ export const MODULES: ProcurementModule[] = [
     label: "Monthly Report",
     to: "/reports/monthly",
     group: "Reports & Administration",
-    status: "soon",
+    status: "live",
     permissions: ["reports.view"],
     description: "PPDA FORM 2 monthly return, Parts I to IV",
     icon: (
@@ -240,7 +240,7 @@ export const MODULES: ProcurementModule[] = [
     label: "Reports",
     to: "/reports",
     group: "Reports & Administration",
-    status: "soon",
+    status: "live",
     permissions: ["reports.view"],
     description: "Spending by department, category and provider",
     icon: (
@@ -271,8 +271,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Audit Trail",
     to: "/admin/audit",
     group: "Reports & Administration",
-    status: "soon",
-    permissions: ["system.settings"],
+    status: "live",
+    permissions: ["audit.view"],
     description: "Every action recorded, for PPDA compliance",
     icon: (
       <Svg>

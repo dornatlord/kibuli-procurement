@@ -14,6 +14,7 @@ import {
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { hasPermission, Permission } from "../lib/permissions.js";
+import { logAudit } from "../lib/audit.js";
 
 const router = Router();
 
@@ -86,8 +87,16 @@ router.get(
   ),
   async (req, res) => {
     const filter = await visibleRequestFilter(req.session);
+    const extra = [];
+    if (req.query.procurementSize) {
+      extra.push(eq(procurementRequests.procurementSize, String(req.query.procurementSize) as any));
+    }
+    if (req.query.status) {
+      extra.push(eq(procurementRequests.status, String(req.query.status) as any));
+    }
+    const where = [filter, ...extra].filter(Boolean);
     const base = db.select().from(procurementRequests);
-    const rows = await (filter ? base.where(filter) : base).orderBy(
+    const rows = await (where.length ? base.where(and(...where)) : base).orderBy(
       desc(procurementRequests.createdAt)
     );
     res.json(rows);
@@ -237,6 +246,10 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
     }
   }
 
+  await logAudit(req.session.userId!, "request.created", "procurement_request", request.id, {
+    referenceNumber: request.referenceNumber,
+  });
+
   res.status(201).json(request);
 });
 
@@ -304,16 +317,53 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
     });
   }
 
+  await logAudit(req.session.userId!, "request.status_changed", "procurement_request", id, {
+    from: request.status,
+    to: status,
+  });
+
   res.json({ ok: true });
 });
 
-router.post("/:id/committee-decision", requirePermission("requests.approve.committee"), async (req, res) => {
-  const id = Number(req.params.id);
-  await db.insert(contractsCommitteeDecisions).values({
-    procurementRequestId: id,
-    ...req.body,
-  });
-  res.status(201).json({ ok: true });
-});
+/**
+ * Records the Contracts Committee packet (PPDA FORM 5 Part II). The PDU
+ * prepares the submission fields (method, shortlist, evaluation committee);
+ * the committee chair/secretary fill in the decision. Both sides write to
+ * the same record here — the request's actual status transition, which is
+ * what determines whether the procurement is approved, still requires
+ * requests.approve.committee via PATCH /:id/status above.
+ */
+router.post(
+  "/:id/committee-decision",
+  requirePermission("requests.prepare.committee", "requests.approve.committee"),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    const [decision] = await db
+      .insert(contractsCommitteeDecisions)
+      .values({
+        procurementRequestId: id,
+        ...req.body,
+        chairpersonUserId:
+          req.body.decision && req.session.role === "contracts_chair" ? req.session.userId : null,
+        chairpersonSignedAt:
+          req.body.decision && req.session.role === "contracts_chair" ? new Date() : null,
+        secretaryUserId:
+          req.body.decision && req.session.role === "contracts_secretary" ? req.session.userId : null,
+        secretarySignedAt:
+          req.body.decision && req.session.role === "contracts_secretary" ? new Date() : null,
+      })
+      .returning();
+
+    await logAudit(
+      req.session.userId!,
+      "committee_decision.recorded",
+      "procurement_request",
+      id,
+      { decision: req.body.decision ?? null }
+    );
+
+    res.status(201).json(decision);
+  }
+);
 
 export default router;

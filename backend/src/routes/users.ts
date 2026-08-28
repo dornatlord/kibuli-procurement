@@ -5,6 +5,7 @@ import { users } from "../db/schema.js";
 import { requirePermission } from "../middleware/auth.js";
 import { eq, and, count } from "drizzle-orm";
 import { ROLE_LABELS, ROLE_PERMISSIONS, Role } from "../lib/permissions.js";
+import { logAudit } from "../lib/audit.js";
 
 const router = Router();
 
@@ -74,6 +75,11 @@ router.post("/", requirePermission("users.create"), async (req, res) => {
     })
     .returning(SAFE_COLUMNS);
 
+  await logAudit(req.session.userId!, "user.created", "user", user.id, {
+    email: user.email,
+    role: user.role,
+  });
+
   res.status(201).json(user);
 });
 
@@ -118,6 +124,8 @@ router.patch("/:id", requirePermission("users.edit"), async (req, res) => {
     res.status(404).json({ error: "User not found" });
     return;
   }
+
+  await logAudit(req.session.userId!, "user.updated", "user", id, { role, department });
   res.json(updated);
 });
 
@@ -164,6 +172,13 @@ router.patch(
       res.status(404).json({ error: "User not found" });
       return;
     }
+
+    await logAudit(
+      req.session.userId!,
+      isActive ? "user.reactivated" : "user.deactivated",
+      "user",
+      id
+    );
     res.json(updated);
   }
 );

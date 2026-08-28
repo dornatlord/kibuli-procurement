@@ -9,6 +9,24 @@ import BudgetAdminPage from "./pages/BudgetAdminPage";
 import ReservePricesPage from "./pages/ReservePricesPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 import AccountPage from "./pages/AccountPage";
+import SuppliersPage from "./pages/SuppliersPage";
+import PurchaseOrdersListPage from "./pages/PurchaseOrdersListPage";
+import NewPurchaseOrderPage from "./pages/NewPurchaseOrderPage";
+import PurchaseOrderDetailPage from "./pages/PurchaseOrderDetailPage";
+import GoodsReceivedListPage from "./pages/GoodsReceivedListPage";
+import NewGoodsReceivedPage from "./pages/NewGoodsReceivedPage";
+import GoodsReceivedDetailPage from "./pages/GoodsReceivedDetailPage";
+import InvoicesListPage from "./pages/InvoicesListPage";
+import NewInvoicePage from "./pages/NewInvoicePage";
+import ContractsListPage from "./pages/ContractsListPage";
+import NewContractPage from "./pages/NewContractPage";
+import ContractDetailPage from "./pages/ContractDetailPage";
+import ProcurementPlanPage from "./pages/ProcurementPlanPage";
+import InventoryPage from "./pages/InventoryPage";
+import AuditTrailPage from "./pages/AuditTrailPage";
+import MonthlyReportPage from "./pages/MonthlyReportPage";
+import ReportsPage from "./pages/ReportsPage";
+import BidsAndTendersPage from "./pages/BidsAndTendersPage";
 import Layout from "./components/Layout";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -83,6 +101,160 @@ function AppRoutes() {
           element={
             <Guard permissions={viewRequests}>
               <RequestDetailPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="tenders"
+          element={
+            <Guard permissions={["requests.prepare.committee", "requests.approve.committee", "requests.view.all"]}>
+              <BidsAndTendersPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="suppliers"
+          element={
+            <Guard permissions={["suppliers.view"]}>
+              <SuppliersPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="purchase-orders"
+          element={
+            <Guard permissions={["purchase_orders.view"]}>
+              <PurchaseOrdersListPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="purchase-orders/new"
+          element={
+            <Guard permissions={["purchase_orders.create"]}>
+              <NewPurchaseOrderPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="purchase-orders/:id"
+          element={
+            <Guard permissions={["purchase_orders.view"]}>
+              <PurchaseOrderDetailPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="goods-received"
+          element={
+            <Guard permissions={["goods_received.view"]}>
+              <GoodsReceivedListPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="goods-received/new"
+          element={
+            <Guard permissions={["goods_received.create"]}>
+              <NewGoodsReceivedPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="goods-received/:id"
+          element={
+            <Guard permissions={["goods_received.view"]}>
+              <GoodsReceivedDetailPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="invoices"
+          element={
+            <Guard permissions={["invoices.view"]}>
+              <InvoicesListPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="invoices/new"
+          element={
+            <Guard permissions={["invoices.create"]}>
+              <NewInvoicePage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="contracts"
+          element={
+            <Guard permissions={["contracts.view"]}>
+              <ContractsListPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="contracts/new"
+          element={
+            <Guard permissions={["contracts.manage"]}>
+              <NewContractPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="contracts/:id"
+          element={
+            <Guard permissions={["contracts.view"]}>
+              <ContractDetailPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="plan"
+          element={
+            <Guard permissions={["procurement_plan.view"]}>
+              <ProcurementPlanPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="inventory"
+          element={
+            <Guard permissions={["inventory.view"]}>
+              <InventoryPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="reports/monthly"
+          element={
+            <Guard permissions={["reports.view"]}>
+              <MonthlyReportPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="reports"
+          element={
+            <Guard permissions={["reports.view"]}>
+              <ReportsPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="admin/audit"
+          element={
+            <Guard permissions={["audit.view"]}>
+              <AuditTrailPage />
             </Guard>
           }
         />
