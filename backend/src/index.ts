@@ -7,6 +7,7 @@ import budgetRouter from "./routes/budget.js";
 import usersRouter from "./routes/users.js";
 import lookupRouter from "./routes/lookup.js";
 import savedItemsRouter from "./routes/savedItems.js";
+import reservePricesRouter from "./routes/reservePrices.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -55,6 +56,7 @@ app.use("/api/budget", budgetRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/lookup", lookupRouter);
 app.use("/api/saved-items", savedItemsRouter);
+app.use("/api/reserve-prices", reservePricesRouter);
 
 // Global error handler — keeps CORS headers on 500s
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

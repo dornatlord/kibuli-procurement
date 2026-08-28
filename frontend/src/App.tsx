@@ -6,6 +6,7 @@ import NewRequestPage from "./pages/NewRequestPage";
 import RequestDetailPage from "./pages/RequestDetailPage";
 import RequestsListPage from "./pages/RequestsListPage";
 import BudgetAdminPage from "./pages/BudgetAdminPage";
+import ReservePricesPage from "./pages/ReservePricesPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 import AccountPage from "./pages/AccountPage";
 import Layout from "./components/Layout";
@@ -91,6 +92,14 @@ function AppRoutes() {
           element={
             <Guard permissions={["budget.edit"]}>
               <BudgetAdminPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="reserve-prices"
+          element={
+            <Guard permissions={["reserve_prices.view"]}>
+              <ReservePricesPage />
             </Guard>
           }
         />

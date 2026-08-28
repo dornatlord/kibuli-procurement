@@ -105,6 +105,20 @@ export const budgetItems = pgTable("budget_items", {
   displayOrder: integer("display_order"),
 });
 
+export const reservePriceItems = pgTable("reserve_price_items", {
+  id: serial("id").primaryKey(),
+  category: text("category").notNull(),
+  itemName: text("item_name").notNull(),
+  unitOfMeasure: text("unit_of_measure"),
+  currentPrice: numeric("current_price", { precision: 15, scale: 2 }),
+  maximumPrice: numeric("maximum_price", { precision: 15, scale: 2 }),
+  year: integer("year").notNull().default(2026),
+  isActive: boolean("is_active").notNull().default(true),
+  displayOrder: integer("display_order"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const savedItems = pgTable("saved_items", {
   id: serial("id").primaryKey(),
   description: text("description").notNull(),
@@ -228,6 +242,7 @@ export type BudgetItem = typeof budgetItems.$inferSelect;
 export type ProcurementRequest = typeof procurementRequests.$inferSelect;
 export type ProcurementItem = typeof procurementItems.$inferSelect;
 export type SavedItem = typeof savedItems.$inferSelect;
+export type ReservePriceItem = typeof reservePriceItems.$inferSelect;
 export type RequestSignature = typeof requestSignatures.$inferSelect;
 export type ContractsCommitteeDecision =
   typeof contractsCommitteeDecisions.$inferSelect;

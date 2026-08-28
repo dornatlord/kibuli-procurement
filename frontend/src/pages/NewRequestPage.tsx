@@ -6,6 +6,17 @@ interface Vote { id: number; code: string; name: string; }
 interface SubProgramme { id: number; romanNumeral: string | null; name: string; }
 interface BudgetItem { id: number; name: string; budgetedAmount: string | null; }
 interface SavedItem { id: number; description: string; unitOfMeasure: string | null; lastUnitCost: string | null; }
+interface ReservePriceItem { id: number; category: string; itemName: string; unitOfMeasure: string | null; currentPrice: string | null; maximumPrice: string | null; }
+
+interface Suggestion {
+  source: "saved" | "reserve";
+  id: number;
+  description: string;
+  unitOfMeasure: string | null;
+  price: string | null;
+  maxPrice: string | null;
+  category?: string;
+}
 
 interface LineItem {
   key: string;
@@ -16,7 +27,8 @@ interface LineItem {
   estimatedUnitCost: string;
   marketPrice: string;
   totalCost: string;
-  suggestions: SavedItem[];
+  reserveMaxPrice: string | null;
+  suggestions: Suggestion[];
   showSuggestions: boolean;
 }
 
@@ -30,6 +42,7 @@ function makeItem(): LineItem {
     estimatedUnitCost: "",
     marketPrice: "",
     totalCost: "",
+    reserveMaxPrice: null,
     suggestions: [],
     showSuggestions: false,
   };
@@ -117,9 +130,38 @@ export default function NewRequestPage() {
     setSelectedBudgetItem(found || null);
   }, [budgetItemId, budgetItems]);
 
-  const searchSavedItems = useCallback(async (key: string, q: string) => {
-    if (q.length < 2 || procurementSize !== "micro") return;
-    const results = await api.get<SavedItem[]>(`/saved-items/search?q=${encodeURIComponent(q)}`);
+  const searchSuggestions = useCallback(async (key: string, q: string) => {
+    if (q.length < 2) return;
+
+    const [saved, reserve] = await Promise.all([
+      procurementSize === "micro"
+        ? api.get<SavedItem[]>(`/saved-items/search?q=${encodeURIComponent(q)}`).catch(() => [])
+        : Promise.resolve([]),
+      api
+        .get<ReservePriceItem[]>(`/reserve-prices/search?q=${encodeURIComponent(q)}`)
+        .catch(() => []),
+    ]);
+
+    const results: Suggestion[] = [
+      ...saved.map((s): Suggestion => ({
+        source: "saved",
+        id: s.id,
+        description: s.description,
+        unitOfMeasure: s.unitOfMeasure,
+        price: s.lastUnitCost,
+        maxPrice: null,
+      })),
+      ...reserve.map((r): Suggestion => ({
+        source: "reserve",
+        id: r.id,
+        description: r.itemName,
+        unitOfMeasure: r.unitOfMeasure,
+        price: r.currentPrice,
+        maxPrice: r.maximumPrice,
+        category: r.category,
+      })),
+    ];
+
     setItems((prev) =>
       prev.map((it) => (it.key === key ? { ...it, suggestions: results, showSuggestions: results.length > 0 } : it))
     );
@@ -141,17 +183,18 @@ export default function NewRequestPage() {
   }
 
   function handleDescriptionChange(key: string, val: string) {
-    updateItem(key, { description: val, savedItemId: null });
+    updateItem(key, { description: val, savedItemId: null, reserveMaxPrice: null });
     if (debounceRef.current[key]) clearTimeout(debounceRef.current[key]);
-    debounceRef.current[key] = setTimeout(() => searchSavedItems(key, val), 300);
+    debounceRef.current[key] = setTimeout(() => searchSuggestions(key, val), 300);
   }
 
-  function selectSuggestion(key: string, s: SavedItem) {
+  function selectSuggestion(key: string, s: Suggestion) {
     updateItem(key, {
-      savedItemId: s.id,
+      savedItemId: s.source === "saved" ? s.id : null,
       description: s.description,
       unitOfMeasure: s.unitOfMeasure || "",
-      estimatedUnitCost: s.lastUnitCost || "",
+      estimatedUnitCost: s.price || "",
+      reserveMaxPrice: s.source === "reserve" ? s.maxPrice : null,
       suggestions: [],
       showSuggestions: false,
     });
@@ -529,17 +572,24 @@ export default function NewRequestPage() {
                       required
                     />
                     {item.showSuggestions && item.suggestions.length > 0 && (
-                      <div className="absolute left-0 right-0 top-full z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto mt-1">
+                      <div className="absolute left-0 right-0 top-full z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto mt-1">
                         {item.suggestions.map((s) => (
                           <button
-                            key={s.id}
+                            key={`${s.source}-${s.id}`}
                             type="button"
                             onMouseDown={() => selectSuggestion(item.key, s)}
-                            className="w-full text-left px-3 py-2 text-xs hover:bg-green-50 flex items-center justify-between"
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-green-50 flex items-center justify-between gap-2"
                           >
-                            <span>{s.description}</span>
-                            <span className="text-gray-400 ml-2">
-                              {s.lastUnitCost ? Number(s.lastUnitCost).toLocaleString("en-UG") : "—"} / {s.unitOfMeasure || "—"}
+                            <span className="flex items-center gap-1.5 min-w-0">
+                              {s.source === "reserve" && (
+                                <span className="shrink-0 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                                  reserve
+                                </span>
+                              )}
+                              <span className="truncate">{s.description}</span>
+                            </span>
+                            <span className="text-gray-400 shrink-0">
+                              {s.price ? Number(s.price).toLocaleString("en-UG") : "—"} / {s.unitOfMeasure || "—"}
                             </span>
                           </button>
                         ))}
@@ -569,10 +619,22 @@ export default function NewRequestPage() {
                       type="number"
                       value={item.estimatedUnitCost}
                       onChange={(e) => updateItem(item.key, { estimatedUnitCost: e.target.value })}
-                      className="input text-xs text-right"
+                      className={`input text-xs text-right ${
+                        item.reserveMaxPrice &&
+                        Number(item.estimatedUnitCost) > Number(item.reserveMaxPrice)
+                          ? "border-amber-400 bg-amber-50"
+                          : ""
+                      }`}
                       min="0"
                       step="1"
                     />
+                    {item.reserveMaxPrice &&
+                      Number(item.estimatedUnitCost) > Number(item.reserveMaxPrice) && (
+                        <div className="text-[10px] text-amber-700 mt-0.5 text-right">
+                          Above reserve price ceiling of{" "}
+                          {Number(item.reserveMaxPrice).toLocaleString("en-UG")}
+                        </div>
+                      )}
                   </td>
                   <td className="px-2 py-2 text-right text-xs text-gray-700 font-medium">
                     {item.totalCost ? Number(item.totalCost).toLocaleString("en-UG") : "—"}

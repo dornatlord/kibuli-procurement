@@ -32,6 +32,9 @@ export type Permission =
   // Budget
   | "budget.view"
   | "budget.edit"
+  // Reserve prices
+  | "reserve_prices.view"
+  | "reserve_prices.manage"
   // Users
   | "users.view"
   | "users.create"
@@ -57,6 +60,8 @@ const ALL_PERMISSIONS: Permission[] = [
   "requests.print",
   "budget.view",
   "budget.edit",
+  "reserve_prices.view",
+  "reserve_prices.manage",
   "users.view",
   "users.create",
   "users.edit",
@@ -78,6 +83,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "requests.submit",
     "requests.print",
     "budget.view",
+    "reserve_prices.view",
   ],
 
   // Approves requests from their own department
@@ -90,6 +96,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "requests.approve.hod",
     "requests.print",
     "budget.view",
+    "reserve_prices.view",
     "reports.view",
   ],
 
@@ -100,14 +107,17 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "requests.print",
     "budget.view",
     "budget.edit",
+    "reserve_prices.view",
     "reports.view",
   ],
 
-  // Prepares submissions to the Contracts Committee
+  // Prepares submissions to the Contracts Committee; owns the reserve price list
   procurement_unit: [
     "requests.view.all",
     "requests.print",
     "budget.view",
+    "reserve_prices.view",
+    "reserve_prices.manage",
     "reports.view",
   ],
 
@@ -116,6 +126,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "requests.view.all",
     "requests.approve.committee",
     "requests.print",
+    "reserve_prices.view",
     "reports.view",
   ],
 
@@ -123,11 +134,12 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "requests.view.all",
     "requests.approve.committee",
     "requests.print",
+    "reserve_prices.view",
     "reports.view",
   ],
 
   // Read-only
-  viewer: ["requests.view.all", "reports.view"],
+  viewer: ["requests.view.all", "reserve_prices.view", "reports.view"],
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

@@ -191,8 +191,8 @@ export const MODULES: ProcurementModule[] = [
     label: "Reserve Prices",
     to: "/reserve-prices",
     group: "Reference",
-    status: "soon",
-    permissions: ["requests.create", "budget.view"],
+    status: "live",
+    permissions: ["reserve_prices.view"],
     description: "Approved price ceilings used to check unit costs",
     icon: (
       <Svg>
