@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import {
   procurementRequests,
@@ -11,7 +11,7 @@ import {
 import { eq, sql, desc } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 
-const router = Router();
+const router = asyncRouter();
 
 router.get("/summary", requirePermission("reports.view"), async (_req, res) => {
   const byStatus = await db

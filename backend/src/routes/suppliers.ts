@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import { suppliers } from "../db/schema.js";
 import { and, asc, eq, ilike } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 
-const router = Router();
+const router = asyncRouter();
 
 router.get("/", requirePermission("suppliers.view"), async (req, res) => {
   const includeInactive = req.query.includeInactive === "true";

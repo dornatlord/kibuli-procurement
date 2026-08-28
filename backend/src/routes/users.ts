@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
@@ -7,7 +7,7 @@ import { eq, and, count } from "drizzle-orm";
 import { ROLE_LABELS, ROLE_PERMISSIONS, Role } from "../lib/permissions.js";
 import { logAudit } from "../lib/audit.js";
 
-const router = Router();
+const router = asyncRouter();
 
 const SAFE_COLUMNS = {
   id: users.id,

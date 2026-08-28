@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import { assets } from "../db/schema.js";
 import { eq, asc, sql, and } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 
-const router = Router();
+const router = asyncRouter();
 
 async function nextAssetTag(year: number): Promise<string> {
   const [row] = await db

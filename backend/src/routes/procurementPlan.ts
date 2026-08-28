@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import { procurementPlanItems } from "../db/schema.js";
 import { eq, asc } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 
-const router = Router();
+const router = asyncRouter();
 
 router.get("/", requirePermission("procurement_plan.view"), async (req, res) => {
   const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
@@ -72,17 +72,21 @@ router.patch("/:id", requirePermission("procurement_plan.manage"), async (req, r
   const body = req.body;
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
-  const fields = [
+
+  // Text fields pass through; numeric/date/reference fields must become NULL
+  // when blank — Postgres rejects '' for those column types.
+  const textFields = [
     "subjectOfProcurement",
     "currency",
-    "estimatedCost",
     "sourceOfFunding",
     "procurementMethod",
     "procurementCategory",
     "contractType",
-    "isPrequalificationRequired",
-    "applyReservationScheme",
     "reservationSchemeType",
+    "status",
+  ] as const;
+  const nullableFields = [
+    "estimatedCost",
     "bidInvitationDate",
     "bidClosingDate",
     "evaluationReportDate",
@@ -90,10 +94,17 @@ router.patch("/:id", requirePermission("procurement_plan.manage"), async (req, r
     "contractSigningDate",
     "completionDate",
     "linkedRequestId",
-    "status",
   ] as const;
-  for (const f of fields) {
+  const boolFields = ["isPrequalificationRequired", "applyReservationScheme"] as const;
+
+  for (const f of textFields) {
     if (body[f] !== undefined) patch[f] = body[f];
+  }
+  for (const f of nullableFields) {
+    if (body[f] !== undefined) patch[f] = body[f] === "" || body[f] === null ? null : body[f];
+  }
+  for (const f of boolFields) {
+    if (body[f] !== undefined) patch[f] = !!body[f];
   }
 
   const [updated] = await db

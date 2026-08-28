@@ -1,10 +1,10 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import { savedItems } from "../db/schema.js";
 import { ilike, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 
-const router = Router();
+const router = asyncRouter();
 
 router.get("/search", requireAuth, async (req, res) => {
   const q = String(req.query.q || "");

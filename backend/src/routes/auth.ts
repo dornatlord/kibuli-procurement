@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { permissionsFor, ROLE_LABELS, Role } from "../lib/permissions.js";
 
-const router = Router();
+const router = asyncRouter();
 
 router.post("/login", async (req, res) => {
   try {

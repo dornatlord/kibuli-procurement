@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import {
   procurementRequests,
@@ -16,7 +16,7 @@ import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { hasPermission, Permission } from "../lib/permissions.js";
 import { logAudit } from "../lib/audit.js";
 
-const router = Router();
+const router = asyncRouter();
 
 /**
  * Which requests may this session see?
@@ -338,28 +338,64 @@ router.post(
   requirePermission("requests.prepare.committee", "requests.approve.committee"),
   async (req, res) => {
     const id = Number(req.params.id);
-    const [decision] = await db
-      .insert(contractsCommitteeDecisions)
-      .values({
-        procurementRequestId: id,
-        ...req.body,
-        chairpersonUserId:
-          req.body.decision && req.session.role === "contracts_chair" ? req.session.userId : null,
-        chairpersonSignedAt:
-          req.body.decision && req.session.role === "contracts_chair" ? new Date() : null,
-        secretaryUserId:
-          req.body.decision && req.session.role === "contracts_secretary" ? req.session.userId : null,
-        secretarySignedAt:
-          req.body.decision && req.session.role === "contracts_secretary" ? new Date() : null,
-      })
-      .returning();
+    const b = req.body ?? {};
+
+    // Empty strings from number/date inputs must become NULL — Postgres rejects
+    // '' for numeric and date columns.
+    const blank = (v: unknown) => v === undefined || v === null || v === "";
+    const num = (v: unknown) => (blank(v) ? null : String(v));
+    const txt = (v: unknown) => (blank(v) ? null : String(v));
+
+    const decisionValue = blank(b.decision) ? null : String(b.decision);
+    if (decisionValue && !["approved", "rejected", "deferred"].includes(decisionValue)) {
+      res.status(400).json({ error: `Invalid decision: ${decisionValue}` });
+      return;
+    }
+
+    const isChair = req.session.role === "contracts_chair";
+    const isSecretary = req.session.role === "contracts_secretary";
+
+    const fields = {
+      submissionDate: txt(b.submissionDate),
+      committeeMeetingDate: txt(b.committeeMeetingDate),
+      meetingReference: txt(b.meetingReference),
+      recommendedMethod: txt(b.recommendedMethod),
+      methodJustification: txt(b.methodJustification),
+      shortlistedProviders: b.shortlistedProviders ?? null,
+      evaluationCommittee: b.evaluationCommittee ?? null,
+      biddingDocumentTeam: b.biddingDocumentTeam ?? null,
+      biddingDocumentCost: num(b.biddingDocumentCost),
+      decision: decisionValue as "approved" | "rejected" | "deferred" | null,
+      decisionJustification: txt(b.decisionJustification),
+      chairpersonUserId: decisionValue && isChair ? req.session.userId! : null,
+      chairpersonSignedAt: decisionValue && isChair ? new Date() : null,
+      secretaryUserId: decisionValue && isSecretary ? req.session.userId! : null,
+      secretarySignedAt: decisionValue && isSecretary ? new Date() : null,
+    };
+
+    // One packet per request — re-saving updates it rather than stacking duplicates.
+    const [existing] = await db
+      .select({ id: contractsCommitteeDecisions.id })
+      .from(contractsCommitteeDecisions)
+      .where(eq(contractsCommitteeDecisions.procurementRequestId, id));
+
+    const [decision] = existing
+      ? await db
+          .update(contractsCommitteeDecisions)
+          .set(fields)
+          .where(eq(contractsCommitteeDecisions.id, existing.id))
+          .returning()
+      : await db
+          .insert(contractsCommitteeDecisions)
+          .values({ procurementRequestId: id, ...fields })
+          .returning();
 
     await logAudit(
       req.session.userId!,
       "committee_decision.recorded",
       "procurement_request",
       id,
-      { decision: req.body.decision ?? null }
+      { decision: decisionValue }
     );
 
     res.status(201).json(decision);

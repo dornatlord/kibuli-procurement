@@ -1,10 +1,10 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import { reservePriceItems } from "../db/schema.js";
 import { and, asc, eq, ilike } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 
-const router = Router();
+const router = asyncRouter();
 
 router.get("/", requirePermission("reserve_prices.view"), async (req, res) => {
   const category = req.query.category ? String(req.query.category) : null;

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import {
   purchaseOrders,
@@ -11,7 +11,7 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 
-const router = Router();
+const router = asyncRouter();
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
   draft: ["issued", "cancelled"],

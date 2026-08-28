@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import {
   procurementRequests,
@@ -11,7 +11,7 @@ import {
 import { eq, and, gte, lt, inArray, sql } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 
-const router = Router();
+const router = asyncRouter();
 
 function monthRange(year: number, month: number) {
   const start = new Date(Date.UTC(year, month - 1, 1));

@@ -1,10 +1,10 @@
-import { Router } from "express";
+import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import { votes, subProgrammes, budgetItems } from "../db/schema.js";
 import { eq, asc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 
-const router = Router();
+const router = asyncRouter();
 
 router.get("/votes", requireAuth, async (_req, res) => {
   const rows = await db.select().from(votes).orderBy(asc(votes.displayOrder));
