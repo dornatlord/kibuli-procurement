@@ -22,8 +22,9 @@ interface Props {
   onConfirm: (items: PriceListItem[]) => void;
 }
 
-// Kept between openings so the list appears instantly; refreshed on each open.
+// Kept between openings so the list shows instantly; refreshed when stale.
 let cache: PriceListItem[] | null = null;
+let fetchedAt = 0;
 
 export function itemKey(name: string, unit: string | null | undefined) {
   return `${name.trim().toLowerCase()}|${(unit ?? "").trim().toLowerCase()}`;
@@ -52,23 +53,32 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
 
   function load() {
     setError("");
+    fetchedAt = Date.now();
     api
       .get<PriceListItem[]>("/reserve-prices")
       .then((rows) => {
         cache = rows;
         setAll(rows);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Could not load the price list"));
+      .catch((e) => {
+        fetchedAt = 0; // let the next open retry
+        setError(e instanceof Error ? e.message : "Could not load the price list");
+      });
   }
 
-  // Start fresh every time the picker opens. The cached list shows at once and
-  // is refreshed in the background, so price edits appear without a reload.
+  // Fetch as soon as the request form renders, so the first open is instant.
+  useEffect(() => {
+    if (!fetchedAt) load();
+  }, []);
+
+  // Start fresh every time the picker opens, refreshing a list more than a
+  // minute old so price edits appear without a page reload.
   useEffect(() => {
     if (!open) return;
     setQuery("");
     setSelected(new Set());
     setScope(hasSuggestions ? "suggested" : "all");
-    load();
+    if (Date.now() - fetchedAt > 60000) load();
     const t = setTimeout(() => searchRef.current?.focus(), 50);
     return () => clearTimeout(t);
   }, [open]);
