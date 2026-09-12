@@ -17,7 +17,7 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col">
       <header className="bg-green-800 text-white px-6 py-3 flex items-center justify-between shadow">
         <div className="flex items-center gap-3">
-          <span className="font-bold text-lg tracking-tight">Kibuli SS</span>
+          <span className="font-bold text-lg tracking-tight">Kibuli Secondary School</span>
           <span className="text-green-300 text-sm">Procurement System</span>
         </div>
         <div className="flex items-center gap-4 text-sm">

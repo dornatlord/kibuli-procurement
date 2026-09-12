@@ -140,6 +140,9 @@ export const subProgrammes = pgTable("sub_programmes", {
   romanNumeral: text("roman_numeral"),
   name: text("name").notNull(),
   displayOrder: integer("display_order"),
+  // Price-list categories the request item picker suggests. Only needed for
+  // sub-programmes with no budget items of their own (vote 2202 departments).
+  priceCategories: text("price_categories").array(),
 });
 
 export const budgetItems = pgTable("budget_items", {
@@ -153,6 +156,8 @@ export const budgetItems = pgTable("budget_items", {
   name: text("name").notNull(),
   budgetedAmount: numeric("budgeted_amount", { precision: 15, scale: 2 }),
   displayOrder: integer("display_order"),
+  // Price-list categories the request item picker suggests for this line.
+  priceCategories: text("price_categories").array(),
 });
 
 export const reservePriceItems = pgTable("reserve_price_items", {

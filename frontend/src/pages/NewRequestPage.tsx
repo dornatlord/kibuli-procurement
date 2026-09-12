@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import ItemPickerModal, { itemKey } from "../components/ItemPickerModal";
+import type { PriceListItem } from "../components/ItemPickerModal";
 
 interface Vote { id: number; code: string; name: string; }
-interface SubProgramme { id: number; romanNumeral: string | null; name: string; }
-interface BudgetItem { id: number; name: string; budgetedAmount: string | null; }
+interface SubProgramme { id: number; romanNumeral: string | null; name: string; priceCategories: string[] | null; }
+interface BudgetItem { id: number; name: string; budgetedAmount: string | null; priceCategories: string[] | null; }
 interface SavedItem { id: number; description: string; unitOfMeasure: string | null; lastUnitCost: string | null; }
 interface ReservePriceItem { id: number; category: string; itemName: string; unitOfMeasure: string | null; currentPrice: string | null; maximumPrice: string | null; }
 
@@ -68,6 +70,7 @@ export default function NewRequestPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   // Procurement type gate — must be chosen before form is shown
   const [procurementSize, setProcurementSize] = useState<"micro" | "macro" | "">("");
@@ -80,7 +83,6 @@ export default function NewRequestPage() {
   const [planRef, setPlanRef] = useState("");
   const [location, setLocation] = useState("Kibuli Secondary School");
   const [dateRequired, setDateRequired] = useState("");
-  const [estimatedTotal, setEstimatedTotal] = useState("");
   const [isMultiyear, setIsMultiyear] = useState(false);
   const [myYears, setMyYears] = useState({ one: "", two: "", three: "", four: "" });
   const [voteId, setVoteId] = useState<number | "">("");
@@ -89,11 +91,17 @@ export default function NewRequestPage() {
   const [balanceManual, setBalanceManual] = useState("");
   const [items, setItems] = useState<LineItem[]>([makeItem()]);
 
+  // Item picker — opens on the price-list categories matching the budget line
+  // chosen in Part III, so users tick items instead of typing them.
+  const [picker, setPicker] = useState<{ title: string; categories: string[] } | null>(null);
+  const [focusKey, setFocusKey] = useState<string | null>(null);
+
   // Lookup data
   const [votes, setVotes] = useState<Vote[]>([]);
   const [subProgrammes, setSubProgrammes] = useState<SubProgramme[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [selectedBudgetItem, setSelectedBudgetItem] = useState<BudgetItem | null>(null);
+  const selectedSubProgramme = subProgrammes.find((sp) => sp.id === subProgrammeId) ?? null;
 
   const now = new Date();
   const { year, week } = yearType === "financial" ? getFinancialWeek(now) : getCalendarWeek(now);
@@ -122,13 +130,41 @@ export default function NewRequestPage() {
     setBudgetItems([]);
     setSelectedBudgetItem(null);
     if (!subProgrammeId) return;
-    api.get<BudgetItem[]>(`/lookup/sub-programmes/${subProgrammeId}/items`).then(setBudgetItems);
+    let cancelled = false;
+    const sp = subProgrammes.find((s) => s.id === subProgrammeId);
+    api.get<BudgetItem[]>(`/lookup/sub-programmes/${subProgrammeId}/items`).then((rows) => {
+      if (cancelled) return;
+      setBudgetItems(rows);
+      // Tuition Stores departments have no budget items, so choosing the
+      // sub-programme is the last step of the fund availability check.
+      if (rows.length === 0 && sp) offerPicker(sp.name, sp.priceCategories);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [subProgrammeId]);
 
   useEffect(() => {
     const found = budgetItems.find((b) => b.id === budgetItemId);
     setSelectedBudgetItem(found || null);
   }, [budgetItemId, budgetItems]);
+
+  // After the picker adds rows, put the cursor in the first new quantity box.
+  useEffect(() => {
+    if (!focusKey) return;
+    qtyRefs.current[focusKey]?.focus();
+    setFocusKey(null);
+  }, [focusKey]);
+
+  const addedKeys = useMemo(
+    () =>
+      new Set(
+        items
+          .filter((it) => it.description.trim())
+          .map((it) => itemKey(it.description, it.unitOfMeasure))
+      ),
+    [items]
+  );
 
   const searchSuggestions = useCallback(async (key: string, q: string) => {
     if (q.length < 2) return;
@@ -200,6 +236,40 @@ export default function NewRequestPage() {
     });
   }
 
+  function offerPicker(title: string, categories: string[] | null | undefined) {
+    if (categories?.length) setPicker({ title, categories });
+  }
+
+  function addPickedItems(picked: PriceListItem[]) {
+    const rows = picked.map((p): LineItem => ({
+      ...makeItem(),
+      description: p.itemName,
+      unitOfMeasure: p.unitOfMeasure ?? "",
+      estimatedUnitCost: p.currentPrice ? String(Number(p.currentPrice)) : "",
+      reserveMaxPrice: p.maximumPrice,
+    }));
+    // Drop the untouched starter row so picked items start at #1.
+    setItems((prev) => [
+      ...prev.filter((it) => it.description.trim() || it.quantity || it.estimatedUnitCost),
+      ...rows,
+    ]);
+    setFocusKey(rows[0]?.key ?? null);
+    setPicker(null);
+  }
+
+  // What the "Pick from price list" button should suggest right now.
+  const pickerScope = selectedBudgetItem
+    ? {
+        title: selectedBudgetItem.name,
+        categories: selectedBudgetItem.priceCategories ?? selectedSubProgramme?.priceCategories ?? [],
+      }
+    : selectedSubProgramme && budgetItems.length === 0
+    ? { title: selectedSubProgramme.name, categories: selectedSubProgramme.priceCategories ?? [] }
+    : null;
+
+  const itemsTotal =
+    Math.round(items.reduce((sum, it) => sum + (Number(it.totalCost) || 0), 0) * 100) / 100;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -214,7 +284,7 @@ export default function NewRequestPage() {
         procurementPlanReference: planRef,
         locationForDelivery: location,
         dateRequired: dateRequired || null,
-        estimatedTotalCost: estimatedTotal || null,
+        estimatedTotalCost: itemsTotal ? String(itemsTotal) : null,
         isMultiyear,
         multiyearYearOne: myYears.one || null,
         multiyearYearTwo: myYears.two || null,
@@ -279,6 +349,7 @@ export default function NewRequestPage() {
   }
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">New Procurement Request</h1>
@@ -294,9 +365,9 @@ export default function NewRequestPage() {
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">PART I — IDENTIFICATION</div>
         <div className="p-4 grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Entity Code</label>
+            <label className="label">Code of Procuring and Disposing Entity</label>
             <input
-              value="Kibuli SS"
+              value="Kibuli Secondary School"
               readOnly
               className="input bg-gray-50 cursor-not-allowed"
             />
@@ -411,12 +482,10 @@ export default function NewRequestPage() {
           <div>
             <label className="label">Estimated Total Cost (UGX)</label>
             <input
-              type="number"
-              value={estimatedTotal}
-              onChange={(e) => setEstimatedTotal(e.target.value)}
-              className="input"
-              min="0"
-              step="1"
+              value={itemsTotal ? itemsTotal.toLocaleString("en-UG") : ""}
+              readOnly
+              placeholder="Calculated from the items below"
+              className="input bg-gray-50 cursor-not-allowed"
             />
           </div>
 
@@ -494,7 +563,12 @@ export default function NewRequestPage() {
               <label className="label">Budget Item</label>
               <select
                 value={budgetItemId}
-                onChange={(e) => setBudgetItemId(e.target.value ? Number(e.target.value) : "")}
+                onChange={(e) => {
+                  const id = e.target.value ? Number(e.target.value) : "";
+                  setBudgetItemId(id);
+                  const bi = budgetItems.find((b) => b.id === id);
+                  if (bi) offerPicker(bi.name, bi.priceCategories ?? selectedSubProgramme?.priceCategories);
+                }}
                 className="input"
               >
                 <option value="">— Select Budget Item —</option>
@@ -598,12 +672,17 @@ export default function NewRequestPage() {
                   </td>
                   <td className="px-2 py-2">
                     <input
+                      ref={(el) => {
+                        qtyRefs.current[item.key] = el;
+                      }}
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateItem(item.key, { quantity: e.target.value })}
                       className="input text-xs text-right"
+                      placeholder="Qty"
                       min="0"
                       step="0.01"
+                      required
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -653,15 +732,40 @@ export default function NewRequestPage() {
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-gray-200">
+                <td colSpan={5} className="px-2 py-2 text-right text-xs font-semibold text-gray-500 uppercase">
+                  Total
+                </td>
+                <td className="px-2 py-2 text-right text-sm font-semibold text-gray-800">
+                  {itemsTotal ? itemsTotal.toLocaleString("en-UG") : "—"}
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
           </table>
 
-          <button
-            type="button"
-            onClick={() => setItems((prev) => [...prev, makeItem()])}
-            className="mt-2 text-sm text-green-700 hover:text-green-900 font-medium"
-          >
-            + Add Item
-          </button>
+          <div className="flex flex-wrap items-center gap-4 pt-2">
+            <button
+              type="button"
+              onClick={() => setPicker(pickerScope ?? { title: "", categories: [] })}
+              className="border border-green-700 text-green-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-50"
+            >
+              Pick from price list
+            </button>
+            <button
+              type="button"
+              onClick={() => setItems((prev) => [...prev, makeItem()])}
+              className="text-sm text-green-700 hover:text-green-900 font-medium"
+            >
+              + Add Item
+            </button>
+            {!pickerScope && (
+              <span className="text-xs text-gray-400">
+                Tip: choose the budget item in Part III first — the price list then opens on matching items.
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
@@ -682,5 +786,15 @@ export default function NewRequestPage() {
         </button>
       </div>
     </form>
+
+    <ItemPickerModal
+      open={picker !== null}
+      title={picker?.title ?? ""}
+      categories={picker?.categories ?? []}
+      addedKeys={addedKeys}
+      onClose={() => setPicker(null)}
+      onConfirm={addPickedItems}
+    />
+    </>
   );
 }
