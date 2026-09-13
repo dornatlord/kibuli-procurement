@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import ItemPickerModal, { itemKey } from "../components/ItemPickerModal";
 import type { PriceListItem } from "../components/ItemPickerModal";
+import { basketLineKey, lineIds } from "../lib/baskets";
+import type { BasketDetail, BasketSummary } from "../lib/baskets";
 
 interface Vote { id: number; code: string; name: string; }
 interface SubProgramme { id: number; romanNumeral: string | null; name: string; priceCategories: string[] | null; }
@@ -23,6 +25,8 @@ interface Suggestion {
 interface LineItem {
   key: string;
   savedItemId: number | null;
+  /** The price-list entry the row came from, so a saved basket stays linked to it. */
+  reservePriceItemId: number | null;
   description: string;
   quantity: string;
   unitOfMeasure: string;
@@ -38,6 +42,7 @@ function makeItem(): LineItem {
   return {
     key: Math.random().toString(36).slice(2),
     savedItemId: null,
+    reservePriceItemId: null,
     description: "",
     quantity: "",
     unitOfMeasure: "",
@@ -49,6 +54,22 @@ function makeItem(): LineItem {
     showSuggestions: false,
   };
 }
+
+function lineTotal(quantity: string, unitCost: string) {
+  const q = Number(quantity) || 0;
+  const c = Number(unitCost) || 0;
+  return q && c ? String(q * c) : "";
+}
+
+/** A row the user has started filling in (the blank starter row has not). */
+const hasContent = (it: LineItem) => !!(it.description.trim() || it.quantity || it.estimatedUnitCost);
+
+/** "4500.00" → "4500" for number inputs. */
+const plain = (v: string | null) => (v ? String(Number(v)) : "");
+
+type PickerTab = "items" | "baskets";
+interface PickerState { title: string; categories: string[]; lineKey: string | null; tab: PickerTab; }
+interface Notice { tone: "ok" | "error" | "info"; text: string; }
 
 function getCalendarWeek(date: Date): { year: number; week: number } {
   const start = new Date(date.getFullYear(), 0, 1);
@@ -90,11 +111,25 @@ export default function NewRequestPage() {
   const [budgetItemId, setBudgetItemId] = useState<number | "">("");
   const [balanceManual, setBalanceManual] = useState("");
   const [items, setItems] = useState<LineItem[]>([makeItem()]);
+  // Latest rows, for async handlers that finish after a re-render.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   // Item picker — opens on the price-list categories matching the budget line
   // chosen in Part III, so users tick items instead of typing them.
-  const [picker, setPicker] = useState<{ title: string; categories: string[] } | null>(null);
+  const [picker, setPicker] = useState<PickerState | null>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
+
+  // Saved baskets — reusable item lists, loaded from the picker's second tab.
+  const [baskets, setBaskets] = useState<BasketSummary[]>([]);
+  const [basketForm, setBasketForm] = useState<{
+    name: string;
+    linkToLine: boolean;
+    saveQuantities: boolean;
+  } | null>(null);
+  const [savingBasket, setSavingBasket] = useState(false);
+  const [basketError, setBasketError] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   // Lookup data
   const [votes, setVotes] = useState<Vote[]>([]);
@@ -103,11 +138,27 @@ export default function NewRequestPage() {
   const [selectedBudgetItem, setSelectedBudgetItem] = useState<BudgetItem | null>(null);
   const selectedSubProgramme = subProgrammes.find((sp) => sp.id === subProgrammeId) ?? null;
 
+  // The budget line chosen in Part III, keyed the way baskets are linked.
+  const lineKey = budgetItemId
+    ? `bi:${budgetItemId}`
+    : subProgrammeId && budgetItems.length === 0
+    ? `sp:${subProgrammeId}`
+    : null;
+  const lineName = budgetItemId
+    ? selectedBudgetItem?.name ?? null
+    : lineKey
+    ? selectedSubProgramme?.name ?? null
+    : null;
+
   const now = new Date();
   const { year, week } = yearType === "financial" ? getFinancialWeek(now) : getCalendarWeek(now);
 
   useEffect(() => {
     api.get<Vote[]>("/lookup/votes").then(setVotes);
+  }, []);
+
+  useEffect(() => {
+    api.get<BasketSummary[]>("/baskets").then(setBaskets).catch(() => setBaskets([]));
   }, []);
 
   useEffect(() => {
@@ -137,7 +188,7 @@ export default function NewRequestPage() {
       setBudgetItems(rows);
       // Tuition Stores departments have no budget items, so choosing the
       // sub-programme is the last step of the fund availability check.
-      if (rows.length === 0 && sp) offerPicker(sp.name, sp.priceCategories);
+      if (rows.length === 0 && sp) offerPicker(sp.name, sp.priceCategories, `sp:${sp.id}`);
     });
     return () => {
       cancelled = true;
@@ -209,9 +260,7 @@ export default function NewRequestPage() {
         if (it.key !== key) return it;
         const updated = { ...it, ...patch };
         if ("quantity" in patch || "estimatedUnitCost" in patch) {
-          const q = Number(updated.quantity) || 0;
-          const c = Number(updated.estimatedUnitCost) || 0;
-          updated.totalCost = q && c ? String(q * c) : "";
+          updated.totalCost = lineTotal(updated.quantity, updated.estimatedUnitCost);
         }
         return updated;
       })
@@ -219,7 +268,7 @@ export default function NewRequestPage() {
   }
 
   function handleDescriptionChange(key: string, val: string) {
-    updateItem(key, { description: val, savedItemId: null, reserveMaxPrice: null });
+    updateItem(key, { description: val, savedItemId: null, reservePriceItemId: null, reserveMaxPrice: null });
     if (debounceRef.current[key]) clearTimeout(debounceRef.current[key]);
     debounceRef.current[key] = setTimeout(() => searchSuggestions(key, val), 300);
   }
@@ -227,6 +276,7 @@ export default function NewRequestPage() {
   function selectSuggestion(key: string, s: Suggestion) {
     updateItem(key, {
       savedItemId: s.source === "saved" ? s.id : null,
+      reservePriceItemId: s.source === "reserve" ? s.id : null,
       description: s.description,
       unitOfMeasure: s.unitOfMeasure || "",
       estimatedUnitCost: s.price || "",
@@ -236,36 +286,116 @@ export default function NewRequestPage() {
     });
   }
 
-  function offerPicker(title: string, categories: string[] | null | undefined) {
-    if (categories?.length) setPicker({ title, categories });
+  /** Open the picker once a budget line is chosen, if there is anything to offer. */
+  function offerPicker(title: string, categories: string[] | null | undefined, key: string) {
+    const hasBaskets = baskets.some((b) => basketLineKey(b) === key);
+    if (!categories?.length && !hasBaskets) return;
+    setPicker({ title, categories: categories ?? [], lineKey: key, tab: hasBaskets ? "baskets" : "items" });
   }
 
   function addPickedItems(picked: PriceListItem[]) {
     const rows = picked.map((p): LineItem => ({
       ...makeItem(),
+      reservePriceItemId: p.id,
       description: p.itemName,
       unitOfMeasure: p.unitOfMeasure ?? "",
-      estimatedUnitCost: p.currentPrice ? String(Number(p.currentPrice)) : "",
+      estimatedUnitCost: plain(p.currentPrice),
       reserveMaxPrice: p.maximumPrice,
     }));
     // Drop the untouched starter row so picked items start at #1.
-    setItems((prev) => [
-      ...prev.filter((it) => it.description.trim() || it.quantity || it.estimatedUnitCost),
-      ...rows,
-    ]);
+    setItems((prev) => [...prev.filter(hasContent), ...rows]);
     setFocusKey(rows[0]?.key ?? null);
     setPicker(null);
   }
 
-  // What the "Pick from price list" button should suggest right now.
-  const pickerScope = selectedBudgetItem
-    ? {
-        title: selectedBudgetItem.name,
-        categories: selectedBudgetItem.priceCategories ?? selectedSubProgramme?.priceCategories ?? [],
+  async function loadBasket(b: BasketSummary) {
+    setPicker(null);
+    setNotice({ tone: "info", text: `Loading “${b.name}”…` });
+    try {
+      const detail = await api.get<BasketDetail>(`/baskets/${b.id}`);
+      const current = itemsRef.current;
+      const have = new Set(
+        current
+          .filter((it) => it.description.trim())
+          .map((it) => itemKey(it.description, it.unitOfMeasure))
+      );
+      const rows = detail.items
+        .filter((it) => !have.has(itemKey(it.description, it.unitOfMeasure)))
+        .map((it): LineItem => {
+          const quantity = plain(it.defaultQuantity);
+          const estimatedUnitCost = plain(it.unitCost);
+          return {
+            ...makeItem(),
+            reservePriceItemId: it.reservePriceItemId,
+            description: it.description,
+            unitOfMeasure: it.unitOfMeasure ?? "",
+            quantity,
+            estimatedUnitCost,
+            totalCost: lineTotal(quantity, estimatedUnitCost),
+            reserveMaxPrice: it.maximumPrice,
+          };
+        });
+      const skipped = detail.items.length - rows.length;
+      if (rows.length) {
+        setItems([...current.filter(hasContent), ...rows]);
+        setFocusKey(rows[0].key);
       }
-    : selectedSubProgramme && budgetItems.length === 0
-    ? { title: selectedSubProgramme.name, categories: selectedSubProgramme.priceCategories ?? [] }
-    : null;
+      setNotice({
+        tone: "ok",
+        text:
+          `Loaded “${detail.name}”: ${rows.length} item${rows.length === 1 ? "" : "s"} added` +
+          (skipped ? `, ${skipped} already on the list` : "") +
+          ". Check the quantities before saving.",
+      });
+    } catch (err: unknown) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Could not load the basket" });
+    }
+  }
+
+  async function saveBasket(e: React.FormEvent) {
+    e.preventDefault();
+    if (!basketForm) return;
+    setBasketError("");
+    setSavingBasket(true);
+    try {
+      const created = await api.post<{ id: number; name: string; itemCount: number }>("/baskets", {
+        name: basketForm.name,
+        ...lineIds(basketForm.linkToLine ? lineKey : null),
+        items: items
+          .filter((it) => it.description.trim())
+          .map((it) => ({
+            reservePriceItemId: it.reservePriceItemId,
+            description: it.description,
+            unitOfMeasure: it.unitOfMeasure || null,
+            unitCost: it.estimatedUnitCost || null,
+            defaultQuantity: basketForm.saveQuantities ? it.quantity || null : null,
+          })),
+      });
+      setBasketForm(null);
+      setNotice({
+        tone: "ok",
+        text: `Saved basket “${created.name}” with ${created.itemCount} item${created.itemCount === 1 ? "" : "s"}.`,
+      });
+      api.get<BasketSummary[]>("/baskets").then(setBaskets).catch(() => {});
+    } catch (err: unknown) {
+      setBasketError(err instanceof Error ? err.message : "Could not save the basket");
+    } finally {
+      setSavingBasket(false);
+    }
+  }
+
+  // What the buttons under the items table open the picker on.
+  const pickerScope = {
+    title: lineName ?? "",
+    categories:
+      (budgetItemId
+        ? selectedBudgetItem?.priceCategories ?? selectedSubProgramme?.priceCategories
+        : lineKey
+        ? selectedSubProgramme?.priceCategories
+        : null) ?? [],
+    lineKey,
+  };
+  const filledCount = items.filter((it) => it.description.trim()).length;
 
   const itemsTotal =
     Math.round(items.reduce((sum, it) => sum + (Number(it.totalCost) || 0), 0) * 100) / 100;
@@ -567,7 +697,9 @@ export default function NewRequestPage() {
                   const id = e.target.value ? Number(e.target.value) : "";
                   setBudgetItemId(id);
                   const bi = budgetItems.find((b) => b.id === id);
-                  if (bi) offerPicker(bi.name, bi.priceCategories ?? selectedSubProgramme?.priceCategories);
+                  if (bi) {
+                    offerPicker(bi.name, bi.priceCategories ?? selectedSubProgramme?.priceCategories, `bi:${bi.id}`);
+                  }
                 }}
                 className="input"
               >
@@ -745,14 +877,23 @@ export default function NewRequestPage() {
             </tfoot>
           </table>
 
-          <div className="flex flex-wrap items-center gap-4 pt-2">
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               type="button"
-              onClick={() => setPicker(pickerScope ?? { title: "", categories: [] })}
+              onClick={() => setPicker({ ...pickerScope, tab: "items" })}
               className="border border-green-700 text-green-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-50"
             >
               Pick from price list
             </button>
+            {baskets.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setPicker({ ...pickerScope, tab: "baskets" })}
+                className="border border-green-700 text-green-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-green-50"
+              >
+                Load a basket
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setItems((prev) => [...prev, makeItem()])}
@@ -760,12 +901,37 @@ export default function NewRequestPage() {
             >
               + Add Item
             </button>
-            {!pickerScope && (
-              <span className="text-xs text-gray-400">
-                Tip: choose the budget item in Part III first — the price list then opens on matching items.
-              </span>
+            {filledCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setBasketError("");
+                  setBasketForm({ name: "", linkToLine: !!lineKey, saveQuantities: true });
+                }}
+                className="ml-auto text-sm text-gray-600 hover:text-green-800 font-medium"
+              >
+                Save these items as a basket
+              </button>
             )}
           </div>
+          {notice && (
+            <div
+              className={`text-xs ${
+                notice.tone === "ok"
+                  ? "text-green-700"
+                  : notice.tone === "error"
+                  ? "text-red-600"
+                  : "text-gray-500"
+              }`}
+            >
+              {notice.text}
+            </div>
+          )}
+          {!lineKey && (
+            <div className="text-xs text-gray-400">
+              Tip: choose the budget item in Part III first — the price list then opens on matching items.
+            </div>
+          )}
         </div>
       </section>
 
@@ -794,7 +960,91 @@ export default function NewRequestPage() {
       addedKeys={addedKeys}
       onClose={() => setPicker(null)}
       onConfirm={addPickedItems}
+      baskets={baskets}
+      lineKey={picker?.lineKey ?? null}
+      startTab={picker?.tab}
+      onLoadBasket={loadBasket}
     />
+
+    {basketForm && (
+      <div
+        className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) setBasketForm(null);
+        }}
+      >
+        <form
+          onSubmit={saveBasket}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setBasketForm(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="save-basket-title"
+          className="bg-white rounded-xl shadow-xl w-full max-w-md p-5 space-y-4"
+        >
+          <div>
+            <h2 id="save-basket-title" className="font-semibold text-gray-800">
+              Save as a basket
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Keep these {filledCount} item{filledCount === 1 ? "" : "s"} so a future request can load
+              them in one click.
+            </p>
+          </div>
+          <div>
+            <label className="label">Basket name *</label>
+            <input
+              autoFocus
+              value={basketForm.name}
+              onChange={(e) => setBasketForm({ ...basketForm, name: e.target.value })}
+              className="input"
+              placeholder="e.g. Staff meals — weekly"
+              required
+            />
+          </div>
+          {lineKey && lineName && (
+            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={basketForm.linkToLine}
+                onChange={(e) => setBasketForm({ ...basketForm, linkToLine: e.target.checked })}
+                className="mt-0.5 w-4 h-4 accent-green-700"
+              />
+              <span>
+                Offer this basket whenever <strong>{lineName}</strong> is chosen
+              </span>
+            </label>
+          )}
+          <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={basketForm.saveQuantities}
+              onChange={(e) => setBasketForm({ ...basketForm, saveQuantities: e.target.checked })}
+              className="mt-0.5 w-4 h-4 accent-green-700"
+            />
+            <span>Save the quantities too, so they fill in when the basket is loaded</span>
+          </label>
+          {basketError && <div className="text-sm text-red-600">{basketError}</div>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setBasketForm(null)}
+              className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={savingBasket}
+              className="bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-50"
+            >
+              {savingBasket ? "Saving…" : "Save basket"}
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
     </>
   );
 }

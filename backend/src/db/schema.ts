@@ -496,6 +496,40 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const itemBaskets = pgTable("item_baskets", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  // The budget line the basket is offered for in the request item picker.
+  // Tuition Stores departments have no budget items, so they link by
+  // sub-programme instead; a basket has at most one of the two.
+  budgetItemId: integer("budget_item_id").references(() => budgetItems.id),
+  subProgrammeId: integer("sub_programme_id").references(() => subProgrammes.id),
+  isActive: boolean("is_active").notNull().default(true),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const itemBasketItems = pgTable("item_basket_items", {
+  id: serial("id").primaryKey(),
+  basketId: integer("basket_id")
+    .notNull()
+    .references(() => itemBaskets.id, { onDelete: "cascade" }),
+  itemNo: integer("item_no").notNull(),
+  // Linked items take their name, unit and price from the live price list;
+  // the copies below serve hand-typed items or a deactivated price entry.
+  reservePriceItemId: integer("reserve_price_item_id").references(
+    () => reservePriceItems.id
+  ),
+  description: text("description").notNull(),
+  unitOfMeasure: text("unit_of_measure"),
+  defaultQuantity: numeric("default_quantity", { precision: 10, scale: 2 }),
+  unitCost: numeric("unit_cost", { precision: 15, scale: 2 }),
+});
+
+export type ItemBasket = typeof itemBaskets.$inferSelect;
+export type ItemBasketItem = typeof itemBasketItems.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Vote = typeof votes.$inferSelect;
 export type SubProgramme = typeof subProgrammes.$inferSelect;

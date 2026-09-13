@@ -52,6 +52,22 @@ export const MODULES: ProcurementModule[] = [
     ),
   },
   {
+    key: "baskets",
+    label: "Saved Baskets",
+    to: "/baskets",
+    group: "Procurement",
+    status: "live",
+    permissions: ["requests.create", "reserve_prices.manage"],
+    description: "Reusable item lists that load into a request in one click",
+    icon: (
+      <Svg>
+        <path d="M3 10h18l-2 10H5L3 10Z" />
+        <path d="m8 10 4-6 4 6" />
+        <path d="M9 14v3M12 14v3M15 14v3" />
+      </Svg>
+    ),
+  },
+  {
     key: "plan",
     label: "Procurement Plan",
     to: "/plan",

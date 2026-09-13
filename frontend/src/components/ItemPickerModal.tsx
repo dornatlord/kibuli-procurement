@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { basketLineKey, basketLineLabel } from "../lib/baskets";
+import type { BasketSummary } from "../lib/baskets";
 
 export interface PriceListItem {
   id: number;
@@ -9,6 +11,8 @@ export interface PriceListItem {
   currentPrice: string | null;
   maximumPrice: string | null;
 }
+
+type Tab = "items" | "baskets";
 
 interface Props {
   open: boolean;
@@ -20,6 +24,13 @@ interface Props {
   addedKeys: Set<string>;
   onClose: () => void;
   onConfirm: (items: PriceListItem[]) => void;
+  /** Saved baskets, offered on a second tab. Leave out to hide the tab. */
+  baskets?: BasketSummary[];
+  /** The chosen budget line ("bi:108", "sp:26"); its baskets are listed first. */
+  lineKey?: string | null;
+  /** Tab to show when the picker opens. */
+  startTab?: Tab;
+  onLoadBasket?: (basket: BasketSummary) => void;
 }
 
 // Kept between openings so the list shows instantly; refreshed when stale.
@@ -41,15 +52,31 @@ function prettyCategory(c: string) {
 
 const fmt = (v: string | null) => (v ? Number(v).toLocaleString("en-UG") : "—");
 
-export default function ItemPickerModal({ open, title, categories, addedKeys, onClose, onConfirm }: Props) {
+const groupHeading =
+  "bg-gray-50 px-5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 border-b border-gray-100";
+
+export default function ItemPickerModal({
+  open,
+  title,
+  categories,
+  addedKeys,
+  onClose,
+  onConfirm,
+  baskets,
+  lineKey,
+  startTab,
+  onLoadBasket,
+}: Props) {
   const [all, setAll] = useState<PriceListItem[] | null>(cache);
   const [error, setError] = useState("");
   const [scope, setScope] = useState<"suggested" | "all">("suggested");
+  const [tab, setTab] = useState<Tab>("items");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const searchRef = useRef<HTMLInputElement>(null);
 
   const hasSuggestions = categories.length > 0;
+  const basketsEnabled = !!baskets && !!onLoadBasket;
 
   function load() {
     setError("");
@@ -71,13 +98,15 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
     if (!fetchedAt) load();
   }, []);
 
-  // Start fresh every time the picker opens, refreshing a list more than a
-  // minute old so price edits appear without a page reload.
-  useEffect(() => {
+  // Start fresh every time the picker opens — before paint, so the right tab
+  // shows straight away — and refresh a list more than a minute old so price
+  // edits appear without a page reload.
+  useLayoutEffect(() => {
     if (!open) return;
     setQuery("");
     setSelected(new Set());
     setScope(hasSuggestions ? "suggested" : "all");
+    setTab(basketsEnabled && startTab === "baskets" ? "baskets" : "items");
     if (Date.now() - fetchedAt > 60000) load();
     const t = setTimeout(() => searchRef.current?.focus(), 50);
     return () => clearTimeout(t);
@@ -111,6 +140,14 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
     return Array.from(byCategory.entries());
   }, [visible]);
 
+  // Baskets for the chosen budget line first, then the rest.
+  const { lineBaskets, otherBaskets } = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const matching = (baskets ?? []).filter((b) => !q || b.name.toLowerCase().includes(q));
+    const forLine = lineKey ? matching.filter((b) => basketLineKey(b) === lineKey) : [];
+    return { lineBaskets: forLine, otherBaskets: matching.filter((b) => !forLine.includes(b)) };
+  }, [baskets, lineKey, query]);
+
   function toggle(id: number) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -126,6 +163,29 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
   }
 
   if (!open) return null;
+
+  const basketRow = (b: BasketSummary, showLine: boolean) => {
+    const line = showLine ? basketLineLabel(b) : null;
+    return (
+      <div key={b.id} className="flex items-center gap-3 px-5 py-2.5 text-sm border-b border-gray-50">
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-gray-800 truncate">{b.name}</div>
+          <div className="text-xs text-gray-500 truncate">
+            {b.itemCount} item{b.itemCount === 1 ? "" : "s"}
+            {Number(b.estimatedValue) > 0 && ` · about UGX ${fmt(b.estimatedValue)}`}
+            {line && ` · ${line}`}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onLoadBasket?.(b)}
+          className="border border-green-700 text-green-700 px-3 py-1 rounded-lg text-xs font-medium hover:bg-green-50 shrink-0"
+        >
+          Load
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -147,12 +207,18 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
                 Choose items
               </h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                {hasSuggestions && (
+                {tab === "baskets" ? (
+                  "Load a saved basket to add all of its items at once."
+                ) : (
                   <>
-                    Showing the price list for <strong>{title}</strong>.{" "}
+                    {hasSuggestions && (
+                      <>
+                        Showing the price list for <strong>{title}</strong>.{" "}
+                      </>
+                    )}
+                    Tick what you need — the unit and price fill in for you.
                   </>
                 )}
-                Tick what you need — the unit and price fill in for you.
               </p>
             </div>
             <button
@@ -165,6 +231,27 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
             </button>
           </div>
 
+          {basketsEnabled && (
+            <div role="tablist" className="flex gap-5 mt-3 border-b border-gray-100 text-sm">
+              {(["items", "baskets"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t}
+                  onClick={() => setTab(t)}
+                  className={`-mb-px pb-2 border-b-2 font-medium ${
+                    tab === t
+                      ? "border-green-700 text-green-800"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {t === "items" ? "Price list" : `Saved baskets (${(baskets ?? []).length})`}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 mt-3">
             <input
               ref={searchRef}
@@ -173,10 +260,10 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
               onKeyDown={(e) => {
                 if (e.key === "Enter") e.preventDefault();
               }}
-              placeholder="Search items…"
+              placeholder={tab === "baskets" ? "Search baskets…" : "Search items…"}
               className="input flex-1"
             />
-            {hasSuggestions && (
+            {tab === "items" && hasSuggestions && (
               <div className="flex rounded-lg border border-gray-200 p-0.5 text-xs shrink-0">
                 {(["suggested", "all"] as const).map((s) => (
                   <button
@@ -196,7 +283,37 @@ export default function ItemPickerModal({ open, title, categories, addedKeys, on
         </div>
 
         <div className="overflow-y-auto flex-1 min-h-[12rem]">
-          {!all ? (
+          {tab === "baskets" ? (
+            lineBaskets.length + otherBaskets.length === 0 ? (
+              <div className="p-6 text-center text-sm text-gray-500">
+                {(baskets ?? []).length > 0 ? (
+                  `No baskets match “${query}”.`
+                ) : (
+                  <>
+                    No saved baskets yet. Tick items on the Price list tab and press Confirm,
+                    then use <strong>Save these items as a basket</strong> under the items table.
+                  </>
+                )}
+              </div>
+            ) : (
+              <>
+                {lineBaskets.length > 0 && (
+                  <>
+                    <div className={groupHeading}>For {title}</div>
+                    {lineBaskets.map((b) => basketRow(b, false))}
+                  </>
+                )}
+                {otherBaskets.length > 0 && (
+                  <>
+                    <div className={groupHeading}>
+                      {lineBaskets.length > 0 ? "Other baskets" : "All baskets"}
+                    </div>
+                    {otherBaskets.map((b) => basketRow(b, true))}
+                  </>
+                )}
+              </>
+            )
+          ) : !all ? (
             error ? (
               <div className="p-6 text-center text-sm text-red-600">
                 {error}{" "}

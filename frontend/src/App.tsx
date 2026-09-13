@@ -27,6 +27,8 @@ import AuditTrailPage from "./pages/AuditTrailPage";
 import MonthlyReportPage from "./pages/MonthlyReportPage";
 import ReportsPage from "./pages/ReportsPage";
 import BidsAndTendersPage from "./pages/BidsAndTendersPage";
+import BasketsPage from "./pages/BasketsPage";
+import BasketEditorPage from "./pages/BasketEditorPage";
 import Layout from "./components/Layout";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -61,6 +63,7 @@ function AppRoutes() {
     "requests.view.department",
     "requests.view.all",
   ];
+  const useBaskets = ["requests.create", "reserve_prices.manage"];
 
   return (
     <Routes>
@@ -101,6 +104,23 @@ function AppRoutes() {
           element={
             <Guard permissions={viewRequests}>
               <RequestDetailPage />
+            </Guard>
+          }
+        />
+
+        <Route
+          path="baskets"
+          element={
+            <Guard permissions={useBaskets}>
+              <BasketsPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="baskets/:id"
+          element={
+            <Guard permissions={useBaskets}>
+              <BasketEditorPage />
             </Guard>
           }
         />
