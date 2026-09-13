@@ -3,6 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import StatusBadge from "../components/StatusBadge";
+import PartTwoTable, { rowDecisionsFrom, submissionFrom } from "../components/PartTwoForm";
+import type { PartTwoSubmission, RowDecisions } from "../components/PartTwoForm";
 
 interface LineItem {
   id: number;
@@ -25,11 +27,31 @@ interface Signature {
 
 interface CommitteeDecision {
   id: number;
+  submissionDate: string | null;
+  committeeMeetingDate: string | null;
+  meetingReference: string | null;
   recommendedMethod: string | null;
   methodJustification: string | null;
+  shortlistedProviders: string | null;
+  biddingDocumentTeam: string | null;
+  evaluationCommittee: string | null;
   biddingDocumentCost: string | null;
+  otherInformation: string | null;
+  /** The committee's decision and conditions for each Part II row, keyed "1"–"6". */
+  rowDecisions: Record<string, { decision: string | null; conditions: string | null }> | null;
   decision: string | null;
   decisionJustification: string | null;
+}
+
+/** When each approval step happened (ISO timestamps or YYYY-MM-DD dates). */
+interface StepDates {
+  requested: string | null;
+  headOfDepartment: string | null;
+  accountingOfficer: string | null;
+  submittedToCommittee: string | null;
+  committeeMeeting: string | null;
+  chairperson: string | null;
+  secretary: string | null;
 }
 
 interface Request {
@@ -52,6 +74,16 @@ interface Request {
   items: LineItem[];
   signatures: Signature[];
   decision: CommitteeDecision | null;
+  stepDates?: StepDates;
+}
+
+/** Part II while it is being edited on the request page. */
+interface PartTwoDraft {
+  submission: PartTwoSubmission;
+  rowDecisions: RowDecisions;
+  meetingReference: string;
+  decision: string;
+  decisionJustification: string;
 }
 
 /**
@@ -84,6 +116,15 @@ function fmt(n: string | number | null | undefined) {
   return Number(n).toLocaleString("en-UG");
 }
 
+/** Day-first date as on the paper form: "2026-09-09" or an ISO timestamp → "09/09/2026". */
+function formDate(v: string | null | undefined) {
+  if (!v) return "";
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (day) return `${day[3]}/${day[2]}/${day[1]}`;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB");
+}
+
 function printTForm(request: Request) {
   const sigOf = (role: string) => request.signatures.find((s) => s.role === role);
   const isMacro = request.procurementSize === "macro";
@@ -106,6 +147,76 @@ function printTForm(request: Request) {
   const userSig = sigOf("user_dept");
   const hodSig  = sigOf("head_of_dept");
   const aoSig   = sigOf("accounting_officer");
+
+  // Every Date line fills itself from when that step happened. A step that
+  // hasn't happened yet stays blank. Older API responses without stepDates
+  // fall back to the signatures.
+  const steps = request.stepDates;
+  const dateOf = {
+    requested: formDate(steps?.requested ?? userSig?.signedAt),
+    headOfDepartment: formDate(steps?.headOfDepartment ?? hodSig?.signedAt),
+    accountingOfficer: formDate(steps?.accountingOfficer ?? aoSig?.signedAt),
+    submittedToCommittee: formDate(steps?.submittedToCommittee ?? request.decision?.submissionDate),
+    committeeMeeting: formDate(steps?.committeeMeeting ?? request.decision?.committeeMeetingDate),
+    chairperson: formDate(steps?.chairperson),
+    secretary: formDate(steps?.secretary),
+  };
+  const meetingDateRef = [dateOf.committeeMeeting, request.decision?.meetingReference]
+    .filter(Boolean)
+    .join(" / ");
+
+  // Part II: the PDU's answer under each question, and the committee's
+  // decision and conditions for that row. Free text is escaped for the HTML.
+  const part2 = request.decision;
+  const esc = (s: string | null | undefined) =>
+    (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
+  const partTwoRowsHtml = [
+    {
+      key: "1",
+      height: 55,
+      label: "Recommended method of procurement and justification",
+      answer: [part2?.recommendedMethod, part2?.methodJustification].filter(Boolean).map(esc).join("<br/>"),
+    },
+    {
+      key: "2",
+      height: 55,
+      label: "Names of shortlisted provider (s) and justification for selection",
+      answer: esc(part2?.shortlistedProviders),
+    },
+    {
+      key: "3",
+      height: 55,
+      label: "Bidding document. Persons involved in preparation of proposal document <em>(Names and positions)</em>",
+      answer: esc(part2?.biddingDocumentTeam),
+    },
+    {
+      key: "4",
+      height: 55,
+      label: "Names of persons recommended to constitute the Evaluation Committee and the justification <em>(Names and positions)</em>",
+      answer: esc(part2?.evaluationCommittee),
+    },
+    {
+      key: "5",
+      height: 35,
+      label: "Cost of the bidding document, if any",
+      answer: part2?.biddingDocumentCost ? `UGX ${Number(part2.biddingDocumentCost).toLocaleString("en-UG")}` : "",
+    },
+    {
+      key: "6",
+      height: 35,
+      label: "Any other information",
+      answer: esc(part2?.otherInformation),
+    },
+  ].map((r) => {
+    const decided = part2?.rowDecisions?.[r.key];
+    return `
+    <tr style="height:${r.height}px;">
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;">${r.key}.</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${r.label}${r.answer ? `<div style="margin-top:4px;">${r.answer}</div>` : ""}</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${esc(decided?.decision)}</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${esc(decided?.conditions)}</td>
+    </tr>`;
+  }).join("");
 
   const dotLine = (label: string, value = "") =>
     `<div style="margin-top:5px;">${label} <span style="border-bottom:1px solid #000;display:inline-block;min-width:160px;padding-bottom:1px;">${value}</span></div>`;
@@ -131,46 +242,11 @@ function printTForm(request: Request) {
     </tr>
     <tr>
       <td style="border:1px solid #000;padding:3px;"></td>
-      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date of Submission to Contracts Committee:</td>
-      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date/Reference of Contracts<br/>Committee Meeting:</td>
+      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date of Submission to Contracts Committee: <span style="font-weight:normal;">${dateOf.submittedToCommittee}</span></td>
+      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date/Reference of Contracts<br/>Committee Meeting: <span style="font-weight:normal;">${esc(meetingDateRef)}</span></td>
       <td style="border:1px solid #000;"></td>
     </tr>
-    <tr style="height:55px;">
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;">1.</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Recommended method of procurement and justification</td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-    </tr>
-    <tr style="height:55px;">
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;">2.</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Names of shortlisted provider (s) and justification for selection</td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-    </tr>
-    <tr style="height:55px;">
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;">3.</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Bidding document. Persons involved in preparation of proposal document <em>(Names and positions)</em></td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-    </tr>
-    <tr style="height:55px;">
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;">4.</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Names of persons recommended to constitute the Evaluation Committee and the justification <em>(Names and positions)</em></td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-    </tr>
-    <tr style="height:35px;">
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;">5.</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Cost of the bidding document, if any</td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-    </tr>
-    <tr style="height:35px;">
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;">6.</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">Any other information</td>
-      <td style="border:1px solid #000;"></td>
-      <td style="border:1px solid #000;"></td>
-    </tr>
+    ${partTwoRowsHtml}
   </table>
 </div>
 
@@ -192,7 +268,7 @@ function printTForm(request: Request) {
       </tr>
       <tr>
         <td style="border:none;">${dotLine("Position:", "")}</td>
-        <td style="border:none;">${dotLine("Date:", "")}</td>
+        <td style="border:none;">${dotLine("Date:", dateOf.submittedToCommittee)}</td>
       </tr>
     </table>
   </div>
@@ -208,7 +284,7 @@ function printTForm(request: Request) {
       </tr>
       <tr>
         <td style="border:none;">Position: &nbsp;<strong>Chairperson Contracts Committee</strong></td>
-        <td style="border:none;">${dotLine("Date:", "")}</td>
+        <td style="border:none;">${dotLine("Date:", dateOf.chairperson)}</td>
       </tr>
     </table>
 
@@ -219,7 +295,7 @@ function printTForm(request: Request) {
       </tr>
       <tr>
         <td style="border:none;">Position: &nbsp;<strong>Secretary Contracts Committee</strong></td>
-        <td style="border:none;">${dotLine("Date:", "")}</td>
+        <td style="border:none;">${dotLine("Date:", dateOf.secretary)}</td>
       </tr>
     </table>
   </div>
@@ -285,7 +361,7 @@ ${pageHeader}
   <tr><td style="width:35%;border:1px solid #000;padding:3px;">Subject of Procurement</td><td style="border:1px solid #000;padding:3px;">${request.subjectOfProcurement || ""}</td></tr>
   <tr><td style="border:1px solid #000;padding:3px;">Procurement Plan Reference</td><td style="border:1px solid #000;padding:3px;">${request.procurementPlanReference || ""}</td></tr>
   <tr><td style="border:1px solid #000;padding:3px;">Location for Delivery</td><td style="border:1px solid #000;padding:3px;">${request.locationForDelivery || ""}</td></tr>
-  <tr><td style="border:1px solid #000;padding:3px;">Date Required</td><td style="border:1px solid #000;padding:3px;">${request.dateRequired || ""}</td></tr>
+  <tr><td style="border:1px solid #000;padding:3px;">Date Required</td><td style="border:1px solid #000;padding:3px;">${formDate(request.dateRequired)}</td></tr>
 </table>
 
 <table style="width:100%;border-collapse:collapse;margin-top:6px;">
@@ -315,14 +391,14 @@ ${pageHeader}
       <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
       <div style="margin-top:4px;">${dotLine("Name:", userSig ? userSig.name : "")}</div>
       <div style="margin-top:4px;">${dotLine("Title:", userSig ? (userSig.title || "") : "")}</div>
-      <div style="margin-top:4px;">${dotLine("Date:", userSig ? new Date(userSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Date:", dateOf.requested)}</div>
     </td>
     <td style="width:50%;border:none;vertical-align:top;padding-left:16px;">
       <div style="font-size:9px;"><strong>(2)&nbsp; Confirmation of Request</strong><br/><em>(Head of user department)</em></div>
       <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
       <div style="margin-top:4px;">${dotLine("Name:", hodSig ? hodSig.name : "")}</div>
       <div style="margin-top:4px;">${dotLine("Title:", hodSig ? (hodSig.title || "") : "")}</div>
-      <div style="margin-top:4px;">${dotLine("Date:", hodSig ? new Date(hodSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Date:", dateOf.headOfDepartment)}</div>
     </td>
   </tr>
 </table>
@@ -355,7 +431,7 @@ ${pageHeader}
     <td style="width:50%;border:none;vertical-align:top;padding-left:16px;">
       <div style="font-size:9px;">&nbsp;</div>
       <div style="margin-top:10px;">${dotLine("Name:", aoSig ? aoSig.name : "")}</div>
-      <div style="margin-top:4px;">${dotLine("Date:", aoSig ? new Date(aoSig.signedAt).toLocaleDateString("en-UG") : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Date:", dateOf.accountingOfficer)}</div>
     </td>
   </tr>
 </table>
@@ -427,16 +503,9 @@ export default function RequestDetailPage() {
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [showDecisionForm, setShowDecisionForm] = useState(false);
-  const [decisionForm, setDecisionForm] = useState({
-    recommendedMethod: "",
-    methodJustification: "",
-    biddingDocumentCost: "",
-    decision: "",
-    decisionJustification: "",
-  });
-  const [decisionSaving, setDecisionSaving] = useState(false);
-  const [decisionError, setDecisionError] = useState("");
+  const [partTwoEdit, setPartTwoEdit] = useState<PartTwoDraft | null>(null);
+  const [partTwoSaving, setPartTwoSaving] = useState(false);
+  const [partTwoError, setPartTwoError] = useState("");
 
   function load() {
     setLoading(true);
@@ -458,21 +527,42 @@ export default function RequestDetailPage() {
     }
   }
 
-  async function submitDecision(e: React.FormEvent) {
+  function startPartTwoEdit() {
+    const d = request?.decision ?? null;
+    setPartTwoError("");
+    setPartTwoEdit({
+      submission: submissionFrom(d),
+      rowDecisions: rowDecisionsFrom(d?.rowDecisions),
+      meetingReference: d?.meetingReference ?? "",
+      decision: d?.decision ?? "",
+      decisionJustification: d?.decisionJustification ?? "",
+    });
+  }
+
+  async function savePartTwo(e: React.FormEvent) {
     e.preventDefault();
-    setDecisionError("");
-    setDecisionSaving(true);
+    if (!partTwoEdit) return;
+    setPartTwoError("");
+    setPartTwoSaving(true);
     try {
+      // Send only the side this person fills; the server ignores the rest anyway.
       await api.post(`/requests/${id}/committee-decision`, {
-        ...decisionForm,
-        decision: decisionForm.decision || null,
+        ...(can("requests.prepare.committee") ? partTwoEdit.submission : {}),
+        ...(can("requests.approve.committee")
+          ? {
+              rowDecisions: partTwoEdit.rowDecisions,
+              meetingReference: partTwoEdit.meetingReference,
+              decision: partTwoEdit.decision || null,
+              decisionJustification: partTwoEdit.decisionJustification,
+            }
+          : {}),
       });
-      setShowDecisionForm(false);
+      setPartTwoEdit(null);
       load();
     } catch (err: unknown) {
-      setDecisionError(err instanceof Error ? err.message : "Failed to record decision");
+      setPartTwoError(err instanceof Error ? err.message : "Failed to save Part II");
     } finally {
-      setDecisionSaving(false);
+      setPartTwoSaving(false);
     }
   }
 
@@ -480,6 +570,11 @@ export default function RequestDetailPage() {
   if (!request) return <div className="text-center py-12 text-gray-500">Not found.</div>;
 
   const actions = (NEXT_STATUS[request.status] || []).filter((a) => can(a.permission));
+  const canPrepare = can("requests.prepare.committee");
+  const canDecide = can("requests.approve.committee");
+  const meetingLine = [formDate(request.stepDates?.committeeMeeting), request.decision?.meetingReference]
+    .filter(Boolean)
+    .join(" / ");
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -528,7 +623,7 @@ export default function RequestDetailPage() {
         <Card label="Procurement Size">{request.procurementSize}</Card>
         <Card label="Year / Week">{request.year} / W{request.weekNumber}</Card>
         <Card label="Location">{request.locationForDelivery || "—"}</Card>
-        <Card label="Date Required">{request.dateRequired || "—"}</Card>
+        <Card label="Date Required">{formDate(request.dateRequired) || "—"}</Card>
         <Card label="Plan Reference">{request.procurementPlanReference || "—"}</Card>
         <Card label="Estimated Total">
           {request.estimatedTotalCost
@@ -603,87 +698,152 @@ export default function RequestDetailPage() {
         </div>
       </section>
 
-      {/* Contracts Committee — macro procurements only */}
-      {request.procurementSize === "macro" &&
-        can("requests.prepare.committee", "requests.approve.committee") && (
-          <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="bg-gray-50 px-4 py-2 text-sm font-semibold border-b border-gray-200 flex items-center justify-between">
-              Contracts Committee
-              {!showDecisionForm && (
-                <button onClick={() => setShowDecisionForm(true)} className="text-xs text-green-700 hover:underline font-normal">
-                  {request.decision ? "Update" : "Prepare Submission"}
-                </button>
-              )}
+      {/* FORM 5 Part II — macro procurements only */}
+      {request.procurementSize === "macro" && (canPrepare || canDecide) && (
+        <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-gray-50 px-4 py-2 text-sm font-semibold border-b border-gray-200 flex items-center justify-between">
+            Part II — Request to the Contracts Committee
+            {!partTwoEdit && (
+              <button onClick={startPartTwoEdit} className="text-xs text-green-700 hover:underline font-normal">
+                {request.decision ? "Edit Part II" : canPrepare ? "Prepare submission" : "Record decision"}
+              </button>
+            )}
+          </div>
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-gray-500">Date of submission to the committee: </span>
+                {formDate(request.stepDates?.submittedToCommittee) || (
+                  <span className="text-gray-400">fills in when the request reaches the committee</span>
+                )}
+              </div>
+              <div>
+                <span className="text-gray-500">Committee meeting: </span>
+                {meetingLine || (
+                  <span className="text-gray-400">fills in when the committee records its decision</span>
+                )}
+              </div>
             </div>
-            <div className="p-4 space-y-4">
-              {request.decision && !showDecisionForm && (
-                <div className="text-sm space-y-1">
-                  <div><span className="text-gray-500">Recommended Method:</span> {request.decision.recommendedMethod || "—"}</div>
-                  <div><span className="text-gray-500">Justification:</span> {request.decision.methodJustification || "—"}</div>
-                  <div><span className="text-gray-500">Bidding Document Cost:</span> {request.decision.biddingDocumentCost ? Number(request.decision.biddingDocumentCost).toLocaleString("en-UG") : "—"}</div>
-                  <div>
-                    <span className="text-gray-500">Decision:</span>{" "}
-                    {request.decision.decision ? (
-                      <span className={`font-semibold ${request.decision.decision === "approved" ? "text-green-700" : request.decision.decision === "rejected" ? "text-red-600" : "text-amber-600"}`}>
-                        {request.decision.decision.charAt(0).toUpperCase() + request.decision.decision.slice(1)}
-                      </span>
-                    ) : "Pending"}
+
+            {partTwoEdit ? (
+              <form onSubmit={savePartTwo} className="space-y-3">
+                {partTwoError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">
+                    {partTwoError}
                   </div>
+                )}
+                <PartTwoTable
+                  submission={partTwoEdit.submission}
+                  onSubmissionChange={
+                    canPrepare
+                      ? (patch) =>
+                          setPartTwoEdit((p) => p && { ...p, submission: { ...p.submission, ...patch } })
+                      : undefined
+                  }
+                  showCommittee
+                  rowDecisions={partTwoEdit.rowDecisions}
+                  onRowDecisionChange={
+                    canDecide
+                      ? (row, patch) =>
+                          setPartTwoEdit(
+                            (p) =>
+                              p && {
+                                ...p,
+                                rowDecisions: {
+                                  ...p.rowDecisions,
+                                  [row]: { ...(p.rowDecisions[row] ?? { decision: "", conditions: "" }), ...patch },
+                                },
+                              }
+                          )
+                      : undefined
+                  }
+                />
+                {canDecide && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="label">Meeting reference</label>
+                      <input
+                        value={partTwoEdit.meetingReference}
+                        onChange={(e) => setPartTwoEdit((p) => p && { ...p, meetingReference: e.target.value })}
+                        className="input"
+                        placeholder="e.g. Minute CC/05/2026"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Overall decision</label>
+                      <select
+                        value={partTwoEdit.decision}
+                        onChange={(e) => setPartTwoEdit((p) => p && { ...p, decision: e.target.value })}
+                        className="input"
+                      >
+                        <option value="">— Not decided yet —</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="deferred">Deferred</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Decision justification</label>
+                      <input
+                        value={partTwoEdit.decisionJustification}
+                        onChange={(e) => setPartTwoEdit((p) => p && { ...p, decisionJustification: e.target.value })}
+                        className="input"
+                      />
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={partTwoSaving}
+                    className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+                  >
+                    {partTwoSaving ? "Saving…" : "Save Part II"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPartTwoEdit(null)}
+                    className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : request.decision ? (
+              <>
+                <PartTwoTable
+                  submission={submissionFrom(request.decision)}
+                  showCommittee
+                  rowDecisions={rowDecisionsFrom(request.decision.rowDecisions)}
+                />
+                <div className="text-sm">
+                  <span className="text-gray-500">Overall decision: </span>
+                  {request.decision.decision ? (
+                    <span
+                      className={`font-semibold ${
+                        request.decision.decision === "approved"
+                          ? "text-green-700"
+                          : request.decision.decision === "rejected"
+                          ? "text-red-600"
+                          : "text-amber-600"
+                      }`}
+                    >
+                      {request.decision.decision.charAt(0).toUpperCase() + request.decision.decision.slice(1)}
+                    </span>
+                  ) : (
+                    "Pending"
+                  )}
                   {request.decision.decisionJustification && (
-                    <div><span className="text-gray-500">Decision Justification:</span> {request.decision.decisionJustification}</div>
+                    <span className="text-gray-600"> — {request.decision.decisionJustification}</span>
                   )}
                 </div>
-              )}
-
-              {!request.decision && !showDecisionForm && (
-                <div className="text-sm text-gray-400">No submission recorded yet.</div>
-              )}
-
-              {showDecisionForm && (
-                <form onSubmit={submitDecision} className="space-y-4">
-                  {decisionError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">{decisionError}</div>}
-                  <div>
-                    <label className="label">Recommended Method of Procurement</label>
-                    <input value={decisionForm.recommendedMethod} onChange={(e) => setDecisionForm((p) => ({ ...p, recommendedMethod: e.target.value }))} className="input" />
-                  </div>
-                  <div>
-                    <label className="label">Justification</label>
-                    <textarea value={decisionForm.methodJustification} onChange={(e) => setDecisionForm((p) => ({ ...p, methodJustification: e.target.value }))} className="input" rows={2} />
-                  </div>
-                  <div>
-                    <label className="label">Cost of Bidding Document (UGX)</label>
-                    <input type="number" value={decisionForm.biddingDocumentCost} onChange={(e) => setDecisionForm((p) => ({ ...p, biddingDocumentCost: e.target.value }))} className="input" min="0" />
-                  </div>
-                  {can("requests.approve.committee") && (
-                    <>
-                      <div>
-                        <label className="label">Committee Decision</label>
-                        <select value={decisionForm.decision} onChange={(e) => setDecisionForm((p) => ({ ...p, decision: e.target.value }))} className="input">
-                          <option value="">— Not decided yet —</option>
-                          <option value="approved">Approved</option>
-                          <option value="rejected">Rejected</option>
-                          <option value="deferred">Deferred</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="label">Decision Justification</label>
-                        <textarea value={decisionForm.decisionJustification} onChange={(e) => setDecisionForm((p) => ({ ...p, decisionJustification: e.target.value }))} className="input" rows={2} />
-                      </div>
-                    </>
-                  )}
-                  <div className="flex gap-2">
-                    <button type="submit" disabled={decisionSaving} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60">
-                      {decisionSaving ? "Saving…" : "Save"}
-                    </button>
-                    <button type="button" onClick={() => setShowDecisionForm(false)} className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700">
-                      Cancel
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </section>
-        )}
+              </>
+            ) : (
+              <div className="text-sm text-gray-400">Nothing recorded yet.</div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Downstream actions once approved */}
       {request.status === "approved" && (can("purchase_orders.create") || can("contracts.manage")) && (

@@ -10,8 +10,9 @@ import {
   subProgrammes,
   budgetItems,
   users,
+  auditLogs,
 } from "../db/schema.js";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, asc, desc, sql, inArray } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { hasPermission, Permission } from "../lib/permissions.js";
 import { logAudit } from "../lib/audit.js";
@@ -145,11 +146,50 @@ router.get(
     ? await db.select().from(budgetItems).where(eq(budgetItems.id, request.budgetItemId))
     : [null];
 
+  // When each step happened, for the Date lines on the printed form. A
+  // signature records it when the requester, head of department or accounting
+  // officer acts in person; otherwise the audit trail of status changes does
+  // (e.g. when the administrator moved the request on).
+  const history = await db
+    .select({ action: auditLogs.action, details: auditLogs.details, createdAt: auditLogs.createdAt })
+    .from(auditLogs)
+    .where(and(eq(auditLogs.entityType, "procurement_request"), eq(auditLogs.entityId, request.id)))
+    .orderBy(asc(auditLogs.id));
+  const lastMove = (from: string[], to: string[]) => {
+    let at: Date | null = null;
+    for (const h of history) {
+      const d = (h.details ?? {}) as { from?: string; to?: string };
+      if (h.action === "request.status_changed" && from.includes(d.from ?? "") && to.includes(d.to ?? "")) {
+        at = h.createdAt;
+      }
+    }
+    return at;
+  };
+  const signedAt = (role: string) => signatures.find((s) => s.role === role)?.signedAt ?? null;
+  const committeeMeeting =
+    decision?.committeeMeetingDate ??
+    lastMove(["pending_contracts_committee"], ["approved", "rejected"]);
+  const stepDates = {
+    requested: signedAt("user_dept") ?? lastMove(["draft"], ["pending_hod"]) ?? request.createdAt,
+    headOfDepartment:
+      signedAt("head_of_dept") ?? lastMove(["pending_hod"], ["pending_accounting_officer"]),
+    accountingOfficer:
+      signedAt("accounting_officer") ??
+      lastMove(["pending_accounting_officer"], ["pending_contracts_committee", "approved"]),
+    submittedToCommittee:
+      decision?.submissionDate ??
+      lastMove(["pending_accounting_officer"], ["pending_contracts_committee"]),
+    committeeMeeting,
+    chairperson: decision?.chairpersonSignedAt ?? committeeMeeting,
+    secretary: decision?.secretarySignedAt ?? committeeMeeting,
+  };
+
   res.json({
     ...request,
     items,
     signatures,
     decision: decision || null,
+    stepDates,
     voteCode: vote?.code || null,
     voteName: vote?.name || null,
     subProgrammeName: subProg ? `${subProg.romanNumeral ? subProg.romanNumeral + " " : ""}${subProg.name}` : null,
@@ -165,6 +205,27 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
   const { year, week } = getWeekNumber(now, yearType);
   const seq = await nextSequence(year, yearType);
   const refNum = `KIBULI-SS/${categoryCode(body.category)}/${year}/W${week}/${String(seq).padStart(4, "0")}`;
+
+  // Part III names one budget line: take its vote and sub-programme from the
+  // most specific choice rather than trusting the form to keep them in step.
+  let voteId = body.voteId || null;
+  let subProgrammeId = body.subProgrammeId || null;
+  if (body.budgetItemId) {
+    const [line] = await db
+      .select()
+      .from(budgetItems)
+      .where(eq(budgetItems.id, Number(body.budgetItemId)));
+    if (line) {
+      voteId = line.voteId;
+      subProgrammeId = line.subProgrammeId;
+    }
+  } else if (subProgrammeId) {
+    const [sub] = await db
+      .select()
+      .from(subProgrammes)
+      .where(eq(subProgrammes.id, Number(subProgrammeId)));
+    if (sub) voteId = sub.voteId;
+  }
 
   const [request] = await db
     .insert(procurementRequests)
@@ -187,8 +248,8 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
       multiyearYearTwo: body.multiyearYearTwo,
       multiyearYearThree: body.multiyearYearThree,
       multiyearYearFour: body.multiyearYearFour,
-      voteId: body.voteId,
-      subProgrammeId: body.subProgrammeId,
+      voteId,
+      subProgrammeId,
       budgetItemId: body.budgetItemId,
       balanceRemainingManual: body.balanceRemainingManual,
       status: "draft",
@@ -243,6 +304,23 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
         marketPrice: item.marketPrice,
         totalCost: total,
       });
+    }
+  }
+
+  // The PDU can draft Part II (its submission to the Contracts Committee)
+  // while raising a macro request. It is dated automatically once the request
+  // actually reaches the committee.
+  if (
+    body.procurementSize === "macro" &&
+    body.partTwo &&
+    typeof body.partTwo === "object" &&
+    hasPermission(req.session.role ?? "", "requests.prepare.committee")
+  ) {
+    const submission = submissionFields(body.partTwo);
+    if (hasAnyValue(submission)) {
+      await db
+        .insert(contractsCommitteeDecisions)
+        .values({ procurementRequestId: request.id, ...submission });
     }
   }
 
@@ -325,66 +403,136 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// ── PPDA FORM 5 Part II ────────────────────────────────────────────────────
+
+// Empty strings from inputs must become NULL — Postgres rejects '' for
+// numeric and date columns.
+const blankValue = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
+const textOrNull = (v: unknown) => (blankValue(v) ? null : String(v).trim());
+const amountOrNull = (v: unknown) => {
+  if (blankValue(v)) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? String(n) : null;
+};
+const hasAnyValue = (f: object) => Object.values(f).some((v) => v !== null && v !== undefined);
+
+/** Today's date in Uganda (the server runs on UTC), for dates the form fills in itself. */
+function kampalaToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala" }).format(new Date());
+}
+
+type CommitteeFields = Partial<typeof contractsCommitteeDecisions.$inferInsert>;
+
+/** The PDU's side of Part II — only the fields present in the body. */
+function submissionFields(b: Record<string, unknown>) {
+  const has = (k: string) => Object.prototype.hasOwnProperty.call(b, k);
+  const f: CommitteeFields = {};
+  if (has("recommendedMethod")) f.recommendedMethod = textOrNull(b.recommendedMethod);
+  if (has("methodJustification")) f.methodJustification = textOrNull(b.methodJustification);
+  if (has("shortlistedProviders")) f.shortlistedProviders = textOrNull(b.shortlistedProviders);
+  if (has("biddingDocumentTeam")) f.biddingDocumentTeam = textOrNull(b.biddingDocumentTeam);
+  if (has("evaluationCommittee")) f.evaluationCommittee = textOrNull(b.evaluationCommittee);
+  if (has("biddingDocumentCost")) f.biddingDocumentCost = amountOrNull(b.biddingDocumentCost);
+  if (has("otherInformation")) f.otherInformation = textOrNull(b.otherInformation);
+  return f;
+}
+
+/** The committee's decision and conditions for each Part II row, keyed "1"–"6". */
+function rowDecisionsFrom(raw: unknown) {
+  if (!raw || typeof raw !== "object") return null;
+  const rows: Record<string, { decision: string | null; conditions: string | null }> = {};
+  for (const key of ["1", "2", "3", "4", "5", "6"]) {
+    const r = (raw as Record<string, unknown>)[key];
+    if (!r || typeof r !== "object") continue;
+    const decision = textOrNull((r as Record<string, unknown>).decision);
+    const conditions = textOrNull((r as Record<string, unknown>).conditions);
+    if (decision || conditions) rows[key] = { decision, conditions };
+  }
+  return Object.keys(rows).length ? rows : null;
+}
+
 /**
- * Records the Contracts Committee packet (PPDA FORM 5 Part II). The PDU
- * prepares the submission fields (method, shortlist, evaluation committee);
- * the committee chair/secretary fill in the decision. Both sides write to
- * the same record here — the request's actual status transition, which is
- * what determines whether the procurement is approved, still requires
- * requests.approve.committee via PATCH /:id/status above.
+ * Records PPDA FORM 5 Part II. The Procurement and Disposal Unit fills the
+ * submission column (requests.prepare.committee); the Contracts Committee
+ * fills each row's decision and conditions (requests.approve.committee).
+ * Only fields that are sent, and that the caller may change, are updated, so
+ * one side's save never wipes the other's. Dates fill themselves: the
+ * submission is dated when the PDU first saves it while the request is with
+ * the committee, the meeting when the committee first records a decision.
+ * Approving the procurement itself still requires requests.approve.committee
+ * via PATCH /:id/status above.
  */
 router.post(
   "/:id/committee-decision",
   requirePermission("requests.prepare.committee", "requests.approve.committee"),
   async (req, res) => {
     const id = Number(req.params.id);
-    const b = req.body ?? {};
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const role = req.session.role ?? "";
+    const canPrepare = hasPermission(role, "requests.prepare.committee");
+    const canDecide = hasPermission(role, "requests.approve.committee");
 
-    // Empty strings from number/date inputs must become NULL — Postgres rejects
-    // '' for numeric and date columns.
-    const blank = (v: unknown) => v === undefined || v === null || v === "";
-    const num = (v: unknown) => (blank(v) ? null : String(v));
-    const txt = (v: unknown) => (blank(v) ? null : String(v));
+    const [request] = await db
+      .select({ id: procurementRequests.id, status: procurementRequests.status })
+      .from(procurementRequests)
+      .where(eq(procurementRequests.id, id));
+    if (!request) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
 
-    const decisionValue = blank(b.decision) ? null : String(b.decision);
+    const has = (k: string) => Object.prototype.hasOwnProperty.call(b, k);
+    const decisionValue = textOrNull(b.decision);
     if (decisionValue && !["approved", "rejected", "deferred"].includes(decisionValue)) {
       res.status(400).json({ error: `Invalid decision: ${decisionValue}` });
       return;
     }
 
-    const isChair = req.session.role === "contracts_chair";
-    const isSecretary = req.session.role === "contracts_secretary";
-
-    const fields = {
-      submissionDate: txt(b.submissionDate),
-      committeeMeetingDate: txt(b.committeeMeetingDate),
-      meetingReference: txt(b.meetingReference),
-      recommendedMethod: txt(b.recommendedMethod),
-      methodJustification: txt(b.methodJustification),
-      shortlistedProviders: b.shortlistedProviders ?? null,
-      evaluationCommittee: b.evaluationCommittee ?? null,
-      biddingDocumentTeam: b.biddingDocumentTeam ?? null,
-      biddingDocumentCost: num(b.biddingDocumentCost),
-      decision: decisionValue as "approved" | "rejected" | "deferred" | null,
-      decisionJustification: txt(b.decisionJustification),
-      chairpersonUserId: decisionValue && isChair ? req.session.userId! : null,
-      chairpersonSignedAt: decisionValue && isChair ? new Date() : null,
-      secretaryUserId: decisionValue && isSecretary ? req.session.userId! : null,
-      secretarySignedAt: decisionValue && isSecretary ? new Date() : null,
-    };
-
     // One packet per request — re-saving updates it rather than stacking duplicates.
     const [existing] = await db
-      .select({ id: contractsCommitteeDecisions.id })
+      .select()
       .from(contractsCommitteeDecisions)
       .where(eq(contractsCommitteeDecisions.procurementRequestId, id));
 
+    const fields: CommitteeFields = {};
+    if (canPrepare) {
+      const submission = submissionFields(b);
+      Object.assign(fields, submission);
+      if (
+        !existing?.submissionDate &&
+        request.status === "pending_contracts_committee" &&
+        hasAnyValue(submission)
+      ) {
+        fields.submissionDate = kampalaToday();
+      }
+    }
+    if (canDecide) {
+      if (has("decision")) {
+        fields.decision = decisionValue as "approved" | "rejected" | "deferred" | null;
+      }
+      if (has("decisionJustification")) fields.decisionJustification = textOrNull(b.decisionJustification);
+      if (has("meetingReference")) fields.meetingReference = textOrNull(b.meetingReference);
+      if (has("rowDecisions")) fields.rowDecisions = rowDecisionsFrom(b.rowDecisions);
+      const decided = !!decisionValue || !!fields.rowDecisions;
+      if (decided && !existing?.committeeMeetingDate) fields.committeeMeetingDate = kampalaToday();
+      if (decisionValue && role === "contracts_chair") {
+        fields.chairpersonUserId = req.session.userId!;
+        fields.chairpersonSignedAt = new Date();
+      }
+      if (decisionValue && role === "contracts_secretary") {
+        fields.secretaryUserId = req.session.userId!;
+        fields.secretarySignedAt = new Date();
+      }
+    }
+
     const [decision] = existing
-      ? await db
-          .update(contractsCommitteeDecisions)
-          .set(fields)
-          .where(eq(contractsCommitteeDecisions.id, existing.id))
-          .returning()
+      ? Object.keys(fields).length
+        ? await db
+            .update(contractsCommitteeDecisions)
+            .set(fields)
+            .where(eq(contractsCommitteeDecisions.id, existing.id))
+            .returning()
+        : [existing]
       : await db
           .insert(contractsCommitteeDecisions)
           .values({ procurementRequestId: id, ...fields })

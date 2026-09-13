@@ -270,15 +270,20 @@ export const contractsCommitteeDecisions = pgTable(
     submissionDate: date("submission_date"),
     committeeMeetingDate: date("committee_meeting_date"),
     meetingReference: text("meeting_reference"),
+    // Part II rows 1–6: the Procurement and Disposal Unit's submission.
     recommendedMethod: text("recommended_method"),
     methodJustification: text("method_justification"),
-    shortlistedProviders: jsonb("shortlisted_providers"),
-    evaluationCommittee: jsonb("evaluation_committee"),
-    biddingDocumentTeam: jsonb("bidding_document_team"),
+    shortlistedProviders: text("shortlisted_providers"),
+    biddingDocumentTeam: text("bidding_document_team"),
+    evaluationCommittee: text("evaluation_committee"),
     biddingDocumentCost: numeric("bidding_document_cost", {
       precision: 15,
       scale: 2,
     }),
+    otherInformation: text("other_information"),
+    // The Contracts Committee's decision and conditions for each row, keyed
+    // "1"–"6": { decision, conditions }.
+    rowDecisions: jsonb("row_decisions"),
     decision: committeeDecisionEnum("decision"),
     decisionJustification: text("decision_justification"),
     chairpersonUserId: integer("chairperson_user_id").references(

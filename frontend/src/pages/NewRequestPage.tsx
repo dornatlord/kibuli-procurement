@@ -1,8 +1,11 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import ItemPickerModal, { itemKey } from "../components/ItemPickerModal";
 import type { PriceListItem } from "../components/ItemPickerModal";
+import PartTwoTable, { EMPTY_SUBMISSION } from "../components/PartTwoForm";
+import type { PartTwoSubmission } from "../components/PartTwoForm";
 import { basketLineKey, lineIds } from "../lib/baskets";
 import type { BasketDetail, BasketSummary } from "../lib/baskets";
 
@@ -88,6 +91,7 @@ function getFinancialWeek(date: Date): { year: number; week: number } {
 
 export default function NewRequestPage() {
   const navigate = useNavigate();
+  const { can } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -114,6 +118,10 @@ export default function NewRequestPage() {
   // Latest rows, for async handlers that finish after a re-render.
   const itemsRef = useRef(items);
   itemsRef.current = items;
+
+  // Part II (macro only): the Procurement and Disposal Unit's submission to the
+  // Contracts Committee, which the PDU can draft while raising the request.
+  const [partTwo, setPartTwo] = useState<PartTwoSubmission>(EMPTY_SUBMISSION);
 
   // Item picker — opens on the price-list categories matching the budget line
   // chosen in Part III, so users tick items instead of typing them.
@@ -168,12 +176,21 @@ export default function NewRequestPage() {
     setBudgetItems([]);
     setSelectedBudgetItem(null);
     if (!voteId) return;
+    // Ignore replies for a vote the user has already moved past (e.g. arrowing
+    // through the list), or the sub-programmes shown can belong to another vote.
+    let cancelled = false;
     api.get<SubProgramme[]>(`/lookup/votes/${voteId}/sub-programmes`).then((sps) => {
+      if (cancelled) return;
       setSubProgrammes(sps);
       if (sps.length === 0) {
-        api.get<BudgetItem[]>(`/lookup/votes/${voteId}/items`).then(setBudgetItems);
+        api.get<BudgetItem[]>(`/lookup/votes/${voteId}/items`).then((rows) => {
+          if (!cancelled) setBudgetItems(rows);
+        });
       }
     });
+    return () => {
+      cancelled = true;
+    };
   }, [voteId]);
 
   useEffect(() => {
@@ -400,6 +417,9 @@ export default function NewRequestPage() {
   const itemsTotal =
     Math.round(items.reduce((sum, it) => sum + (Number(it.totalCost) || 0), 0) * 100) / 100;
 
+  // Part II belongs to macro procurements and is the PDU's to fill.
+  const showPartTwo = procurementSize === "macro" && can("requests.prepare.committee");
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -433,6 +453,7 @@ export default function NewRequestPage() {
           estimatedUnitCost: it.estimatedUnitCost || null,
           marketPrice: it.marketPrice || null,
         })),
+        partTwo: showPartTwo ? partTwo : undefined,
       };
       const req = await api.post<{ id: number }>("/requests", payload);
       navigate(`/requests/${req.id}`);
@@ -934,6 +955,26 @@ export default function NewRequestPage() {
           )}
         </div>
       </section>
+
+      {/* ── FORM 5 PART II: SUBMISSION TO THE CONTRACTS COMMITTEE (macro) ── */}
+      {showPartTwo && (
+        <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">
+            PART II — REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE
+          </div>
+          <div className="p-4 space-y-3">
+            <p className="text-xs text-gray-500">
+              Filled by the Procurement and Disposal Unit. The date of submission fills in by itself when
+              the request reaches the Contracts Committee, and the committee records its decision for each
+              row on the request's page.
+            </p>
+            <PartTwoTable
+              submission={partTwo}
+              onSubmissionChange={(patch) => setPartTwo((p) => ({ ...p, ...patch }))}
+            />
+          </div>
+        </section>
+      )}
 
       <div className="flex justify-end gap-3">
         <button
