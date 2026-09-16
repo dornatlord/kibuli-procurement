@@ -1,26 +1,17 @@
-/** The school's mark: a "K" monogram in the brand green. */
-export default function BrandMark({
-  size = "md",
-  tone = "brand",
-}: {
-  size?: "sm" | "md";
-  /** "light" sits on the dark green sidebar and brand panel. */
-  tone?: "brand" | "light";
-}) {
+import { KSS_BADGE } from "../lib/badge";
+
+/** The school badge on a white tile, so it reads on the green sidebar and on white pages alike. */
+export default function BrandMark({ size = "md" }: { size?: "sm" | "md"; tone?: "brand" | "light" }) {
   const sizes = {
-    sm: "h-8 w-8 rounded-lg text-sm",
-    md: "h-10 w-10 rounded-xl text-base",
-  };
-  const tones = {
-    brand: "bg-green-700 text-white ring-black/5",
-    light: "bg-white text-green-800 ring-white/20",
+    sm: "h-8 w-8 rounded-lg p-1",
+    md: "h-10 w-10 rounded-xl p-1",
   };
   return (
     <span
       aria-hidden="true"
-      className={`inline-grid shrink-0 place-items-center font-bold tracking-tight shadow-sm ring-1 ring-inset ${sizes[size]} ${tones[tone]}`}
+      className={`inline-grid shrink-0 place-items-center bg-white shadow-sm ring-1 ring-inset ring-black/5 ${sizes[size]}`}
     >
-      K
+      <img src={KSS_BADGE} alt="" className="h-full w-full object-contain" />
     </span>
   );
 }

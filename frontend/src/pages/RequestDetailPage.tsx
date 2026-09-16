@@ -503,6 +503,80 @@ ${macroPages}
   setTimeout(() => win.print(), 400);
 }
 
+/**
+ * The school's "List of Supplies and Price Schedule". Its references split
+ * the request's number the way the school's own do: KSS/SUPLS/26/029 as the
+ * procurement reference, and the running number (00246) as the call-off order.
+ */
+function printPriceSchedule(request: Request) {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const money = (v: string | number | null | undefined) =>
+    v === null || v === undefined || v === "" ? "" : Number(v).toLocaleString("en-UG");
+  const parts = request.referenceNumber.split("/");
+  const callOff = parts.length > 1 ? parts[parts.length - 1] : "";
+  const procurementRef = parts.length > 1 ? parts.slice(0, -1).join("/") : request.referenceNumber;
+  const total = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
+
+  const ROWS = 25;
+  const rows = Array.from({ length: Math.max(ROWS, request.items.length) }, (_, i) => {
+    const it = request.items[i];
+    if (!it) return `<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+    return `<tr><td class="c">${i + 1}</td><td>${esc(it.description)}</td><td class="c">${
+      it.quantity ? Number(it.quantity).toLocaleString("en-UG") : ""
+    }</td><td class="c">${esc(it.unitOfMeasure ?? "")}</td><td class="r">${money(it.estimatedUnitCost)}</td><td class="r">${money(
+      it.totalCost
+    )}</td></tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Price schedule — ${esc(request.referenceNumber)}</title>
+<style>
+@page { size: A4 portrait; margin: 15mm 14mm; }
+* { box-sizing: border-box; }
+body { margin: 0; color: #000; font-family: "Times New Roman", Times, serif; font-size: 13px; }
+@media screen { body { padding: 15mm 14mm; max-width: 210mm; } }
+h1 { text-align: center; font-size: 21px; margin: 0 0 16px; }
+.refs { text-align: center; font-weight: bold; font-size: 14px; line-height: 2; }
+.refs .v { font-family: Arial, Helvetica, sans-serif; margin-left: 36px; }
+table { width: 100%; border-collapse: collapse; }
+.items { margin-top: 16px; }
+.items th, .items td { border: 1.5px solid #000; padding: 2px 6px; height: 22px; }
+.items th { background: #d9d9d9; text-align: left; vertical-align: top; font-size: 14px; height: 50px; }
+.items td { font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
+.c { text-align: center; }
+.r { text-align: right; white-space: nowrap; }
+.totals { width: 44%; margin-left: auto; margin-top: -1.5px; }
+.totals td { border: 1.5px solid #000; padding: 4px 6px; height: 30px; }
+.totals .label { text-align: right; font-weight: bold; font-size: 14px; width: 68%; }
+.totals .v { font-family: Arial, Helvetica, sans-serif; }
+</style></head><body>
+<h1>List of Supplies and Price Schedule</h1>
+<div class="refs">
+  <div>Procurement Reference No:<span class="v">${esc(procurementRef)}</span></div>
+  <div>Call-Off Order Reference No:<span class="v">${esc(callOff)}</span></div>
+</div>
+<table class="items">
+  <thead><tr>
+    <th style="width:6%">Item No</th><th style="width:27%">Description of Supplies</th><th style="width:10%">Quantity</th>
+    <th style="width:13%">Unit of Measure</th><th style="width:30%">Unit Price</th><th style="width:14%">Total Price</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+<table class="totals">
+  <tr><td class="label">Other additional costs</td><td></td></tr>
+  <tr><td class="label">Subtotal</td><td></td></tr>
+  <tr><td class="label">VAT @ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; %</td><td></td></tr>
+  <tr><td class="label">Total Price</td><td class="r v">${money(total)}</td></tr>
+</table>
+</body></html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) return;
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 400);
+}
+
 export default function RequestDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
@@ -621,12 +695,26 @@ export default function RequestDetailPage() {
             </div>
             <p className="mt-1 font-mono text-sm text-gray-500">{request.referenceNumber}</p>
           </div>
-          {can("requests.print") && (
-            <button type="button" onClick={() => printTForm(request)} className="btn btn-secondary">
-              <PrinterIcon className="h-4 w-4" />
-              Print TFORM 5
-            </button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {can("requests.print") && (
+              <>
+                <button type="button" onClick={() => printPriceSchedule(request)} className="btn btn-secondary">
+                  <PrinterIcon className="h-4 w-4" />
+                  Price schedule
+                </button>
+                <button type="button" onClick={() => printTForm(request)} className="btn btn-secondary">
+                  <PrinterIcon className="h-4 w-4" />
+                  Print TFORM 5
+                </button>
+              </>
+            )}
+            {can("purchase_orders.create") && request.status !== "rejected" && (
+              <Link to={`/purchase-orders/new?requestId=${request.id}`} className="btn btn-primary">
+                <PlusIcon className="h-4 w-4" />
+                Create LPO
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -909,27 +997,17 @@ export default function RequestDetailPage() {
         </section>
       )}
 
-      {/* Downstream actions once approved */}
-      {request.status === "approved" && (can("purchase_orders.create") || can("contracts.manage")) && (
+      {/* A signed contract, for approved purchases that need one */}
+      {request.status === "approved" && can("contracts.manage") && (
         <div className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div>
-            <p className="text-sm font-semibold text-gray-900">Approved and ready to order</p>
-            <p className="text-sm text-gray-500">Raise a purchase order or a contract from this request.</p>
+            <p className="text-sm font-semibold text-gray-900">Approved</p>
+            <p className="text-sm text-gray-500">If this purchase needs a signed contract, record it here.</p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {can("contracts.manage") && (
-              <Link to={`/contracts/new?requestId=${request.id}`} className="btn btn-secondary">
-                <PlusIcon className="h-4 w-4" />
-                Create contract
-              </Link>
-            )}
-            {can("purchase_orders.create") && (
-              <Link to={`/purchase-orders/new?requestId=${request.id}`} className="btn btn-primary">
-                <PlusIcon className="h-4 w-4" />
-                Create purchase order
-              </Link>
-            )}
-          </div>
+          <Link to={`/contracts/new?requestId=${request.id}`} className="btn btn-secondary">
+            <PlusIcon className="h-4 w-4" />
+            Create contract
+          </Link>
         </div>
       )}
     </div>

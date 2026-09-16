@@ -21,13 +21,34 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
-async function nextPoNumber(year: number): Promise<string> {
+/** LPO numbers count up from 1 and never restart, like the school's numbered LPO books. */
+async function nextPoNumber(): Promise<string> {
   const [row] = await db
-    .select({ maxSeq: sql<number>`COALESCE(MAX(CAST(SPLIT_PART(po_number, '/', 3) AS INTEGER)), 0)` })
+    .select({ last: sql<number>`COALESCE(MAX(CAST(po_number AS INTEGER)), 0)` })
     .from(purchaseOrders)
-    .where(sql`po_number LIKE ${"PO/" + year + "/%"}`);
-  const next = (row?.maxSeq ?? 0) + 1;
-  return `PO/${year}/${String(next).padStart(4, "0")}`;
+    .where(sql`po_number ~ '^[0-9]+$'`);
+  return String(Number(row?.last ?? 0) + 1);
+}
+
+/**
+ * Saves an LPO under the next number. Two LPOs saved at the same moment can
+ * pick the same number; the unique constraint catches that and the later one
+ * takes the number after.
+ */
+async function insertWithNextNumber(values: Omit<typeof purchaseOrders.$inferInsert, "poNumber">) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const [po] = await db
+        .insert(purchaseOrders)
+        .values({ ...values, poNumber: await nextPoNumber() })
+        .returning();
+      return po;
+    } catch (err) {
+      const e = err as { code?: string; cause?: { code?: string } };
+      if (attempt < 3 && (e.code ?? e.cause?.code) === "23505") continue;
+      throw err;
+    }
+  }
 }
 
 router.get("/", requirePermission("purchase_orders.view"), async (req, res) => {
@@ -73,6 +94,7 @@ router.get("/:id", requirePermission("purchase_orders.view"), async (req, res) =
       supplierPhone: suppliers.phone,
       procurementRequestId: purchaseOrders.procurementRequestId,
       referenceNumber: procurementRequests.referenceNumber,
+      requestStatus: procurementRequests.status,
     })
     .from(purchaseOrders)
     .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
@@ -123,27 +145,21 @@ router.post("/", requirePermission("purchase_orders.create"), async (req, res) =
     return;
   }
 
-  const year = new Date().getFullYear();
-  const poNumber = await nextPoNumber(year);
   const totalAmount = items.reduce(
     (sum: number, it: any) => sum + (Number(it.quantity) || 0) * (Number(it.unitPrice) || 0),
     0
   );
 
-  const [po] = await db
-    .insert(purchaseOrders)
-    .values({
-      poNumber,
-      supplierId,
-      procurementRequestId: procurementRequestId || null,
-      issueDate: issueDate || null,
-      expectedDeliveryDate: expectedDeliveryDate || null,
-      deliveryLocation: deliveryLocation || null,
-      termsAndConditions: termsAndConditions || null,
-      totalAmount: String(totalAmount),
-      createdBy: req.session.userId!,
-    })
-    .returning();
+  const po = await insertWithNextNumber({
+    supplierId,
+    procurementRequestId: procurementRequestId || null,
+    issueDate: issueDate || null,
+    expectedDeliveryDate: expectedDeliveryDate || null,
+    deliveryLocation: deliveryLocation || null,
+    termsAndConditions: termsAndConditions || null,
+    totalAmount: String(totalAmount),
+    createdBy: req.session.userId!,
+  });
 
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
@@ -181,6 +197,19 @@ router.patch("/:id/status", requirePermission("purchase_orders.manage"), async (
   if (!VALID_TRANSITIONS[po.status]?.includes(status)) {
     res.status(400).json({ error: `Cannot move a ${po.status} order to ${status}` });
     return;
+  }
+
+  // An LPO can be prepared as soon as its request exists, but only goes to
+  // the supplier once the request is approved.
+  if (status === "issued" && po.procurementRequestId) {
+    const [request] = await db
+      .select({ status: procurementRequests.status })
+      .from(procurementRequests)
+      .where(eq(procurementRequests.id, po.procurementRequestId));
+    if (request && request.status !== "approved") {
+      res.status(400).json({ error: "Approve the request before issuing its LPO to the supplier." });
+      return;
+    }
   }
 
   const [updated] = await db

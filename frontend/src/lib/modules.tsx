@@ -102,12 +102,12 @@ export const MODULES: ProcurementModule[] = [
   },
   {
     key: "orders",
-    label: "Purchase Orders",
+    label: "LPOs",
     to: "/purchase-orders",
     group: "Procurement",
     status: "live",
     permissions: ["purchase_orders.view"],
-    description: "Generate and issue purchase orders to providers",
+    description: "Local purchase orders issued to suppliers",
     icon: (
       <Svg>
         <path d="M3 4h2l2.4 11.2a2 2 0 0 0 2 1.6h7.5a2 2 0 0 0 2-1.55L20.5 8H6" />

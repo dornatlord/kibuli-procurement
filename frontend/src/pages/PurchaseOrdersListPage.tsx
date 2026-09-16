@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Navigate } from "react-router-dom";
+import PageHeader from "../components/PageHeader";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
+import { ChevronRightIcon, InboxIcon, PlusIcon } from "../components/icons";
 
 interface PORow {
   id: number;
@@ -14,69 +15,101 @@ interface PORow {
   totalAmount: string | null;
   supplierName: string | null;
   referenceNumber: string | null;
+  createdAt: string;
 }
+
+const dayFirst = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
 
 export default function PurchaseOrdersListPage() {
   const { can } = useAuth();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<PORow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  if (!can("purchase_orders.view")) return <Navigate to="/dashboard" replace />;
-
   useEffect(() => {
-    api.get<PORow[]>("/purchase-orders").then(setOrders).finally(() => setLoading(false));
+    api
+      .get<PORow[]>("/purchase-orders")
+      .then(setOrders)
+      .finally(() => setLoading(false));
   }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="page-title">Purchase Orders</h1>
-          <p className="text-sm text-gray-500 mt-1">Orders issued to suppliers against approved requests.</p>
-        </div>
-        {can("purchase_orders.create") && (
-          <Link to="/purchase-orders/new" className="btn btn-primary">
-            + New Purchase Order
-          </Link>
-        )}
-      </div>
+      <PageHeader
+        title="Local purchase orders"
+        subtitle="LPOs issued to suppliers, numbered from 1 in the order they're raised."
+        actions={
+          can("purchase_orders.create") && (
+            <Link to="/purchase-orders/new" className="btn btn-primary">
+              <PlusIcon className="h-4 w-4" />
+              New LPO
+            </Link>
+          )
+        }
+      />
 
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
+          <div className="px-6 py-16 text-center text-sm text-gray-400">Loading…</div>
         ) : orders.length === 0 ? (
-          <div className="px-6 py-12 text-center text-sm text-gray-400">No purchase orders yet.</div>
+          <div className="flex flex-col items-center px-6 py-16 text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-gray-100 text-gray-400">
+              <InboxIcon className="h-6 w-6" />
+            </span>
+            <p className="mt-3 text-sm font-medium text-gray-900">No LPOs yet</p>
+            <p className="mt-1 text-sm text-gray-500">Open a request and choose Create LPO.</p>
+          </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-2 text-left">PO Number</th>
-                <th className="px-4 py-2 text-left">Supplier</th>
-                <th className="px-4 py-2 text-left">Request</th>
-                <th className="px-4 py-2 text-right">Amount (UGX)</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {orders.map((po) => (
-                <tr key={po.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-mono text-xs">{po.poNumber}</td>
-                  <td className="px-4 py-2">{po.supplierName || "—"}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{po.referenceNumber || "—"}</td>
-                  <td className="px-4 py-2 text-right">
-                    {po.totalAmount ? Number(po.totalAmount).toLocaleString("en-UG") : "—"}
-                  </td>
-                  <td className="px-4 py-2">
-                    <Badge tone={STATUS_TONES.po[po.status] ?? "gray"} label={statusLabel(po.status)} />
-                  </td>
-                  <td className="px-4 py-2">
-                    <Link to={`/purchase-orders/${po.id}`} className="text-green-700 hover:underline text-xs">View</Link>
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-4 py-3">LPO No.</th>
+                  <th className="px-4 py-3">Supplier</th>
+                  <th className="px-4 py-3">Request</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3 text-right">Amount (UGX)</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="w-10 px-4 py-3">
+                    <span className="sr-only">Open</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {orders.map((po) => (
+                  <tr
+                    key={po.id}
+                    onClick={() => navigate(`/purchase-orders/${po.id}`)}
+                    className="group cursor-pointer transition hover:bg-gray-50"
+                  >
+                    <td className="px-4 py-3">
+                      <Link
+                        to={`/purchase-orders/${po.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-semibold tabular-nums text-red-700"
+                      >
+                        {po.poNumber}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-gray-900">{po.supplierName || "—"}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{po.referenceNumber || "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-gray-500">
+                      {dayFirst(po.issueDate) || new Date(po.createdAt).toLocaleDateString("en-GB")}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
+                      {po.totalAmount ? Number(po.totalAmount).toLocaleString("en-UG") : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone={STATUS_TONES.po[po.status] ?? "gray"} label={statusLabel(po.status)} />
+                    </td>
+                    <td className="px-4 py-3 text-gray-300 group-hover:text-gray-500">
+                      <ChevronRightIcon className="h-4 w-4" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
