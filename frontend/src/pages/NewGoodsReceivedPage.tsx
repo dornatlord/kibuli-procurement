@@ -102,7 +102,7 @@ export default function NewGoodsReceivedPage() {
   return (
     <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-xl font-bold">Record Goods Received</h1>
+        <h1 className="page-title">Record Goods Received</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Against <span className="font-mono">{po.poNumber}</span> — {po.supplierName}
         </p>
@@ -121,11 +121,11 @@ export default function NewGoodsReceivedPage() {
         </div>
       </section>
 
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">Items</div>
         <div className="p-4">
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-2 py-2 text-left">Description</th>
                 <th className="px-2 py-2 text-right w-20">Ordered</th>
@@ -164,8 +164,8 @@ export default function NewGoodsReceivedPage() {
       </section>
 
       <div className="flex justify-end gap-3">
-        <button type="button" onClick={() => navigate(-1)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-        <button type="submit" disabled={submitting} className="px-6 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-60">
+        <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn btn-primary px-6">
           {submitting ? "Saving…" : "Save Delivery Note"}
         </button>
       </div>

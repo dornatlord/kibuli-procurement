@@ -201,7 +201,7 @@ export default function PartTwoTable({
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm border border-gray-200">
-        <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+        <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
           <tr>
             <th className="px-2 py-2 text-left w-8">#</th>
             <th className="px-2 py-2 text-left">Submission by the Procurement and Disposal Unit</th>

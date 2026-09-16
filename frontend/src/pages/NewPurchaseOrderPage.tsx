@@ -116,7 +116,7 @@ export default function NewPurchaseOrderPage() {
   return (
     <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">New Purchase Order</h1>
+        <h1 className="page-title">New Purchase Order</h1>
         {referenceNumber && (
           <div className="text-xs text-gray-500 font-mono">from {referenceNumber}</div>
         )}
@@ -177,11 +177,11 @@ export default function NewPurchaseOrderPage() {
         </div>
       </section>
 
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">Items</div>
         <div className="p-4 space-y-2">
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-2 py-2 text-left">Description</th>
                 <th className="px-2 py-2 text-left w-24">Qty</th>
@@ -228,10 +228,10 @@ export default function NewPurchaseOrderPage() {
       </section>
 
       <div className="flex justify-end gap-3">
-        <button type="button" onClick={() => navigate(-1)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+        <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">
           Cancel
         </button>
-        <button type="submit" disabled={submitting} className="px-6 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-60">
+        <button type="submit" disabled={submitting} className="btn btn-primary px-6">
           {submitting ? "Creating…" : "Create Purchase Order"}
         </button>
       </div>

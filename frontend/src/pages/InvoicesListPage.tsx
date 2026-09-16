@@ -46,26 +46,26 @@ export default function InvoicesListPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Invoices</h1>
+          <h1 className="page-title">Invoices</h1>
           <p className="text-sm text-gray-500 mt-1">
             Match badges compare the invoice to its purchase order and delivery record.
           </p>
         </div>
         {can("invoices.create") && (
-          <Link to="/invoices/new" className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800">
+          <Link to="/invoices/new" className="btn btn-primary">
             + New Invoice
           </Link>
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm">No invoices recorded yet.</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">No invoices recorded yet.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-2 text-left">Invoice #</th>
                 <th className="px-4 py-2 text-left">Supplier</th>

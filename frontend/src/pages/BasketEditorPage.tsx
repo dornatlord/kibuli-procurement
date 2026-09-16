@@ -191,7 +191,7 @@ export default function BasketEditorPage() {
           <Link to="/baskets" className="text-xs text-green-700 hover:underline">
             ← Saved Baskets
           </Link>
-          <h1 className="text-xl font-bold text-gray-800 mt-1">
+          <h1 className="page-title mt-1">
             {isNew ? "New Basket" : name || "Basket"}
           </h1>
         </div>
@@ -203,7 +203,7 @@ export default function BasketEditorPage() {
           </div>
         )}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
@@ -252,7 +252,7 @@ export default function BasketEditorPage() {
           </div>
         </section>
 
-        <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <section className="card overflow-hidden">
           <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">ITEMS</div>
           <div className="p-4 space-y-2">
             {rows.length === 0 ? (
@@ -262,7 +262,7 @@ export default function BasketEditorPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+                  <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                     <tr>
                       <th className="px-2 py-2 text-left w-8">#</th>
                       <th className="px-2 py-2 text-left">Item</th>
@@ -408,14 +408,14 @@ export default function BasketEditorPage() {
               <button
                 type="button"
                 onClick={() => navigate("/baskets")}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-60"
+                className="btn btn-primary px-6"
               >
                 {saving ? "Saving…" : "Save basket"}
               </button>

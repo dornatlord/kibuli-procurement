@@ -20,7 +20,7 @@ export default function BasketsPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Saved Baskets</h1>
+          <h1 className="page-title">Saved Baskets</h1>
           <p className="text-sm text-gray-500 mt-1">
             Lists of items you buy again and again — staff meals, weekly posho — that load into
             a new request in one click.
@@ -28,14 +28,14 @@ export default function BasketsPage() {
         </div>
         <Link
           to="/baskets/new"
-          className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800"
+          className="btn btn-primary"
         >
           + New Basket
         </Link>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -59,7 +59,7 @@ export default function BasketsPage() {
         <div className="space-y-2">
           <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+              <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <tr>
                   <th className="px-4 py-2 text-left">Basket</th>
                   <th className="px-4 py-2 text-left">Offered for</th>

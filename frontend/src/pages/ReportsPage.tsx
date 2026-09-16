@@ -59,7 +59,7 @@ export default function ReportsPage() {
     <div className="space-y-6 max-w-5xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Reports</h1>
+          <h1 className="page-title">Reports</h1>
           <p className="text-sm text-gray-500 mt-1">Spending, budget utilization and top suppliers.</p>
         </div>
         <Link to="/reports/monthly" className="text-sm text-green-700 hover:underline">View Monthly FORM 2 →</Link>
@@ -75,7 +75,7 @@ export default function ReportsPage() {
           />
           <StatCard
             label="In Progress"
-            value={summary.byStatus.filter((s) => s.status.startsWith("pending_")).reduce((a, s) => a + s.count, 0)}
+            value={summary.byStatus.filter((s) => s.status.startsWith("pending_")).reduce((a, s) => a + Number(s.count), 0)}
           />
         </div>
       )}
@@ -87,13 +87,13 @@ export default function ReportsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Budget Utilization by Vote</div>
         {budget.length === 0 ? (
           <div className="p-4 text-center text-gray-400 text-sm">No budget data yet.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr><th className="px-4 py-2 text-left">Vote</th><th className="px-4 py-2 text-right">Budgeted</th><th className="px-4 py-2 text-right">Spent (Approved)</th><th className="px-4 py-2 text-left">Utilization</th></tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -120,13 +120,13 @@ export default function ReportsPage() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Top Suppliers by Purchase Order Value</div>
         {topSuppliers.length === 0 ? (
           <div className="p-4 text-center text-gray-400 text-sm">No purchase orders yet.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr><th className="px-4 py-2 text-left">Supplier</th><th className="px-4 py-2 text-right">Orders</th><th className="px-4 py-2 text-right">Total Value</th></tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -157,7 +157,7 @@ function StatCard({ label, value, sub }: { label: string; value: number; sub?: s
 
 function Breakdown({ title, rows }: { title: string; rows: { label: string; count: number; total: string }[] }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="card overflow-hidden">
       <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">{title}</div>
       {rows.length === 0 ? (
         <div className="p-4 text-center text-gray-400 text-sm">No data.</div>

@@ -39,7 +39,7 @@ export default function AccountPage() {
 
   return (
     <div className="max-w-lg space-y-6">
-      <h1 className="text-xl font-bold text-gray-800">My Account</h1>
+      <h1 className="page-title">My Account</h1>
 
       <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
         <Row label="Name" value={user?.name ?? "—"} />
@@ -112,7 +112,7 @@ export default function AccountPage() {
           <button
             type="submit"
             disabled={saving}
-            className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+            className="btn btn-primary"
           >
             {saving ? "Saving…" : "Change Password"}
           </button>

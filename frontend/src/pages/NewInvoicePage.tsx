@@ -79,7 +79,7 @@ export default function NewInvoicePage() {
 
   return (
     <form onSubmit={handleSubmit} className="max-w-lg mx-auto space-y-6">
-      <h1 className="text-xl font-bold">New Invoice</h1>
+      <h1 className="page-title">New Invoice</h1>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>}
 
@@ -140,8 +140,8 @@ export default function NewInvoicePage() {
       </section>
 
       <div className="flex justify-end gap-3">
-        <button type="button" onClick={() => navigate(-1)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">Cancel</button>
-        <button type="submit" disabled={submitting} className="px-6 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-60">
+        <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">Cancel</button>
+        <button type="submit" disabled={submitting} className="btn btn-primary px-6">
           {submitting ? "Saving…" : "Save Invoice"}
         </button>
       </div>

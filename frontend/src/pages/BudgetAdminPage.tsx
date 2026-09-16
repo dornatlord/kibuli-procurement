@@ -63,7 +63,7 @@ export default function BudgetAdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">Budget Amounts</h1>
+      <h1 className="page-title">Budget Amounts</h1>
       <p className="text-sm text-gray-500">Confidential — only visible to Accounting Officer and Head Teacher.</p>
 
       {votes.map((v) => {
@@ -71,7 +71,7 @@ export default function BudgetAdminPage() {
         const flatItems = items.filter((i) => i.voteId === v.id);
 
         return (
-          <div key={v.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div key={v.id} className="card overflow-hidden">
             <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">
               {v.code} — {v.name}
             </div>

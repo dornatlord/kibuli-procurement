@@ -1,10 +1,12 @@
-const colors: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700",
-  pending_hod: "bg-amber-100 text-amber-800",
-  pending_accounting_officer: "bg-amber-100 text-amber-800",
-  pending_contracts_committee: "bg-amber-100 text-amber-800",
-  approved: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
+import Badge, { PALETTE } from "./Badge";
+
+const tones: Record<string, keyof typeof PALETTE> = {
+  draft: "gray",
+  pending_hod: "amber",
+  pending_accounting_officer: "amber",
+  pending_contracts_committee: "amber",
+  approved: "green",
+  rejected: "red",
 };
 
 const labels: Record<string, string> = {
@@ -17,9 +19,5 @@ const labels: Record<string, string> = {
 };
 
 export default function StatusBadge({ status }: { status: string }) {
-  return (
-    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${colors[status] ?? "bg-gray-100 text-gray-700"}`}>
-      {labels[status] ?? status}
-    </span>
-  );
+  return <Badge tone={tones[status] ?? "gray"} label={labels[status] ?? status} />;
 }

@@ -73,7 +73,7 @@ export default function ProcurementPlanPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Procurement Plan</h1>
+          <h1 className="page-title">Procurement Plan</h1>
           <p className="text-sm text-gray-500 mt-1">The annual plan for goods, works and non-consultancy services.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -81,14 +81,14 @@ export default function ProcurementPlanPage() {
             {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
           {canManage && (
-            <button onClick={() => { setShowForm(true); setError(""); }} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800">
+            <button onClick={() => { setShowForm(true); setError(""); }} className="btn btn-primary">
               + Add Item
             </button>
           )}
         </div>
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm">{error}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -145,22 +145,22 @@ export default function ProcurementPlanPage() {
               <input type="date" value={form.completionDate} onChange={(e) => setForm((p) => ({ ...p, completionDate: e.target.value }))} className="input" />
             </div>
             <div className="col-span-2 flex gap-2 pt-2">
-              <button type="submit" disabled={saving} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60">{saving ? "Saving…" : "Add to Plan"}</button>
-              <button type="button" onClick={() => { setShowForm(false); setForm(EMPTY_FORM); }} className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700">Cancel</button>
+              <button type="submit" disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Add to Plan"}</button>
+              <button type="button" onClick={() => { setShowForm(false); setForm(EMPTY_FORM); }} className="btn btn-secondary">Cancel</button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
         ) : items.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm">No plan items for {year} yet.</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">No plan items for {year} yet.</div>
         ) : (
           <>
             <table className="w-full text-sm">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+              <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <tr>
                   <th className="px-4 py-2 text-left">Subject</th>
                   <th className="px-4 py-2 text-left">Category</th>

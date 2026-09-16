@@ -141,7 +141,7 @@ export default function UsersAdminPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Users &amp; Roles</h1>
+          <h1 className="page-title">Users &amp; Roles</h1>
           <p className="text-sm text-gray-500 mt-1">
             {activeCount} active {activeCount === 1 ? "account" : "accounts"} of{" "}
             {users.length}. Each account&rsquo;s role decides what it can see and do.
@@ -153,7 +153,7 @@ export default function UsersAdminPage() {
               setShowForm(true);
               setError("");
             }}
-            className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800"
+            className="btn btn-primary"
           >
             + Add User
           </button>
@@ -166,7 +166,7 @@ export default function UsersAdminPage() {
         </div>
       )}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -247,7 +247,7 @@ export default function UsersAdminPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+                className="btn btn-primary"
               >
                 {saving ? "Creating…" : "Create Account"}
               </button>
@@ -257,7 +257,7 @@ export default function UsersAdminPage() {
                   setShowForm(false);
                   setForm(EMPTY_FORM);
                 }}
-                className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
@@ -308,14 +308,14 @@ export default function UsersAdminPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+                className="btn btn-primary"
               >
                 {saving ? "Saving…" : "Save Changes"}
               </button>
               <button
                 type="button"
                 onClick={() => setEditing(null)}
-                className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
@@ -349,14 +349,14 @@ export default function UsersAdminPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+                className="btn btn-primary"
               >
                 {saving ? "Resetting…" : "Reset Password"}
               </button>
               <button
                 type="button"
                 onClick={() => setResetting(null)}
-                className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
@@ -366,7 +366,7 @@ export default function UsersAdminPage() {
       )}
 
       {/* User table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
           <span className="text-xs text-gray-500 uppercase font-semibold">
             Accounts
@@ -381,12 +381,12 @@ export default function UsersAdminPage() {
           </label>
         </div>
         {loading ? (
-          <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
         ) : visible.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm">No users.</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">No users.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-2 text-left">Name</th>
                 <th className="px-4 py-2 text-left">Email</th>

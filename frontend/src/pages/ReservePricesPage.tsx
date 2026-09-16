@@ -124,7 +124,7 @@ export default function ReservePricesPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Reserve Prices</h1>
+          <h1 className="page-title">Reserve Prices</h1>
           <p className="text-sm text-gray-500 mt-1">
             Approved price ceilings the Contracts Committee reviews annually. Used
             to check unit costs when raising a request.
@@ -136,7 +136,7 @@ export default function ReservePricesPage() {
               setShowForm(true);
               setError("");
             }}
-            className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800"
+            className="btn btn-primary"
           >
             + Add Item
           </button>
@@ -144,7 +144,7 @@ export default function ReservePricesPage() {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
@@ -211,7 +211,7 @@ export default function ReservePricesPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+                className="btn btn-primary"
               >
                 {saving ? "Adding…" : "Add Item"}
               </button>
@@ -221,7 +221,7 @@ export default function ReservePricesPage() {
                   setShowForm(false);
                   setForm(EMPTY_FORM);
                 }}
-                className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700"
+                className="btn btn-secondary"
               >
                 Cancel
               </button>
@@ -295,14 +295,14 @@ export default function ReservePricesPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
+                  className="btn btn-primary"
                 >
                   {saving ? "Saving…" : "Save Changes"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditing(null)}
-                  className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700"
+                  className="btn btn-secondary"
                 >
                   Cancel
                 </button>
@@ -342,7 +342,7 @@ export default function ReservePricesPage() {
         </div>
       ) : (
         Array.from(grouped.entries()).map(([cat, catItems]) => (
-          <div key={cat} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div key={cat} className="card overflow-hidden">
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 font-semibold text-sm text-gray-700">
               {cat}
               <span className="text-gray-400 font-normal ml-2 text-xs">

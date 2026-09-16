@@ -140,7 +140,7 @@ h1 { font-size:18px; }
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-xl font-bold font-mono">{po.poNumber}</h1>
+          <h1 className="page-title font-mono">{po.poNumber}</h1>
           <p className="text-sm text-gray-500 mt-0.5">{po.supplierName}</p>
         </div>
         <div className="flex items-center gap-3">
@@ -180,10 +180,10 @@ h1 { font-size:18px; }
         <div><span className="text-gray-500">Total Amount</span><div className="font-semibold">{po.totalAmount ? Number(po.totalAmount).toLocaleString("en-UG") : "—"}</div></div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Items</div>
         <table className="w-full text-sm">
-          <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+          <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
             <tr><th className="px-4 py-2 text-left">Description</th><th className="px-4 py-2 text-right">Qty</th><th className="px-4 py-2 text-left">Unit</th><th className="px-4 py-2 text-right">Unit Price</th><th className="px-4 py-2 text-right">Total</th></tr>
           </thead>
           <tbody className="divide-y divide-gray-100">

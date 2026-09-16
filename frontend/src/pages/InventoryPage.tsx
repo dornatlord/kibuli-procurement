@@ -90,17 +90,17 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Inventory &amp; Assets</h1>
+          <h1 className="page-title">Inventory &amp; Assets</h1>
           <p className="text-sm text-gray-500 mt-1">Stock levels and the school asset register.</p>
         </div>
         {canManage && (
-          <button onClick={() => { setShowForm(true); setError(""); }} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800">
+          <button onClick={() => { setShowForm(true); setError(""); }} className="btn btn-primary">
             + Add Asset
           </button>
         )}
       </div>
 
-      {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-2 text-sm">{error}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       {showForm && (
         <div className="bg-white border border-gray-200 rounded-xl p-5">
@@ -148,8 +148,8 @@ export default function InventoryPage() {
               <input value={form.acquisitionSource} onChange={(e) => setForm((p) => ({ ...p, acquisitionSource: e.target.value }))} className="input" placeholder="PO number / donation / opening balance" />
             </div>
             <div className="col-span-2 flex gap-2 pt-2">
-              <button type="submit" disabled={saving} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60">{saving ? "Saving…" : "Add Asset"}</button>
-              <button type="button" onClick={() => { setShowForm(false); setForm(EMPTY_FORM); }} className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700">Cancel</button>
+              <button type="submit" disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Add Asset"}</button>
+              <button type="button" onClick={() => { setShowForm(false); setForm(EMPTY_FORM); }} className="btn btn-secondary">Cancel</button>
             </div>
           </form>
         </div>
@@ -162,14 +162,14 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
         ) : filtered.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm">No assets recorded yet.</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">No assets recorded yet.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-2 text-left">Tag</th>
                 <th className="px-4 py-2 text-left">Name</th>

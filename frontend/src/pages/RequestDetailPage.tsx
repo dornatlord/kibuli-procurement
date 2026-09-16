@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import StatusBadge from "../components/StatusBadge";
+import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
 import PartTwoTable, { rowDecisionsFrom, submissionFrom } from "../components/PartTwoForm";
 import type { PartTwoSubmission, RowDecisions } from "../components/PartTwoForm";
 
@@ -571,8 +572,21 @@ export default function RequestDetailPage() {
     }
   }
 
-  if (loading) return <div className="text-center py-12 text-gray-400">Loading…</div>;
-  if (!request) return <div className="text-center py-12 text-gray-500">Not found.</div>;
+  if (loading)
+    return (
+      <div className="flex justify-center py-24">
+        <SpinnerIcon className="h-6 w-6 text-green-700" />
+      </div>
+    );
+  if (!request)
+    return (
+      <div className="card mx-auto max-w-md px-6 py-12 text-center">
+        <p className="text-sm font-medium text-gray-900">Request not found</p>
+        <Link to="/requests" className="btn btn-secondary btn-sm mt-4">
+          Back to requests
+        </Link>
+      </div>
+    );
 
   const actions = (NEXT_STATUS[request.status] || []).filter((a) => can(a.permission));
   const canPrepare = can("requests.prepare.committee");
@@ -580,142 +594,195 @@ export default function RequestDetailPage() {
   const meetingLine = [formDate(request.stepDates?.committeeMeeting), request.decision?.meetingReference]
     .filter(Boolean)
     .join(" / ");
+  const itemsTotal = request.items.reduce((sum, it) => sum + Number(it.totalCost || 0), 0);
+  // A step counts as done once it has a signature or a recorded date — the
+  // administrator approves without signing, so the date is often all there is.
+  const chain = [
+    { role: "user_dept", label: "User department", at: request.stepDates?.requested },
+    { role: "head_of_dept", label: "Head of Department", at: request.stepDates?.headOfDepartment },
+    { role: "accounting_officer", label: "Accounting Officer", at: request.stepDates?.accountingOfficer },
+  ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-xl font-bold">{request.referenceNumber}</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{request.subjectOfProcurement || "—"}</p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div>
+        <Link
+          to="/requests"
+          className="inline-flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-900"
+        >
+          <ChevronLeftIcon className="h-4 w-4" />
+          Requests
+        </Link>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="page-title">{request.subjectOfProcurement || "Untitled request"}</h1>
+              <StatusBadge status={request.status} />
+            </div>
+            <p className="mt-1 font-mono text-sm text-gray-500">{request.referenceNumber}</p>
+          </div>
           {can("requests.print") && (
-            <button
-              onClick={() => printTForm(request)}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-green-700 text-green-700 text-sm font-medium hover:bg-green-50 transition"
-            >
-              🖨 Print TFORM 5
+            <button type="button" onClick={() => printTForm(request)} className="btn btn-secondary">
+              <PrinterIcon className="h-4 w-4" />
+              Print TFORM 5
             </button>
           )}
-          <StatusBadge status={request.status} />
         </div>
       </div>
 
-      {/* Actions */}
       {actions.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
-          <span className="text-sm text-amber-800 font-medium">Action required:</span>
-          {actions.map((a) => (
-            <button
-              key={a.next}
-              onClick={() => transition(a.next)}
-              disabled={acting}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium disabled:opacity-60 ${
-                a.next === "rejected"
-                  ? "bg-red-600 text-white hover:bg-red-700"
-                  : "bg-green-700 text-white hover:bg-green-800"
-              }`}
-            >
-              {a.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Action required</p>
+            <p className="text-sm text-amber-800/80">This request is waiting on you.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {actions.map((a) => (
+              <button
+                key={a.next}
+                type="button"
+                onClick={() => transition(a.next)}
+                disabled={acting}
+                className={`btn ${a.next === "rejected" ? "btn-danger" : "btn-primary"}`}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
-        <Card label="Category">{request.category?.replace("_", " ")}</Card>
-        <Card label="Budget Category">{request.budgetCategory}</Card>
-        <Card label="Procurement Size">{request.procurementSize}</Card>
-        <Card label="Year / Week">{request.year} / W{request.weekNumber}</Card>
-        <Card label="Location">{request.locationForDelivery || "—"}</Card>
-        <Card label="Date Required">{formDate(request.dateRequired) || "—"}</Card>
-        <Card label="Plan Reference">{request.procurementPlanReference || "—"}</Card>
-        <Card label="Estimated Total">
+      <dl className="card grid gap-px overflow-hidden bg-gray-100 sm:grid-cols-2 lg:grid-cols-4">
+        <Field label="Category">
+          <span className="capitalize">{request.category?.replace("_", "-")}</span>
+        </Field>
+        <Field label="Budget category">
+          <span className="capitalize">{request.budgetCategory}</span>
+        </Field>
+        <Field label="Procurement size">
+          <span className="capitalize">{request.procurementSize}</span>
+        </Field>
+        <Field label="Supply code">{request.supplyCode || "—"}</Field>
+        <Field label="Location">{request.locationForDelivery || "—"}</Field>
+        <Field label="Date required">{formDate(request.dateRequired) || "—"}</Field>
+        <Field label="Plan reference">{request.procurementPlanReference || "—"}</Field>
+        <Field label="Estimated total">
           {request.estimatedTotalCost
             ? `UGX ${Number(request.estimatedTotalCost).toLocaleString("en-UG")}`
             : "—"}
-        </Card>
-      </div>
+        </Field>
+      </dl>
 
-      {/* Items */}
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="bg-gray-50 px-4 py-2 text-sm font-semibold border-b border-gray-200">
-          Procurement Items
-        </div>
-        <table className="w-full text-sm">
-          <thead className="text-xs text-gray-500 uppercase bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left">#</th>
-              <th className="px-4 py-2 text-left">Description</th>
-              <th className="px-4 py-2 text-right">Qty</th>
-              <th className="px-4 py-2 text-left">Unit</th>
-              <th className="px-4 py-2 text-right">Unit Cost</th>
-              <th className="px-4 py-2 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {request.items.map((it) => (
-              <tr key={it.id}>
-                <td className="px-4 py-2 text-gray-400">{it.itemNo}</td>
-                <td className="px-4 py-2">{it.description}</td>
-                <td className="px-4 py-2 text-right">{it.quantity || "—"}</td>
-                <td className="px-4 py-2">{it.unitOfMeasure || "—"}</td>
-                <td className="px-4 py-2 text-right">
-                  {it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : "—"}
-                </td>
-                <td className="px-4 py-2 text-right font-medium">
-                  {it.totalCost ? Number(it.totalCost).toLocaleString("en-UG") : "—"}
-                </td>
+      <section className="card overflow-hidden">
+        <SectionHeader title="Procurement items" />
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="w-12 px-5 py-3">#</th>
+                <th className="px-5 py-3">Description</th>
+                <th className="px-5 py-3 text-right">Qty</th>
+                <th className="px-5 py-3">Unit</th>
+                <th className="px-5 py-3 text-right">Unit cost</th>
+                <th className="px-5 py-3 text-right">Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {request.items.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-gray-400">
+                    No items on this request.
+                  </td>
+                </tr>
+              ) : (
+                request.items.map((it) => (
+                  <tr key={it.id}>
+                    <td className="px-5 py-3 text-gray-400">{it.itemNo}</td>
+                    <td className="px-5 py-3 text-gray-900">{it.description}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {it.quantity ? Number(it.quantity).toLocaleString("en-UG") : "—"}
+                    </td>
+                    <td className="px-5 py-3 text-gray-600">{it.unitOfMeasure || "—"}</td>
+                    <td className="px-5 py-3 text-right tabular-nums">
+                      {it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : "—"}
+                    </td>
+                    <td className="px-5 py-3 text-right font-medium tabular-nums text-gray-900">
+                      {it.totalCost ? Number(it.totalCost).toLocaleString("en-UG") : "—"}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {request.items.length > 0 && (
+              <tfoot className="border-t border-gray-200 bg-gray-50/60">
+                <tr>
+                  <td colSpan={5} className="px-5 py-3 text-right text-sm font-medium text-gray-500">
+                    Total (UGX)
+                  </td>
+                  <td className="px-5 py-3 text-right font-semibold tabular-nums text-gray-900">
+                    {itemsTotal.toLocaleString("en-UG")}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
       </section>
 
-      {/* Approval chain */}
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="bg-gray-50 px-4 py-2 text-sm font-semibold border-b border-gray-200">
-          Approval Chain
-        </div>
-        <div className="p-4 space-y-2">
-          {["user_dept", "head_of_dept", "accounting_officer"].map((role) => {
-            const sig = request.signatures.find((s) => s.role === role);
+      <section className="card overflow-hidden">
+        <SectionHeader title="Approval chain" />
+        <ol className="px-5 py-4">
+          {chain.map((step, i) => {
+            const sig = request.signatures.find((s) => s.role === step.role);
+            const done = !!(sig || step.at);
             return (
-              <div key={role} className="flex items-center gap-3">
-                <div
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                    sig ? "bg-green-600 text-white" : "bg-gray-200 text-gray-400"
+              <li key={step.role} className="relative flex gap-3 pb-5 last:pb-0">
+                {i < chain.length - 1 && (
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-3 top-7 -ml-px h-[calc(100%-1.75rem)] w-px ${
+                      done ? "bg-green-600/40" : "bg-gray-200"
+                    }`}
+                  />
+                )}
+                <span
+                  className={`relative grid h-6 w-6 shrink-0 place-items-center rounded-full ${
+                    done ? "bg-green-600 text-white" : "border-2 border-gray-300 bg-white"
                   }`}
                 >
-                  {sig ? "✓" : "○"}
+                  {done && <CheckIcon className="h-3.5 w-3.5" strokeWidth={3} />}
+                </span>
+                <div className="-mt-0.5">
+                  <div className="text-sm font-medium text-gray-900">{step.label}</div>
+                  <div className="text-sm text-gray-500">
+                    {sig
+                      ? `${sig.name} · ${formDate(sig.signedAt)}`
+                      : step.at
+                      ? `Done ${formDate(step.at)}`
+                      : "Waiting"}
+                  </div>
                 </div>
-                <div>
-                  <span className="text-sm font-medium capitalize">{role.replace(/_/g, " ")}</span>
-                  {sig && (
-                    <span className="text-xs text-gray-500 ml-2">
-                      {sig.name} — {new Date(sig.signedAt).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </section>
 
       {/* FORM 5 Part II — macro procurements only */}
       {request.procurementSize === "macro" && (canPrepare || canDecide) && (
-        <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="bg-gray-50 px-4 py-2 text-sm font-semibold border-b border-gray-200 flex items-center justify-between">
-            Part II — Request to the Contracts Committee
-            {!partTwoEdit && (
-              <button onClick={startPartTwoEdit} className="text-xs text-green-700 hover:underline font-normal">
-                {request.decision ? "Edit Part II" : canPrepare ? "Prepare submission" : "Record decision"}
-              </button>
-            )}
-          </div>
-          <div className="p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3 text-sm">
+        <section className="card overflow-hidden">
+          <SectionHeader
+            title="Part II — Request to the Contracts Committee"
+            action={
+              !partTwoEdit && (
+                <button type="button" onClick={startPartTwoEdit} className="btn btn-secondary btn-sm">
+                  {request.decision ? "Edit Part II" : canPrepare ? "Prepare submission" : "Record decision"}
+                </button>
+              )
+            }
+          />
+          <div className="space-y-4 p-5">
+            <div className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <span className="text-gray-500">Date of submission to the committee: </span>
                 {formDate(request.stepDates?.submittedToCommittee) || (
@@ -731,9 +798,9 @@ export default function RequestDetailPage() {
             </div>
 
             {partTwoEdit ? (
-              <form onSubmit={savePartTwo} className="space-y-3">
+              <form onSubmit={savePartTwo} className="space-y-4">
                 {partTwoError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-xs">
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                     {partTwoError}
                   </div>
                 )}
@@ -764,7 +831,7 @@ export default function RequestDetailPage() {
                   }
                 />
                 {canDecide && (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <div>
                       <label className="label">Meeting reference</label>
                       <input
@@ -798,18 +865,10 @@ export default function RequestDetailPage() {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={partTwoSaving}
-                    className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-60"
-                  >
+                  <button type="submit" disabled={partTwoSaving} className="btn btn-primary">
                     {partTwoSaving ? "Saving…" : "Save Part II"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPartTwoEdit(null)}
-                    className="border border-gray-300 px-4 py-2 rounded-lg text-sm text-gray-700"
-                  >
+                  <button type="button" onClick={() => setPartTwoEdit(null)} className="btn btn-secondary">
                     Cancel
                   </button>
                 </div>
@@ -852,28 +911,45 @@ export default function RequestDetailPage() {
 
       {/* Downstream actions once approved */}
       {request.status === "approved" && (can("purchase_orders.create") || can("contracts.manage")) && (
-        <div className="flex gap-3">
-          {can("purchase_orders.create") && (
-            <Link to={`/purchase-orders/new?requestId=${request.id}`} className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800">
-              + Create Purchase Order
-            </Link>
-          )}
-          {can("contracts.manage") && (
-            <Link to={`/contracts/new?requestId=${request.id}`} className="border border-green-700 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-50">
-              + Create Contract
-            </Link>
-          )}
+        <div className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Approved and ready to order</p>
+            <p className="text-sm text-gray-500">Raise a purchase order or a contract from this request.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {can("contracts.manage") && (
+              <Link to={`/contracts/new?requestId=${request.id}`} className="btn btn-secondary">
+                <PlusIcon className="h-4 w-4" />
+                Create contract
+              </Link>
+            )}
+            {can("purchase_orders.create") && (
+              <Link to={`/purchase-orders/new?requestId=${request.id}`} className="btn btn-primary">
+                <PlusIcon className="h-4 w-4" />
+                Create purchase order
+              </Link>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function Card({ label, children }: { label: string; children: React.ReactNode }) {
+function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-3">
-      <div className="text-xs text-gray-400 uppercase font-semibold mb-0.5">{label}</div>
-      <div className="text-sm capitalize">{children}</div>
+    <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5">
+      <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+      {action}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-white px-5 py-4">
+      <dt className="text-xs font-medium text-gray-500">{label}</dt>
+      <dd className="mt-1 text-sm font-medium text-gray-900">{children}</dd>
     </div>
   );
 }

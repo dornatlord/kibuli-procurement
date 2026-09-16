@@ -1,86 +1,148 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { roleLabel, roleBadgeClass } from "../lib/permissions";
+import { roleLabel } from "../lib/permissions";
+import { MODULES, MODULE_GROUPS } from "../lib/modules";
+import BrandMark from "./BrandMark";
+import { HomeIcon, KeyIcon, LogoutIcon, MenuIcon, PlusIcon, XIcon } from "./icons";
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Moving to another page closes the mobile menu.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   async function handleLogout() {
     await logout();
     navigate("/login");
   }
 
-  const showAdmin = can("budget.edit", "users.view", "system.settings");
+  const groups = MODULE_GROUPS.map((group) => ({
+    group,
+    items: MODULES.filter((m) => m.group === group && m.status === "live" && can(...m.permissions)),
+  })).filter((g) => g.items.length > 0);
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <header className="bg-green-800 text-white px-6 py-3 flex items-center justify-between shadow">
-        <div className="flex items-center gap-3">
-          <span className="font-bold text-lg tracking-tight">Kibuli Secondary School</span>
-          <span className="text-green-300 text-sm">Procurement System</span>
+  // The most specific link wins, so /reports/monthly lights "Monthly Report"
+  // and /requests/12 lights "Requests".
+  const navPaths = [
+    "/dashboard",
+    "/requests/new",
+    ...groups.flatMap((g) => g.items.map((m) => m.to)),
+  ];
+  const activePath = navPaths
+    .filter((p) => pathname === p || pathname.startsWith(`${p}/`))
+    .sort((a, b) => b.length - a.length)[0];
+
+  const sidebar = (
+    <div className="flex h-full flex-col bg-green-900">
+      <Link to="/dashboard" className="flex h-16 shrink-0 items-center gap-2.5 px-4">
+        <BrandMark tone="light" />
+        <div className="min-w-0 leading-tight">
+          <div className="truncate text-sm font-semibold text-white">Kibuli Secondary School</div>
+          <div className="truncate text-xs text-green-300">Procurement System</div>
         </div>
-        <div className="flex items-center gap-4 text-sm">
-          <div className="text-right leading-tight">
-            <div className="text-green-100">{user?.name}</div>
-            {user?.department && (
-              <div className="text-green-400 text-xs">{user.department}</div>
-            )}
+      </Link>
+
+      <nav aria-label="Main" className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+        <div className="space-y-0.5">
+          <SideLink to="/dashboard" icon={<HomeIcon />} label="Dashboard" active={activePath === "/dashboard"} />
+          {can("requests.create") && (
+            <SideLink
+              to="/requests/new"
+              icon={<PlusIcon />}
+              label="New request"
+              active={activePath === "/requests/new"}
+            />
+          )}
+        </div>
+
+        {groups.map(({ group, items }) => (
+          <div key={group}>
+            <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-green-300/70">
+              {group}
+            </div>
+            <div className="space-y-0.5">
+              {items.map((m) => (
+                <SideLink key={m.key} to={m.to} icon={m.icon} label={m.label} active={activePath === m.to} />
+              ))}
+            </div>
           </div>
-          <span
-            className={`px-2 py-0.5 rounded text-xs border ${roleBadgeClass(
-              user?.role
-            )}`}
+        ))}
+      </nav>
+
+      <div className="shrink-0 border-t border-white/10 p-3">
+        <div className="flex items-center gap-3 px-2 py-1.5">
+          <Avatar name={user?.name ?? ""} />
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="truncate text-sm font-medium text-white">{user?.name}</div>
+            <div className="truncate text-xs text-green-300">
+              {roleLabel(user?.role)}
+              {user?.department ? ` · ${user.department}` : ""}
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-1">
+          <NavLink
+            to="/account"
+            className="flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-green-200 transition hover:bg-white/10 hover:text-white"
           >
-            {roleLabel(user?.role)}
-          </span>
+            <KeyIcon className="h-3.5 w-3.5" />
+            Password
+          </NavLink>
           <button
+            type="button"
             onClick={handleLogout}
-            className="underline text-green-300 hover:text-white"
+            className="flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-green-200 transition hover:bg-white/10 hover:text-white"
           >
-            Logout
+            <LogoutIcon className="h-3.5 w-3.5" />
+            Log out
           </button>
         </div>
-      </header>
+      </div>
+    </div>
+  );
 
-      <div className="flex flex-1">
-        <nav className="w-56 bg-white border-r border-gray-200 py-4 flex flex-col gap-1 px-2">
-          <NavItem to="/dashboard">Dashboard</NavItem>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">{sidebar}</aside>
 
-          {can(
-            "requests.view.own",
-            "requests.view.department",
-            "requests.view.all"
-          ) && <NavItem to="/requests">Requests</NavItem>}
-
-          {can("requests.create") && (
-            <NavItem to="/requests/new">+ New Request</NavItem>
-          )}
-
-          {showAdmin && (
-            <>
-              <div className="mt-4 px-2 text-xs text-gray-400 uppercase font-semibold">
-                Administration
-              </div>
-              {can("budget.edit") && (
-                <NavItem to="/admin/budget">Budget Amounts</NavItem>
-              )}
-              {can("users.view") && (
-                <NavItem to="/admin/users">Users &amp; Roles</NavItem>
-              )}
-            </>
-          )}
-
-          <div className="mt-auto px-2 pt-4">
-            <NavLink
-              to="/account"
-              className="block text-xs text-gray-400 hover:text-gray-700"
+      {menuOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
+          <div className="absolute inset-0 bg-gray-950/50" onClick={() => setMenuOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] shadow-2xl">
+            {sidebar}
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              aria-label="Close menu"
+              className="absolute right-2 top-4 rounded-md p-1.5 text-green-200 hover:bg-white/10 hover:text-white"
             >
-              Change password
-            </NavLink>
-          </div>
-        </nav>
-        <main className="flex-1 p-6 overflow-auto bg-gray-50">
+              <XIcon />
+            </button>
+          </aside>
+        </div>
+      )}
+
+      <div className="lg:pl-64">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-gray-200 bg-white/95 px-4 backdrop-blur lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
+            className="-ml-1.5 rounded-md p-1.5 text-gray-600 hover:bg-gray-100"
+          >
+            <MenuIcon />
+          </button>
+          <BrandMark size="sm" />
+          <span className="truncate text-sm font-semibold text-gray-900">Kibuli Procurement</span>
+        </header>
+
+        <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
           <Outlet />
         </main>
       </div>
@@ -88,20 +150,48 @@ export default function Layout() {
   );
 }
 
-function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
+function SideLink({
+  to,
+  icon,
+  label,
+  active,
+}: {
+  to: string;
+  icon: ReactNode;
+  label: string;
+  active: boolean;
+}) {
   return (
-    <NavLink
+    <Link
       to={to}
-      end={to === "/requests"}
-      className={({ isActive }) =>
-        `block px-3 py-2 rounded text-sm font-medium transition-colors ${
-          isActive
-            ? "bg-green-50 text-green-800"
-            : "text-gray-700 hover:bg-gray-100"
-        }`
-      }
+      aria-current={active ? "page" : undefined}
+      className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+        active ? "bg-white/[0.12] text-white" : "text-green-100/80 hover:bg-white/[0.06] hover:text-white"
+      }`}
     >
-      {children}
-    </NavLink>
+      <span
+        className={`grid h-5 w-5 shrink-0 place-items-center [&>svg]:h-[18px] [&>svg]:w-[18px] ${
+          active ? "text-green-300" : "text-green-300/60 group-hover:text-green-200"
+        }`}
+      >
+        {icon}
+      </span>
+      <span className="truncate">{label}</span>
+    </Link>
+  );
+}
+
+function Avatar({ name }: { name: string }) {
+  const initials =
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w.charAt(0).toUpperCase())
+      .join("") || "?";
+  return (
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-green-700 text-xs font-semibold text-white ring-2 ring-white/10">
+      {initials}
+    </span>
   );
 }

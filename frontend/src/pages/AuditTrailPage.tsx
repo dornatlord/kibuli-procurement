@@ -36,7 +36,7 @@ export default function AuditTrailPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-gray-800">Audit Trail</h1>
+        <h1 className="page-title">Audit Trail</h1>
         <p className="text-sm text-gray-500 mt-1">Every recorded system action, for PPDA compliance.</p>
       </div>
 
@@ -48,14 +48,14 @@ export default function AuditTrailPage() {
         <div className="ml-auto text-sm text-gray-400 self-center">{rows.length} entries</div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-400 text-sm">Loading…</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm">No activity recorded yet.</div>
+          <div className="px-6 py-12 text-center text-sm text-gray-400">No activity recorded yet.</div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-2 text-left">When</th>
                 <th className="px-4 py-2 text-left">Who</th>

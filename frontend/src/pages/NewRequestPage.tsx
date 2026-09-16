@@ -8,6 +8,7 @@ import PartTwoTable, { EMPTY_SUBMISSION } from "../components/PartTwoForm";
 import type { PartTwoSubmission } from "../components/PartTwoForm";
 import { basketLineKey, lineIds } from "../lib/baskets";
 import type { BasketDetail, BasketSummary } from "../lib/baskets";
+import { ArrowRightIcon, DocumentIcon, DocumentsIcon } from "../components/icons";
 
 interface Vote { id: number; code: string; name: string; }
 interface SubProgramme { id: number; romanNumeral: string | null; name: string; priceCategories: string[] | null; supplyCode: string | null; }
@@ -480,30 +481,50 @@ export default function NewRequestPage() {
   // Gate: must choose procurement type first
   if (!procurementSize) {
     return (
-      <div className="max-w-xl mx-auto mt-20 text-center space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">New Procurement Request</h1>
-          <p className="text-gray-500 mt-2">Select the procurement type to continue</p>
+      <div className="mx-auto max-w-3xl space-y-8 py-4 sm:py-10">
+        <div className="text-center">
+          <h1 className="page-title">New procurement request</h1>
+          <p className="page-subtitle">
+            Choose the procurement type. It decides which approvals the request goes through.
+          </p>
         </div>
-        <div className="grid grid-cols-2 gap-6">
-          <button
-            onClick={() => setProcurementSize("micro")}
-            className="border-2 border-green-700 rounded-2xl p-8 text-left hover:bg-green-50 transition group"
-          >
-            <div className="text-3xl mb-3">📋</div>
-            <div className="text-lg font-bold text-green-800">Micro Procurement</div>
-            <div className="text-sm text-gray-500 mt-1">Below UGX 1,000,000</div>
-            <div className="text-xs text-gray-400 mt-3">Direct procurement, approved by Head of Department and Accounting Officer</div>
-          </button>
-          <button
-            onClick={() => setProcurementSize("macro")}
-            className="border-2 border-gray-300 rounded-2xl p-8 text-left hover:bg-gray-50 transition group"
-          >
-            <div className="text-3xl mb-3">📑</div>
-            <div className="text-lg font-bold text-gray-800">Macro Procurement</div>
-            <div className="text-sm text-gray-500 mt-1">UGX 1,000,000 and above</div>
-            <div className="text-xs text-gray-400 mt-3">Goes to Contracts Committee for approval of procurement method</div>
-          </button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {(
+            [
+              {
+                size: "micro",
+                icon: <DocumentIcon />,
+                title: "Micro Procurement",
+                limit: "Below UGX 1,000,000",
+                detail: "Direct procurement, approved by the Head of Department and the Accounting Officer.",
+              },
+              {
+                size: "macro",
+                icon: <DocumentsIcon />,
+                title: "Macro Procurement",
+                limit: "UGX 1,000,000 and above",
+                detail: "Goes to the Contracts Committee for approval of the procurement method.",
+              },
+            ] as const
+          ).map((option) => (
+            <button
+              key={option.size}
+              type="button"
+              onClick={() => setProcurementSize(option.size)}
+              className="card group flex flex-col p-6 text-left transition hover:border-green-600 hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
+            >
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/10 transition group-hover:bg-green-700 group-hover:text-white">
+                {option.icon}
+              </span>
+              <span className="mt-5 text-base font-semibold text-gray-900">{option.title}</span>
+              <span className="mt-1 text-sm font-medium text-green-700">{option.limit}</span>
+              <span className="mt-3 text-sm leading-6 text-gray-500">{option.detail}</span>
+              <span className="mt-6 inline-flex items-center gap-1 text-sm font-medium text-green-700">
+                Continue
+                <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
+              </span>
+            </button>
+          ))}
         </div>
       </div>
     );
@@ -513,7 +534,7 @@ export default function NewRequestPage() {
     <>
     <form onSubmit={handleSubmit} className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">New Procurement Request</h1>
+        <h1 className="page-title">New Procurement Request</h1>
         <div className="text-xs text-gray-500">PPDA Act 2003 — TFORM 5</div>
       </div>
 
@@ -522,7 +543,7 @@ export default function NewRequestPage() {
       )}
 
       {/* ── PART I: IDENTIFICATION ─────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">PART I — IDENTIFICATION</div>
         <div className="p-4 grid grid-cols-2 gap-4">
           <div>
@@ -626,7 +647,7 @@ export default function NewRequestPage() {
       </section>
 
       {/* ── PART II: PROCUREMENT DETAILS ──────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">PART II — PROCUREMENT DETAILS</div>
         <div className="p-4 grid grid-cols-2 gap-4">
           <div className="col-span-2">
@@ -687,7 +708,7 @@ export default function NewRequestPage() {
       </section>
 
       {/* ── PART III: FUND AVAILABILITY ───────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">PART III — FUND AVAILABILITY CHECK</div>
         <div className="p-4 grid grid-cols-2 gap-4">
           <div>
@@ -780,13 +801,13 @@ export default function NewRequestPage() {
       </section>
 
       {/* ── ITEMS TABLE ───────────────────────────────────────────────── */}
-      <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <section className="card overflow-hidden">
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">
           DETAILS RELATING TO PROCUREMENT
         </div>
         <div className="p-4 space-y-2">
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+            <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-2 py-2 text-left w-8">#</th>
                 <th className="px-2 py-2 text-left">Description</th>
@@ -975,7 +996,7 @@ export default function NewRequestPage() {
 
       {/* ── FORM 5 PART II: SUBMISSION TO THE CONTRACTS COMMITTEE (macro) ── */}
       {showPartTwo && (
-        <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <section className="card overflow-hidden">
           <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">
             PART II — REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE
           </div>
@@ -997,14 +1018,14 @@ export default function NewRequestPage() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+          className="btn btn-secondary"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={submitting}
-          className="px-6 py-2 bg-green-700 text-white rounded-lg text-sm font-medium hover:bg-green-800 disabled:opacity-60"
+          className="btn btn-primary px-6"
         >
           {submitting ? "Saving…" : "Save Request"}
         </button>

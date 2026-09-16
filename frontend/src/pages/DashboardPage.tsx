@@ -1,8 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { MODULES, MODULE_GROUPS, ProcurementModule } from "../lib/modules";
+import PageHeader from "../components/PageHeader";
+import StatusBadge from "../components/StatusBadge";
+import {
+  ArrowRightIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  PlusIcon,
+  ProgressIcon,
+} from "../components/icons";
 
 interface Request {
   id: number;
@@ -24,6 +33,8 @@ const PERMISSION_QUEUE: Record<string, string[]> = {
   "requests.approve.accounting_officer": ["pending_accounting_officer"],
   "requests.approve.committee": ["pending_contracts_committee"],
 };
+
+const VIEW_REQUESTS = ["requests.view.own", "requests.view.department", "requests.view.all"];
 
 export default function DashboardPage() {
   const { user, can } = useAuth();
@@ -47,60 +58,71 @@ export default function DashboardPage() {
   const approved = requests.filter((r) => r.status === "approved").length;
 
   const visible = MODULES.filter((m) => can(...m.permissions));
-  const firstName = user?.name?.split(" ")[0] ?? "";
+  const today = new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
-    <div className="space-y-7 max-w-6xl">
-      {/* Greeting */}
-      <div className="flex items-end justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">
-            {greeting()}
-            {firstName ? `, ${firstName}` : ""}
-          </h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Kibuli Secondary School &mdash; Procurement &amp; Disposal Unit
-          </p>
-        </div>
-        {can("requests.create") && (
-          <Link
-            to="/requests/new"
-            className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800"
-          >
-            + New Procurement Request
-          </Link>
-        )}
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        title={`${greeting()}${user?.name ? `, ${user.name}` : ""}`}
+        subtitle={today}
+        actions={
+          can("requests.create") && (
+            <Link to="/requests/new" className="btn btn-primary">
+              <PlusIcon className="h-4 w-4" />
+              New request
+            </Link>
+          )
+        }
+      />
 
-      {/* At-a-glance */}
-      <div className="grid grid-cols-3 gap-4">
-        <Stat
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
           label={myQueue.length ? "Waiting on you" : "Your requests"}
+          hint={myQueue.length ? "At a step you approve" : "Raised so far"}
           value={loading ? null : myQueue.length ? waitingOnMe : requests.length}
           tone="amber"
+          icon={<ClockIcon />}
           to="/requests"
         />
-        <Stat label="In progress" value={loading ? null : inProgress} tone="blue" to="/requests" />
-        <Stat label="Approved" value={loading ? null : approved} tone="green" to="/requests" />
+        <StatCard
+          label="In progress"
+          hint="Moving through approvals"
+          value={loading ? null : inProgress}
+          tone="blue"
+          icon={<ProgressIcon />}
+          to="/requests"
+        />
+        <StatCard
+          label="Approved"
+          hint="Ready to order"
+          value={loading ? null : approved}
+          tone="green"
+          icon={<CheckCircleIcon />}
+          to="/requests"
+        />
       </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6">
-        <h2 className="font-semibold text-gray-800 mb-1">Quick Actions</h2>
-        <p className="text-xs text-gray-500 mb-5">
-          Everything in the procurement cycle, end to end.
-        </p>
-
-        <div className="space-y-7">
+      <section className="card">
+        <div className="border-b border-gray-100 px-5 py-4">
+          <h2 className="text-base font-semibold text-gray-900">Quick actions</h2>
+          <p className="text-sm text-gray-500">Everything in the procurement cycle, end to end.</p>
+        </div>
+        <div className="divide-y divide-gray-100">
           {MODULE_GROUPS.map((group) => {
             const tiles = visible.filter((m) => m.group === group);
             if (!tiles.length) return null;
             return (
-              <div key={group}>
-                <div className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-3">
-                  {group}
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-3 gap-y-6">
+              <div
+                key={group}
+                className="grid gap-2 px-5 py-4 lg:grid-cols-[11rem_minmax(0,1fr)] lg:items-center"
+              >
+                <div className="text-xs font-semibold uppercase tracking-wide text-gray-400">{group}</div>
+                <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
                   {tiles.map((m) => (
                     <Tile key={m.key} module={m} />
                   ))}
@@ -109,46 +131,82 @@ export default function DashboardPage() {
             );
           })}
         </div>
-      </div>
+      </section>
+
+      {can(...VIEW_REQUESTS) && (
+        <section className="card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4">
+            <h2 className="text-base font-semibold text-gray-900">Recent requests</h2>
+            <Link
+              to="/requests"
+              className="inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:text-green-800"
+            >
+              View all
+              <ArrowRightIcon className="h-4 w-4" />
+            </Link>
+          </div>
+          {loading ? (
+            <div className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-400">Loading…</div>
+          ) : requests.length === 0 ? (
+            <div className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-400">
+              No requests yet.
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 border-t border-gray-100">
+              {requests.slice(0, 6).map((r) => (
+                <li key={r.id}>
+                  <Link
+                    to={`/requests/${r.id}`}
+                    className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-gray-900">
+                        {r.subjectOfProcurement || "Untitled request"}
+                      </div>
+                      <div className="mt-0.5 truncate font-mono text-xs text-gray-500">{r.referenceNumber}</div>
+                    </div>
+                    <div className="hidden w-40 shrink-0 text-right text-sm tabular-nums text-gray-700 sm:block">
+                      {r.estimatedTotalCost
+                        ? `UGX ${Number(r.estimatedTotalCost).toLocaleString("en-UG")}`
+                        : "—"}
+                    </div>
+                    <div className="flex w-36 shrink-0 justify-end">
+                      <StatusBadge status={r.status} />
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   );
 }
 
 function Tile({ module: m }: { module: ProcurementModule }) {
   const live = m.status === "live";
-
   const inner = (
     <>
-      <div
-        className={`relative h-14 w-14 rounded-2xl flex items-center justify-center mb-2 transition ${
+      <span
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ring-1 ring-inset transition [&>svg]:h-5 [&>svg]:w-5 ${
           live
-            ? "bg-green-50 text-green-700 group-hover:bg-green-100 group-hover:scale-105"
-            : "bg-gray-100 text-gray-400"
+            ? "bg-green-50 text-green-700 ring-green-600/10 group-hover:bg-green-100"
+            : "bg-gray-50 text-gray-400 ring-gray-500/10"
         }`}
       >
         {m.icon}
-        {!live && (
-          <span className="absolute -top-1.5 -right-1.5">
-            <SoonPill />
-          </span>
-        )}
-      </div>
-      <span
-        className={`text-xs text-center leading-tight ${
-          live ? "text-gray-700 font-medium" : "text-gray-400"
-        }`}
-      >
+      </span>
+      <span className={`text-sm font-medium ${live ? "text-gray-700 group-hover:text-gray-900" : "text-gray-400"}`}>
         {m.label}
+        {!live && <span className="ml-1.5 text-xs font-normal text-amber-600">Soon</span>}
       </span>
     </>
   );
 
   if (!live) {
     return (
-      <div
-        className="flex flex-col items-center cursor-not-allowed"
-        title={`${m.description} — coming soon`}
-      >
+      <div className="flex cursor-not-allowed items-center gap-3 rounded-lg p-2" title={`${m.description} — coming soon`}>
         {inner}
       </div>
     );
@@ -158,46 +216,48 @@ function Tile({ module: m }: { module: ProcurementModule }) {
     <Link
       to={m.to}
       title={m.description}
-      className="group flex flex-col items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 rounded-xl"
+      className="group flex items-center gap-3 rounded-lg p-2 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600"
     >
       {inner}
     </Link>
   );
 }
 
-function SoonPill() {
-  return (
-    <span className="bg-amber-100 text-amber-700 border border-amber-200 text-[9px] font-semibold px-1.5 py-0.5 rounded-full">
-      Soon
-    </span>
-  );
-}
-
-function Stat({
+function StatCard({
   label,
+  hint,
   value,
   tone,
+  icon,
   to,
 }: {
   label: string;
+  hint: string;
   value: number | null;
   tone: "amber" | "green" | "blue";
+  icon: ReactNode;
   to: string;
 }) {
   const tones = {
-    amber: "bg-amber-50 border-amber-200 text-amber-900",
-    green: "bg-green-50 border-green-200 text-green-900",
-    blue: "bg-blue-50 border-blue-200 text-blue-900",
+    amber: "bg-amber-50 text-amber-600 ring-amber-600/15",
+    blue: "bg-blue-50 text-blue-600 ring-blue-600/15",
+    green: "bg-green-50 text-green-700 ring-green-600/15",
   };
   return (
     <Link
       to={to}
-      className={`rounded-xl border p-4 block hover:brightness-[0.98] transition ${tones[tone]}`}
+      className="card flex items-start justify-between gap-4 p-5 transition hover:border-gray-300 hover:shadow-raised"
     >
-      <div className="text-2xl font-bold tabular-nums">
-        {value === null ? "—" : value}
+      <div>
+        <div className="text-sm font-medium text-gray-500">{label}</div>
+        <div className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-gray-900">
+          {value === null ? <span className="inline-block h-8 w-10 animate-pulse rounded-md bg-gray-100" /> : value}
+        </div>
+        <div className="mt-1 text-xs text-gray-400">{hint}</div>
       </div>
-      <div className="text-sm mt-1">{label}</div>
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ring-1 ring-inset ${tones[tone]}`}>
+        {icon}
+      </span>
     </Link>
   );
 }

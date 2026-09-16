@@ -2,15 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-gray-50 text-gray-900;
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    /* Inter's open digits and straight-sided 1 read better in references and amounts. */
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  ::selection {
+    @apply bg-green-100 text-green-900;
+  }
 }
 
 @layer components {
   .input {
-    @apply w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500;
+    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition placeholder:text-gray-400 focus:border-green-600 focus:outline-none focus:ring-4 focus:ring-green-600/15 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500;
+  }
+  select.input {
+    @apply cursor-pointer appearance-none bg-no-repeat pr-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+    background-position: right 0.625rem center;
+    background-size: 1.1rem;
   }
   .label {
-    @apply block text-xs font-medium text-gray-600 mb-1;
+    @apply mb-1.5 block text-[13px] font-medium text-gray-700;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-transparent px-4 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply bg-green-700 text-white shadow-sm hover:bg-green-800 active:bg-green-900;
+  }
+  .btn-secondary {
+    @apply border-gray-300 bg-white text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900;
+  }
+  .btn-ghost {
+    @apply text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white shadow-sm hover:bg-red-700;
+  }
+  .btn-sm {
+    @apply gap-1.5 px-3 py-1.5 text-xs;
+  }
+
+  .card {
+    @apply rounded-xl border border-gray-200 bg-white shadow-card;
+  }
+  .page-title {
+    @apply text-2xl font-semibold tracking-tight text-gray-900;
+  }
+  .page-subtitle {
+    @apply mt-1 text-sm text-gray-500;
   }
 }

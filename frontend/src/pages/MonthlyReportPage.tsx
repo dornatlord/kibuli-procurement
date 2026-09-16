@@ -125,7 +125,7 @@ td,th { border:1px solid #000; padding:3px 4px; }
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-800">Monthly Report</h1>
+          <h1 className="page-title">Monthly Report</h1>
           <p className="text-sm text-gray-500 mt-1">PPDA FORM 2 — the monthly procurement return.</p>
         </div>
         <div className="flex items-center gap-3">
@@ -147,7 +147,7 @@ td,th { border:1px solid #000; padding:3px 4px; }
         <div className="space-y-6">
           <ReportSection title="Part I — Contracts Awarded (except Micro)" empty={data.partI.length === 0}>
             <table className="w-full text-sm">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+              <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <tr><th className="px-3 py-2 text-left">Ref No</th><th className="px-3 py-2 text-left">Subject</th><th className="px-3 py-2 text-left">Provider</th><th className="px-3 py-2 text-right">Contract Value</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -160,7 +160,7 @@ td,th { border:1px solid #000; padding:3px 4px; }
 
           <ReportSection title="Part II — Contracts Amended" empty={data.partII.length === 0}>
             <table className="w-full text-sm">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+              <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <tr><th className="px-3 py-2 text-left">Contract No</th><th className="px-3 py-2 text-left">Description</th><th className="px-3 py-2 text-right">Revised Value</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -173,7 +173,7 @@ td,th { border:1px solid #000; padding:3px 4px; }
 
           <ReportSection title="Part III — Contracts Completed" empty={data.partIII.length === 0}>
             <table className="w-full text-sm">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+              <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <tr><th className="px-3 py-2 text-left">Contract No</th><th className="px-3 py-2 text-left">Subject</th><th className="px-3 py-2 text-right">Value</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -186,7 +186,7 @@ td,th { border:1px solid #000; padding:3px 4px; }
 
           <ReportSection title="Part IV — Micro Procurements" empty={data.partIV.length === 0}>
             <table className="w-full text-sm">
-              <thead className="text-xs text-gray-500 uppercase bg-gray-50">
+              <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <tr><th className="px-3 py-2 text-left">Ref No</th><th className="px-3 py-2 text-left">Subject</th><th className="px-3 py-2 text-right">Value</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -204,7 +204,7 @@ td,th { border:1px solid #000; padding:3px 4px; }
 
 function ReportSection({ title, empty, children }: { title: string; empty: boolean; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div className="card overflow-hidden">
       <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">{title}</div>
       {empty ? <div className="p-4 text-center text-gray-400 text-sm">Nothing to report.</div> : children}
     </div>
