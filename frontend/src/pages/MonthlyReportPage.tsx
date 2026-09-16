@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
+import PageHeader from "../components/PageHeader";
+import ReportTabs from "../components/ReportTabs";
+import { PrinterIcon } from "../components/icons";
 
 interface PartI {
   referenceNumber: string;
@@ -123,22 +126,31 @@ td,th { border:1px solid #000; padding:3px 4px; }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="page-title">Monthly Report</h1>
-          <p className="text-sm text-gray-500 mt-1">PPDA FORM 2 — the monthly procurement return.</p>
+      <PageHeader
+        title="Monthly report"
+        subtitle="PPDA FORM 2 — the monthly procurement return."
+        actions={<ReportTabs />}
+      />
+
+      <div className="card flex flex-wrap items-end justify-between gap-3 p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label" htmlFor="month">Month</label>
+            <select id="month" value={month} onChange={(e) => setMonth(Number(e.target.value))} className="input w-40">
+              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="year">Year</label>
+            <select id="year" value={year} onChange={(e) => setYear(Number(e.target.value))} className="input w-28">
+              {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="input">
-            {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="input">
-            {[year - 1, year, year + 1].map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-          <button onClick={printReport} className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-green-700 text-green-700 text-sm font-medium hover:bg-green-50">
-            🖨 Print FORM 2
-          </button>
-        </div>
+        <button type="button" onClick={printReport} className="btn btn-secondary">
+          <PrinterIcon className="h-4 w-4" />
+          Print FORM 2
+        </button>
       </div>
 
       {loading ? (
@@ -205,8 +217,8 @@ td,th { border:1px solid #000; padding:3px 4px; }
 function ReportSection({ title, empty, children }: { title: string; empty: boolean; children: React.ReactNode }) {
   return (
     <div className="card overflow-hidden">
-      <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">{title}</div>
-      {empty ? <div className="p-4 text-center text-gray-400 text-sm">Nothing to report.</div> : children}
+      <div className="border-b border-gray-200 px-5 py-3.5 text-sm font-semibold text-gray-900">{title}</div>
+      {empty ? <div className="px-5 py-8 text-center text-sm text-gray-400">Nothing to report.</div> : children}
     </div>
   );
 }

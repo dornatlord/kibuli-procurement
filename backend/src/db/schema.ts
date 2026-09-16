@@ -564,3 +564,44 @@ export type ContractAmendment = typeof contractAmendments.$inferSelect;
 export type ProcurementPlanItem = typeof procurementPlanItems.$inferSelect;
 export type Asset = typeof assets.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+
+/** Settings the school changes without a code release, such as term months. */
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedBy: integer("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/** Disposals of public assets, reported in FORM 27 Part V. */
+export const disposals = pgTable("disposals", {
+  id: serial("id").primaryKey(),
+  referenceNumber: text("reference_number").unique().notNull(),
+  subject: text("subject").notNull(),
+  method: text("method"),
+  buyerName: text("buyer_name"),
+  awardDate: date("award_date"),
+  reservePrice: numeric("reserve_price", { precision: 15, scale: 2 }),
+  contractPrice: numeric("contract_price", { precision: 15, scale: 2 }),
+  notes: text("notes"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/** A term's FORM 27 as saved: filled from the records, then corrected by hand. */
+export const termlyReports = pgTable(
+  "termly_reports",
+  {
+    id: serial("id").primaryKey(),
+    year: integer("year").notNull(),
+    term: integer("term").notNull(),
+    parts: jsonb("parts").notNull(),
+    declaration: jsonb("declaration"),
+    createdBy: integer("created_by").references(() => users.id),
+    updatedBy: integer("updated_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [unique().on(t.year, t.term)]
+);

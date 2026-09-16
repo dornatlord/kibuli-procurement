@@ -200,6 +200,21 @@ export const MODULES: ProcurementModule[] = [
       </Svg>
     ),
   },
+  {
+    key: "disposals",
+    label: "Disposals",
+    to: "/disposals",
+    group: "Receiving & Payment",
+    status: "live",
+    permissions: ["disposals.view"],
+    description: "Assets sold, auctioned or written off — FORM 27 Part V",
+    icon: (
+      <Svg>
+        <path d="m14 13-7.5 7.5a2.1 2.1 0 0 1-3-3L11 10" />
+        <path d="m16 16 6-6M8 8l6-6M9 7l8 8M21 11l-8-8" />
+      </Svg>
+    ),
+  },
 
   // ---------------------------------------------------------- Reference
   {
@@ -252,6 +267,22 @@ export const MODULES: ProcurementModule[] = [
     ),
   },
   {
+    key: "termly-report",
+    label: "Termly Report",
+    to: "/reports/termly",
+    group: "Reports & Administration",
+    status: "live",
+    permissions: ["reports.view"],
+    description: "PPDA FORM 27 — the termly return, Parts I to V",
+    icon: (
+      <Svg>
+        <rect x="3" y="4" width="18" height="17" rx="2" />
+        <path d="M3 9h18M8 2v4M16 2v4" />
+        <path d="M8 17v-3M12 17v-5M16 17v-2" />
+      </Svg>
+    ),
+  },
+  {
     key: "reports",
     label: "Reports",
     to: "/reports",
@@ -294,6 +325,21 @@ export const MODULES: ProcurementModule[] = [
       <Svg>
         <path d="M12 3 4 6v6c0 4.4 3.4 8.3 8 9 4.6-.7 8-4.6 8-9V6l-8-3Z" />
         <path d="m9 12 2 2 4-4" />
+      </Svg>
+    ),
+  },
+  {
+    key: "settings",
+    label: "Settings",
+    to: "/admin/settings",
+    group: "Reports & Administration",
+    status: "live",
+    permissions: ["system.settings"],
+    description: "School term months and other system settings",
+    icon: (
+      <Svg>
+        <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" />
+        <path d="M1 14h6M9 8h6M17 16h6" />
       </Svg>
     ),
   },

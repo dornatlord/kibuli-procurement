@@ -29,6 +29,9 @@ import ReportsPage from "./pages/ReportsPage";
 import BidsAndTendersPage from "./pages/BidsAndTendersPage";
 import BasketsPage from "./pages/BasketsPage";
 import BasketEditorPage from "./pages/BasketEditorPage";
+import TermlyReportPage from "./pages/TermlyReportPage";
+import DisposalsPage from "./pages/DisposalsPage";
+import SettingsPage from "./pages/SettingsPage";
 import Layout from "./components/Layout";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -262,10 +265,34 @@ function AppRoutes() {
           }
         />
         <Route
+          path="reports/termly"
+          element={
+            <Guard permissions={["reports.view"]}>
+              <TermlyReportPage />
+            </Guard>
+          }
+        />
+        <Route
           path="reports"
           element={
             <Guard permissions={["reports.view"]}>
               <ReportsPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="disposals"
+          element={
+            <Guard permissions={["disposals.view"]}>
+              <DisposalsPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="admin/settings"
+          element={
+            <Guard permissions={["system.settings"]}>
+              <SettingsPage />
             </Guard>
           }
         />

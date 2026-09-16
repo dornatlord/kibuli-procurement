@@ -19,6 +19,9 @@ import inventoryRouter from "./routes/inventory.js";
 import auditLogsRouter from "./routes/auditLogs.js";
 import monthlyReportRouter from "./routes/monthlyReport.js";
 import reportsRouter from "./routes/reports.js";
+import settingsRouter from "./routes/settings.js";
+import disposalsRouter from "./routes/disposals.js";
+import termlyReportRouter from "./routes/termlyReport.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,6 +82,9 @@ app.use("/api/inventory", inventoryRouter);
 app.use("/api/audit-logs", auditLogsRouter);
 app.use("/api/monthly-report", monthlyReportRouter);
 app.use("/api/reports", reportsRouter);
+app.use("/api/settings", settingsRouter);
+app.use("/api/disposals", disposalsRouter);
+app.use("/api/termly-report", termlyReportRouter);
 
 // Global error handler — keeps CORS headers on 500s
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

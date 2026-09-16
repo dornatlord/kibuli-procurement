@@ -71,6 +71,10 @@ export type Permission =
   | "users.reset_password"
   // Reports
   | "reports.view"
+  | "reports.prepare"
+  // Disposals
+  | "disposals.view"
+  | "disposals.manage"
   // System
   | "system.settings";
 
@@ -116,6 +120,9 @@ const ALL_PERMISSIONS: Permission[] = [
   "users.deactivate",
   "users.reset_password",
   "reports.view",
+  "reports.prepare",
+  "disposals.view",
+  "disposals.manage",
   "system.settings",
 ];
 
@@ -173,6 +180,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "procurement_plan.view",
     "inventory.view",
     "reports.view",
+    "reports.prepare",
+    "disposals.view",
   ],
 
   // The PDU — operates suppliers, POs, receiving, contracts and the plan
@@ -200,6 +209,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "inventory.view",
     "inventory.manage",
     "reports.view",
+    "reports.prepare",
+    "disposals.view",
+    "disposals.manage",
   ],
 
   // Records committee decisions on macro procurements
@@ -213,6 +225,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "contracts.view",
     "procurement_plan.view",
     "reports.view",
+    "disposals.view",
   ],
 
   contracts_secretary: [
@@ -225,6 +238,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "contracts.view",
     "procurement_plan.view",
     "reports.view",
+    "disposals.view",
   ],
 
   // Read-only across everything reasonable
@@ -239,6 +253,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "procurement_plan.view",
     "inventory.view",
     "reports.view",
+    "disposals.view",
   ],
 };
 
