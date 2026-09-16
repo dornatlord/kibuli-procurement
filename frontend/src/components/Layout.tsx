@@ -4,13 +4,17 @@ import { useAuth } from "../lib/auth";
 import { roleLabel } from "../lib/permissions";
 import { MODULES, MODULE_GROUPS } from "../lib/modules";
 import BrandMark from "./BrandMark";
-import { HomeIcon, KeyIcon, LogoutIcon, MenuIcon, PlusIcon, XIcon } from "./icons";
+import { useOnline } from "../lib/online";
+import { useInstallPrompt } from "../lib/install";
+import { DownloadIcon, HomeIcon, KeyIcon, LogoutIcon, MenuIcon, PlusIcon, WifiOffIcon, XIcon } from "./icons";
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const online = useOnline();
+  const { available: canInstall, install } = useInstallPrompt();
 
   // Moving to another page closes the mobile menu.
   useEffect(() => {
@@ -18,8 +22,12 @@ export default function Layout() {
   }, [pathname]);
 
   async function handleLogout() {
-    await logout();
-    navigate("/login");
+    try {
+      await logout();
+      navigate("/login");
+    } catch {
+      // Logging out has to reach the server; the offline notice already says so.
+    }
   }
 
   const groups = MODULE_GROUPS.map((group) => ({
@@ -86,6 +94,16 @@ export default function Layout() {
             </div>
           </div>
         </div>
+        {canInstall && (
+          <button
+            type="button"
+            onClick={install}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/15"
+          >
+            <DownloadIcon className="h-4 w-4" />
+            Install the app
+          </button>
+        )}
         <div className="mt-2 grid grid-cols-2 gap-1">
           <NavLink
             to="/account"
@@ -97,7 +115,9 @@ export default function Layout() {
           <button
             type="button"
             onClick={handleLogout}
-            className="flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-green-200 transition hover:bg-white/10 hover:text-white"
+            disabled={!online}
+            title={online ? undefined : "Connect to the internet to log out"}
+            className="flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-green-200 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-green-200"
           >
             <LogoutIcon className="h-3.5 w-3.5" />
             Log out
@@ -143,6 +163,18 @@ export default function Layout() {
         </header>
 
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
+          {!online && (
+            <div
+              role="status"
+              className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+            >
+              <WifiOffIcon className="mt-0.5 h-5 w-5 shrink-0" />
+              <p>
+                <span className="font-semibold">You're offline.</span> The app still opens, but loading and saving
+                need the internet. Reconnect to carry on.
+              </p>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

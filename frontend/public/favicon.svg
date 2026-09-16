@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#fff"/>
+  <svg x="4" y="9" width="56" height="46" viewBox="0 0 240 196">
+    <defs><mask id="kss-crescent"><rect width="240" height="196" fill="#fff"/><circle cx="119" cy="58" r="10.2" fill="#000"/></mask></defs>
+    <g fill="none" stroke="#111827" stroke-width="8" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M40 8 H200 V110 L120 172 L40 110 Z" fill="#fff"/>
+      <path d="M40 42 H200 M40 80 H200"/>
+      <path d="M80 92 H160 L188 124 Q154 116 120 128 Q86 116 52 124 Z"/>
+      <path d="M120 92 V128"/>
+      <path d="M26 120 L120 160 L214 114 L231 112 L222 124 L233 135 L222 136 L120 186 L18 142 L7 143 L17 131 L9 121 Z" fill="#fff"/>
+    </g>
+    <text x="126" y="35" text-anchor="middle" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="32" letter-spacing="10" fill="#111827">KSS</text>
+    <circle cx="114" cy="61" r="12" fill="#111827" mask="url(#kss-crescent)"/>
+  </svg>
+</svg>

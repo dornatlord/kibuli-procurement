@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ROLE_ORDER, ROLE_LABELS, ROLE_DESCRIPTIONS } from "../lib/permissions";
 import BrandMark from "../components/BrandMark";
+import { useOnline } from "../lib/online";
 import {
   AlertIcon,
   ChevronDownIcon,
   EyeIcon,
   EyeOffIcon,
   SpinnerIcon,
+  WifiOffIcon,
 } from "../components/icons";
 
 /** What the system carries a purchase through, shown beside the form. */
@@ -40,6 +42,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showRoles, setShowRoles] = useState(false);
+  const online = useOnline();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -73,6 +76,16 @@ export default function LoginPage() {
             <p className="mt-2 text-sm leading-6 text-gray-500">
               Use the account your administrator set up for you.
             </p>
+
+            {!online && (
+              <div
+                role="status"
+                className="mt-6 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-900"
+              >
+                <WifiOffIcon className="mt-px h-[18px] w-[18px] shrink-0" />
+                <span>You're offline. Connect to the internet to sign in.</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               <div>

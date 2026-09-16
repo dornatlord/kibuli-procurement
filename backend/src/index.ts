@@ -1,6 +1,8 @@
 import express, { Request, Response, NextFunction } from "express";
 import session from "express-session";
 import cors from "cors";
+import connectPgSimple from "connect-pg-simple";
+import pg from "pg";
 import authRouter from "./routes/auth.js";
 import requestsRouter from "./routes/requests.js";
 import budgetRouter from "./routes/budget.js";
@@ -46,18 +48,40 @@ app.use(
 
 app.use(express.json());
 
-// Use memory store to avoid DB dependency at startup
-// Sessions reset on redeploy — acceptable for free tier
+// Every answer depends on who is signed in, so no CDN or proxy (such as the
+// static site's /api rewrite) may keep a copy.
+app.use("/api", (_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
+
+// Logins live in the database, so restarts and redeploys no longer sign
+// everyone out — which an installed app would otherwise do after every update.
+const PgSession = connectPgSimple(session);
+const sessionPool = new pg.Pool({
+  // pg lets an sslmode in the URL override the ssl setting below, and treats
+  // "require" as full certificate checks, which Supabase's pooler fails.
+  connectionString: process.env.DATABASE_URL?.replace(/([?&])sslmode=[^&]*(&|$)/, (_match, lead, tail) =>
+    tail ? lead : ""
+  ),
+  max: 3,
+  // Encrypted like the main database client (ssl: "require"), without verifying the certificate.
+  ssl: { rejectUnauthorized: false },
+});
+// The pooler closes idle connections now and then; unhandled, that error would
+// stop the whole server. The pool replaces the connection on the next request.
+sessionPool.on("error", (err) => console.error("Session store connection error:", err.message));
+
 app.use(
   session({
-    store: new session.MemoryStore(),
+    store: new PgSession({ pool: sessionPool, tableName: "user_sessions" }),
     secret: process.env.SESSION_SECRET || "kibuli-secret-change-me",
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     },
   })
 );

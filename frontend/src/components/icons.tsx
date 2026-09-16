@@ -174,6 +174,23 @@ export const DocumentsIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const WifiOffIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2 8.8a15.5 15.5 0 0 1 4.3-2.9M22 8.8a15.4 15.4 0 0 0-11.3-4.2" />
+    <path d="M5 12.9a10.5 10.5 0 0 1 3.4-2.1M19 12.9a10.4 10.4 0 0 0-3-1.9M8.5 16.4a5 5 0 0 1 7 0" />
+    <path d="M12 20h.01" />
+    <path d="m2 2 20 20" />
+  </Icon>
+);
+
+export const DownloadIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M12 3v12" />
+    <path d="m7 10 5 5 5-5" />
+    <path d="M5 21h14" />
+  </Icon>
+);
+
 export function SpinnerIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">

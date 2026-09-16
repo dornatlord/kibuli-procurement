@@ -36,6 +36,8 @@ export default function DashboardPage() {
   const { user, can } = useAuth();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  // Offline or unreachable: show a dash rather than a zero that looks like "nothing waiting".
+  const [failed, setFailed] = useState(false);
 
   const myQueue = Object.entries(PERMISSION_QUEUE)
     .filter(([permission]) => can(permission))
@@ -44,8 +46,14 @@ export default function DashboardPage() {
   useEffect(() => {
     api
       .get<Request[]>("/requests")
-      .then(setRequests)
-      .catch(() => setRequests([]))
+      .then((rows) => {
+        setRequests(rows);
+        setFailed(false);
+      })
+      .catch(() => {
+        setRequests([]);
+        setFailed(true);
+      })
       .finally(() => setLoading(false));
   }, [user]);
 
@@ -80,7 +88,7 @@ export default function DashboardPage() {
         <StatCard
           label={myQueue.length ? "Waiting on you" : "Your requests"}
           hint={myQueue.length ? "At a step you approve" : "Raised so far"}
-          value={loading ? null : myQueue.length ? waitingOnMe : requests.length}
+          value={loading ? null : failed ? "—" : myQueue.length ? waitingOnMe : requests.length}
           tone="amber"
           icon={<ClockIcon />}
           to="/requests"
@@ -88,7 +96,7 @@ export default function DashboardPage() {
         <StatCard
           label="In progress"
           hint="Moving through approvals"
-          value={loading ? null : inProgress}
+          value={loading ? null : failed ? "—" : inProgress}
           tone="blue"
           icon={<ProgressIcon />}
           to="/requests"
@@ -96,7 +104,7 @@ export default function DashboardPage() {
         <StatCard
           label="Approved"
           hint="Ready to order"
-          value={loading ? null : approved}
+          value={loading ? null : failed ? "—" : approved}
           tone="green"
           icon={<CheckCircleIcon />}
           to="/requests"
@@ -181,7 +189,7 @@ function StatCard({
 }: {
   label: string;
   hint: string;
-  value: number | null;
+  value: number | string | null;
   tone: "amber" | "green" | "blue";
   icon: ReactNode;
   to: string;
