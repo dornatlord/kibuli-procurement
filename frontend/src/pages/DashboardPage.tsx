@@ -4,9 +4,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { MODULES, MODULE_GROUPS, ProcurementModule } from "../lib/modules";
 import PageHeader from "../components/PageHeader";
-import StatusBadge from "../components/StatusBadge";
 import {
-  ArrowRightIcon,
   CheckCircleIcon,
   ClockIcon,
   PlusIcon,
@@ -33,8 +31,6 @@ const PERMISSION_QUEUE: Record<string, string[]> = {
   "requests.approve.accounting_officer": ["pending_accounting_officer"],
   "requests.approve.committee": ["pending_contracts_committee"],
 };
-
-const VIEW_REQUESTS = ["requests.view.own", "requests.view.department", "requests.view.all"];
 
 export default function DashboardPage() {
   const { user, can } = useAuth();
@@ -132,54 +128,6 @@ export default function DashboardPage() {
           })}
         </div>
       </section>
-
-      {can(...VIEW_REQUESTS) && (
-        <section className="card overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4">
-            <h2 className="text-base font-semibold text-gray-900">Recent requests</h2>
-            <Link
-              to="/requests"
-              className="inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:text-green-800"
-            >
-              View all
-              <ArrowRightIcon className="h-4 w-4" />
-            </Link>
-          </div>
-          {loading ? (
-            <div className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-400">Loading…</div>
-          ) : requests.length === 0 ? (
-            <div className="border-t border-gray-100 px-5 py-10 text-center text-sm text-gray-400">
-              No requests yet.
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-100 border-t border-gray-100">
-              {requests.slice(0, 6).map((r) => (
-                <li key={r.id}>
-                  <Link
-                    to={`/requests/${r.id}`}
-                    className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-gray-50"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-gray-900">
-                        {r.subjectOfProcurement || "Untitled request"}
-                      </div>
-                      <div className="mt-0.5 truncate font-mono text-xs text-gray-500">{r.referenceNumber}</div>
-                    </div>
-                    <div className="hidden w-40 shrink-0 text-right text-sm tabular-nums text-gray-700 sm:block">
-                      {r.estimatedTotalCost
-                        ? `UGX ${Number(r.estimatedTotalCost).toLocaleString("en-UG")}`
-                        : "—"}
-                    </div>
-                    <div className="flex w-36 shrink-0 justify-end">
-                      <StatusBadge status={r.status} />
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
     </div>
   );
 }
