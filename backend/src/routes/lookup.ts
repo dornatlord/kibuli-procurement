@@ -48,6 +48,7 @@ interface BudgetLine {
   voteName: string;
   subProgrammeName: string | null;
   priceCategories: string[];
+  supplyCode: string | null;
 }
 
 /**
@@ -69,7 +70,8 @@ router.get("/budget-lines", requireAuth, async (_req, res) => {
       id: number,
       name: string,
       subProgrammeName: string | null,
-      priceCategories: string[] | null
+      priceCategories: string[] | null,
+      supplyCode: string | null
     ): BudgetLine => ({
       key: `${kind}:${id}`,
       kind,
@@ -79,16 +81,17 @@ router.get("/budget-lines", requireAuth, async (_req, res) => {
       voteName: v.name,
       subProgrammeName,
       priceCategories: priceCategories ?? [],
+      supplyCode,
     });
 
     const voteItems = allItems.filter((i) => i.voteId === v.id);
     for (const s of allSubs.filter((s) => s.voteId === v.id)) {
       const own = voteItems.filter((i) => i.subProgrammeId === s.id);
-      if (own.length === 0) lines.push(line("sp", s.id, s.name, null, s.priceCategories));
-      for (const i of own) lines.push(line("bi", i.id, i.name, s.name, i.priceCategories));
+      if (own.length === 0) lines.push(line("sp", s.id, s.name, null, s.priceCategories, s.supplyCode));
+      for (const i of own) lines.push(line("bi", i.id, i.name, s.name, i.priceCategories, i.supplyCode));
     }
     for (const i of voteItems.filter((i) => !i.subProgrammeId)) {
-      lines.push(line("bi", i.id, i.name, null, i.priceCategories));
+      lines.push(line("bi", i.id, i.name, null, i.priceCategories, i.supplyCode));
     }
   }
   res.json(lines);

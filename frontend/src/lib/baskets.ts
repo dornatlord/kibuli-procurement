@@ -51,6 +51,7 @@ export interface BudgetLine {
   voteName: string;
   subProgrammeName: string | null;
   priceCategories: string[];
+  supplyCode: string | null;
 }
 
 export function basketLineKey(b: { budgetItemId: number | null; subProgrammeId: number | null }) {

@@ -143,6 +143,9 @@ export const subProgrammes = pgTable("sub_programmes", {
   // Price-list categories the request item picker suggests. Only needed for
   // sub-programmes with no budget items of their own (vote 2202 departments).
   priceCategories: text("price_categories").array(),
+  // Code of this line in reference numbers, again only for the sub-programmes
+  // that are a budget line in their own right.
+  supplyCode: text("supply_code"),
 });
 
 export const budgetItems = pgTable("budget_items", {
@@ -158,6 +161,8 @@ export const budgetItems = pgTable("budget_items", {
   displayOrder: integer("display_order"),
   // Price-list categories the request item picker suggests for this line.
   priceCategories: text("price_categories").array(),
+  // 3-digit code of this line, the fourth part of a request's reference number.
+  supplyCode: text("supply_code"),
 });
 
 export const reservePriceItems = pgTable("reserve_price_items", {
@@ -192,6 +197,8 @@ export const procurementRequests = pgTable("procurement_requests", {
   year: integer("year").notNull(),
   weekNumber: integer("week_number").notNull(),
   sequenceNumber: integer("sequence_number").notNull(),
+  // Code of the budget line this request spends, as used in its reference number.
+  supplyCode: text("supply_code"),
   budgetCategory: budgetCategoryEnum("budget_category").notNull(),
   procurementSize: procurementSizeEnum("procurement_size").notNull(),
   subjectOfProcurement: text("subject_of_procurement"),

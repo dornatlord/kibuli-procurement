@@ -73,10 +73,17 @@ async function nextSequence(year: number, yearType: "calendar" | "financial"): P
   return (row?.maxSeq ?? 0) + 1;
 }
 
+/** The school's own short forms, as written on its contracts. */
 function categoryCode(cat: string): string {
-  if (cat === "supplies") return "SUPPLIES";
+  if (cat === "supplies") return "SUPLS";
   if (cat === "works") return "WORKS";
-  return "NONCONSULT";
+  return "SERVS";
+}
+
+/** "26" for 2026; a financial year spans two, so "26-27". */
+function yearCode(year: number, yearType: "calendar" | "financial"): string {
+  const yy = String(year).slice(-2);
+  return yearType === "financial" ? `${yy}-${String(year + 1).slice(-2)}` : yy;
 }
 
 router.get(
@@ -204,12 +211,13 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
   const yearType: "calendar" | "financial" = body.yearType || "calendar";
   const { year, week } = getWeekNumber(now, yearType);
   const seq = await nextSequence(year, yearType);
-  const refNum = `KIBULI-SS/${categoryCode(body.category)}/${year}/W${week}/${String(seq).padStart(4, "0")}`;
 
-  // Part III names one budget line: take its vote and sub-programme from the
-  // most specific choice rather than trusting the form to keep them in step.
+  // Part III names one budget line: take its vote, sub-programme and supply
+  // code from the most specific choice rather than trusting the form to keep
+  // them in step.
   let voteId = body.voteId || null;
   let subProgrammeId = body.subProgrammeId || null;
+  let supplyCode: string | null = null;
   if (body.budgetItemId) {
     const [line] = await db
       .select()
@@ -218,14 +226,24 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
     if (line) {
       voteId = line.voteId;
       subProgrammeId = line.subProgrammeId;
+      supplyCode = line.supplyCode;
     }
   } else if (subProgrammeId) {
     const [sub] = await db
       .select()
       .from(subProgrammes)
       .where(eq(subProgrammes.id, Number(subProgrammeId)));
-    if (sub) voteId = sub.voteId;
+    if (sub) {
+      voteId = sub.voteId;
+      supplyCode = sub.supplyCode;
+    }
   }
+
+  // Written the way the school writes them — KSS/SUPLS/26/017/00155: entity,
+  // category, year, the code of what is being bought, then the running number.
+  const refNum = `KSS/${categoryCode(body.category)}/${yearCode(year, yearType)}/${
+    supplyCode ?? "000"
+  }/${String(seq).padStart(5, "0")}`;
 
   const [request] = await db
     .insert(procurementRequests)
@@ -236,6 +254,7 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
       year,
       weekNumber: week,
       sequenceNumber: seq,
+      supplyCode,
       budgetCategory: body.budgetCategory,
       procurementSize: body.procurementSize,
       subjectOfProcurement: body.subjectOfProcurement,

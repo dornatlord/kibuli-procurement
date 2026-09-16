@@ -57,6 +57,8 @@ interface StepDates {
 interface Request {
   id: number;
   referenceNumber: string;
+  /** Code of the budget line being spent — the fourth part of the reference. */
+  supplyCode: string | null;
   category: string;
   yearType: string;
   year: number;
@@ -223,7 +225,8 @@ function printTForm(request: Request) {
 
   const refParts = request.referenceNumber.split("/");
   const seqNo   = refParts[refParts.length - 1] || "";
-  const finYear = refParts[2] || String(request.year);
+  // References carry two digits of the year (KSS/SUPLS/26/…); the form wants all four.
+  const finYear = String(request.year);
 
   // Macro-only pages (4 & 5)
   const macroPages = isMacro ? `
@@ -324,7 +327,9 @@ ${pageHeader}
     <td style="border:1px solid #000;padding:3px;">Kibuli Secondary School</td>
     <td style="border:1px solid #000;padding:3px;text-align:center;">${request.category || ""}</td>
     <td style="border:1px solid #000;padding:3px;text-align:center;">${finYear}</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${seqNo}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${
+      request.supplyCode ? `${request.supplyCode}/${seqNo}` : seqNo
+    }</td>
   </tr>
 </table>
 

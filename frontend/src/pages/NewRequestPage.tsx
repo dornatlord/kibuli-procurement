@@ -10,8 +10,8 @@ import { basketLineKey, lineIds } from "../lib/baskets";
 import type { BasketDetail, BasketSummary } from "../lib/baskets";
 
 interface Vote { id: number; code: string; name: string; }
-interface SubProgramme { id: number; romanNumeral: string | null; name: string; priceCategories: string[] | null; }
-interface BudgetItem { id: number; name: string; budgetedAmount: string | null; priceCategories: string[] | null; }
+interface SubProgramme { id: number; romanNumeral: string | null; name: string; priceCategories: string[] | null; supplyCode: string | null; }
+interface BudgetItem { id: number; name: string; budgetedAmount: string | null; priceCategories: string[] | null; supplyCode: string | null; }
 interface SavedItem { id: number; description: string; unitOfMeasure: string | null; lastUnitCost: string | null; }
 interface ReservePriceItem { id: number; category: string; itemName: string; unitOfMeasure: string | null; currentPrice: string | null; maximumPrice: string | null; }
 
@@ -159,7 +159,7 @@ export default function NewRequestPage() {
     : null;
 
   const now = new Date();
-  const { year, week } = yearType === "financial" ? getFinancialWeek(now) : getCalendarWeek(now);
+  const { year } = yearType === "financial" ? getFinancialWeek(now) : getCalendarWeek(now);
 
   useEffect(() => {
     api.get<Vote[]>("/lookup/votes").then(setVotes);
@@ -465,7 +465,17 @@ export default function NewRequestPage() {
   }
 
   const isMicro = procurementSize === "micro";
-  const catCode = category === "supplies" ? "SUPPLIES" : category === "works" ? "WORKS" : "NONCONSULT";
+  const catCode = category === "supplies" ? "SUPLS" : category === "works" ? "WORKS" : "SERVS";
+  // Reference numbers carry two digits of the year, and a financial year spans two.
+  const yearCode =
+    yearType === "financial"
+      ? `${String(year).slice(-2)}-${String(year + 1).slice(-2)}`
+      : String(year).slice(-2);
+  // Fourth part of the reference: the code of the budget line being spent.
+  const supplyCode =
+    (budgetItemId ? selectedBudgetItem?.supplyCode : null) ??
+    (budgetItems.length === 0 ? selectedSubProgramme?.supplyCode : null) ??
+    null;
 
   // Gate: must choose procurement type first
   if (!procurementSize) {
@@ -567,14 +577,19 @@ export default function NewRequestPage() {
             <input value={year} readOnly className="input bg-gray-50" />
           </div>
           <div>
-            <label className="label">Week Number</label>
-            <input value={`W${week}`} readOnly className="input bg-gray-50" />
+            <label className="label">Supply Code</label>
+            <input
+              value={supplyCode ?? ""}
+              readOnly
+              placeholder="From the budget line in Part III"
+              className="input bg-gray-50"
+            />
           </div>
 
           <div className="col-span-2">
             <label className="label">Reference Number (auto-generated)</label>
             <input
-              value={`KIBULI-SS/${catCode}/${year}/W${week}/(####)`}
+              value={`KSS/${catCode}/${yearCode}/${supplyCode ?? "(###)"}/(#####)`}
               readOnly
               className="input bg-gray-50 font-mono text-xs"
             />
@@ -703,6 +718,7 @@ export default function NewRequestPage() {
                 {subProgrammes.map((sp) => (
                   <option key={sp.id} value={sp.id}>
                     {sp.romanNumeral ? `${sp.romanNumeral} ` : ""}{sp.name}
+                    {sp.supplyCode ? ` — code ${sp.supplyCode}` : ""}
                   </option>
                 ))}
               </select>
@@ -728,6 +744,7 @@ export default function NewRequestPage() {
                 {budgetItems.map((bi) => (
                   <option key={bi.id} value={bi.id}>
                     {bi.name}
+                    {bi.supplyCode ? ` — code ${bi.supplyCode}` : ""}
                   </option>
                 ))}
               </select>
