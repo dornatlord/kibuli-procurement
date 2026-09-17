@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import PageHeader from "../components/PageHeader";
 import { InboxIcon, PlusIcon } from "../components/icons";
+import { ListSkeleton } from "../components/Loading";
 
 interface Disposal {
   id: number;
@@ -271,7 +272,7 @@ export default function DisposalsPage() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-gray-400">Loading…</div>
+          <ListSkeleton />
         ) : rows.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-16 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-gray-100 text-gray-400">

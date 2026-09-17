@@ -5,6 +5,7 @@ import { Navigate } from "react-router-dom";
 import PageHeader from "../components/PageHeader";
 import ReportTabs from "../components/ReportTabs";
 import { PrinterIcon } from "../components/icons";
+import { PageLoading } from "../components/Loading";
 
 interface PartI {
   referenceNumber: string;
@@ -154,7 +155,9 @@ td,th { border:1px solid #000; padding:3px 4px; }
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-gray-400 text-sm">Loading…</div>
+        <div className="card">
+          <PageLoading label="Putting the report together…" />
+        </div>
       ) : data && (
         <div className="space-y-6">
           <ReportSection title="Part I — Contracts Awarded (except Micro)" empty={data.partI.length === 0}>

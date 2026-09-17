@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, FormEvent } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
+import { ListSkeleton } from "../components/Loading";
 
 interface ReservePriceItem {
   id: number;
@@ -333,8 +334,8 @@ export default function ReservePricesPage() {
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-gray-400 text-sm">
-          Loading…
+        <div className="card overflow-hidden">
+          <ListSkeleton rows={8} />
         </div>
       ) : grouped.size === 0 ? (
         <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-gray-400 text-sm">

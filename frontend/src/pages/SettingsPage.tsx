@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import PageHeader from "../components/PageHeader";
 import { MONTHS, type SchoolTerm } from "../lib/terms";
+import { ListSkeleton } from "../components/Loading";
 
 export default function SettingsPage() {
   const [terms, setTerms] = useState<SchoolTerm[] | null>(null);
@@ -56,7 +57,11 @@ export default function SettingsPage() {
         </div>
 
         {!terms ? (
-          <div className="px-5 py-10 text-center text-sm text-gray-400">{error || "Loading…"}</div>
+          error ? (
+          <div className="px-5 py-10 text-center text-sm text-gray-400">{error}</div>
+        ) : (
+          <ListSkeleton rows={3} />
+        )
         ) : (
           <div className="space-y-4 p-5">
             {terms.map((t, i) => (

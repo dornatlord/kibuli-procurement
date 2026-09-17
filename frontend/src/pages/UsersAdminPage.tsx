@@ -10,6 +10,7 @@ import {
   roleBadgeClass,
   Role,
 } from "../lib/permissions";
+import { ListSkeleton } from "../components/Loading";
 
 interface User {
   id: number;
@@ -381,7 +382,7 @@ export default function UsersAdminPage() {
           </label>
         </div>
         {loading ? (
-          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
+          <ListSkeleton />
         ) : visible.length === 0 ? (
           <div className="px-6 py-12 text-center text-sm text-gray-400">No users.</div>
         ) : (

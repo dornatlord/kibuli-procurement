@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import { statusLabel } from "../components/Badge";
+import { PageLoading } from "../components/Loading";
 
 interface GroupCount { count: number; total: string; }
 interface Summary {
@@ -53,7 +54,7 @@ export default function ReportsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="text-center py-12 text-gray-400">Loading…</div>;
+  if (loading) return <PageLoading />;
 
   return (
     <div className="space-y-6 max-w-5xl">

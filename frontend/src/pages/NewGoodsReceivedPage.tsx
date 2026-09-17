@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { PageLoading } from "../components/Loading";
 
 interface POItem {
   id: number;
@@ -97,7 +98,7 @@ export default function NewGoodsReceivedPage() {
       </div>
     );
   }
-  if (!po) return <div className="text-center py-12 text-gray-400">Loading…</div>;
+  if (!po) return <PageLoading />;
 
   return (
     <form onSubmit={handleSubmit} className="max-w-3xl mx-auto space-y-6">

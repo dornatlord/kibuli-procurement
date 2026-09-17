@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
+import { PageLoading } from "../components/Loading";
 
 interface GRNItem {
   id: number;
@@ -49,7 +50,7 @@ export default function GoodsReceivedDetailPage() {
     }
   }
 
-  if (loading) return <div className="text-center py-12 text-gray-400">Loading…</div>;
+  if (loading) return <PageLoading />;
   if (!grn) return <div className="text-center py-12 text-gray-500">Not found.</div>;
 
   return (

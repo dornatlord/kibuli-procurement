@@ -3,6 +3,15 @@ import react from "@vitejs/plugin-react";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { KSS_BADGE_SVG } from "./src/lib/badge";
+
+/** Draws the school badge into the index.html splash, from the app's one copy of it. */
+function splashBadge(): Plugin {
+  return {
+    name: "kibuli-splash-badge",
+    transformIndexHtml: (html) => html.replace("<!-- kss-badge -->", KSS_BADGE_SVG),
+  };
+}
 
 /**
  * Builds /sw.js from sw/service-worker.js, filling in every file the app needs
@@ -62,7 +71,7 @@ function listFiles(dir: string): string[] {
 }
 
 export default defineConfig({
-  plugins: [react(), serviceWorker()],
+  plugins: [react(), splashBadge(), serviceWorker()],
   server: {
     proxy: {
       "/api": {

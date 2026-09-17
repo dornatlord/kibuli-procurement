@@ -9,6 +9,7 @@ import Badge from "../components/Badge";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { CheckCircleIcon, ChevronRightIcon, InboxIcon, PlusIcon, SearchIcon } from "../components/icons";
+import { ListSkeleton } from "../components/Loading";
 
 interface Request {
   id: number;
@@ -217,7 +218,7 @@ export default function RequestsListPage() {
         </div>
 
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-gray-400">Loading…</div>
+          <ListSkeleton rows={6} />
         ) : loadError ? (
           <div className="px-6 py-16 text-center text-sm text-gray-500">{loadError}</div>
         ) : filtered.length === 0 ? (

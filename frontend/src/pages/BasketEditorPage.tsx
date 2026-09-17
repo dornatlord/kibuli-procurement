@@ -6,6 +6,7 @@ import ItemPickerModal, { itemKey } from "../components/ItemPickerModal";
 import type { PriceListItem } from "../components/ItemPickerModal";
 import { basketLineKey, lineIds, money } from "../lib/baskets";
 import type { BasketDetail, BudgetLine } from "../lib/baskets";
+import { PageLoading } from "../components/Loading";
 
 interface Row {
   key: string;
@@ -167,7 +168,7 @@ export default function BasketEditorPage() {
     }
   }
 
-  if (loading) return <div className="text-sm text-gray-400">Loading…</div>;
+  if (loading) return <PageLoading />;
 
   if (notFound) {
     return (

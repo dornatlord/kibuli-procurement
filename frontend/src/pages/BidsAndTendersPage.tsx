@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import StatusBadge from "../components/StatusBadge";
+import { ListSkeleton } from "../components/Loading";
 
 interface Request {
   id: number;
@@ -53,7 +54,7 @@ function Section({ title, rows, loading }: { title: string; rows: Request[]; loa
     <div className="card overflow-hidden">
       <div className="px-4 py-2 bg-gray-50 text-xs font-semibold text-gray-600 uppercase">{title}</div>
       {loading ? (
-        <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
+        <ListSkeleton />
       ) : rows.length === 0 ? (
         <div className="px-6 py-12 text-center text-sm text-gray-400">Nothing here.</div>
       ) : (

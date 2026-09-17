@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { basketLineLabel, money } from "../lib/baskets";
 import type { BasketSummary } from "../lib/baskets";
+import { ListSkeleton } from "../components/Loading";
 
 export default function BasketsPage() {
   const navigate = useNavigate();
@@ -42,8 +43,8 @@ export default function BasketsPage() {
 
       {baskets === null ? (
         !error && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-gray-400 text-sm">
-            Loading…
+          <div className="card overflow-hidden">
+            <ListSkeleton rows={3} />
           </div>
         )
       ) : baskets.length === 0 ? (

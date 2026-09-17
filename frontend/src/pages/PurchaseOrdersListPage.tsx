@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth";
 import PageHeader from "../components/PageHeader";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ChevronRightIcon, InboxIcon, PlusIcon } from "../components/icons";
+import { ListSkeleton } from "../components/Loading";
 
 interface PORow {
   id: number;
@@ -50,7 +51,7 @@ export default function PurchaseOrdersListPage() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="px-6 py-16 text-center text-sm text-gray-400">Loading…</div>
+          <ListSkeleton />
         ) : orders.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-16 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-gray-100 text-gray-400">

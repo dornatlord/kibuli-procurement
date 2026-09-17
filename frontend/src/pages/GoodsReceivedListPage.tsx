@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
+import { ListSkeleton } from "../components/Loading";
 
 interface GRNRow {
   id: number;
@@ -35,7 +36,7 @@ export default function GoodsReceivedListPage() {
 
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="px-6 py-12 text-center text-sm text-gray-400">Loading…</div>
+          <ListSkeleton />
         ) : rows.length === 0 ? (
           <div className="px-6 py-12 text-center text-sm text-gray-400">
             No deliveries recorded yet. Record one from an acknowledged purchase order.

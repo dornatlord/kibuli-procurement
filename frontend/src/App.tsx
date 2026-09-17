@@ -33,15 +33,11 @@ import TermlyReportPage from "./pages/TermlyReportPage";
 import DisposalsPage from "./pages/DisposalsPage";
 import SettingsPage from "./pages/SettingsPage";
 import Layout from "./components/Layout";
+import SplashScreen from "./components/SplashScreen";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading)
-    return (
-      <div className="flex items-center justify-center h-screen text-gray-500">
-        Loading…
-      </div>
-    );
+  if (loading) return <SplashScreen />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
