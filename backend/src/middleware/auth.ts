@@ -7,6 +7,9 @@ declare module "express-session" {
     role: string;
     name: string;
     department: string | null;
+    /** The browser that signed in, to name the device on the profile page. */
+    userAgent: string;
+    signedInAt: string;
   }
 }
 

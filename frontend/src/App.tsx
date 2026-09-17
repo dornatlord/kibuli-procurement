@@ -8,7 +8,9 @@ import RequestsListPage from "./pages/RequestsListPage";
 import BudgetAdminPage from "./pages/BudgetAdminPage";
 import ReservePricesPage from "./pages/ReservePricesPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
-import AccountPage from "./pages/AccountPage";
+import ProfilePage from "./pages/ProfilePage";
+import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import PurchaseOrdersListPage from "./pages/PurchaseOrdersListPage";
 import NewPurchaseOrderPage from "./pages/NewPurchaseOrderPage";
@@ -70,6 +72,9 @@ function AppRoutes() {
         path="/login"
         element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />}
       />
+      {/* Readable signed in or not, from the sign-in page. */}
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route
         path="/"
         element={
@@ -80,7 +85,8 @@ function AppRoutes() {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="account" element={<AccountPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        <Route path="account" element={<Navigate to="/profile" replace />} />
 
         <Route
           path="requests"

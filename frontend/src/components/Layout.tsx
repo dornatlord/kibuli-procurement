@@ -7,7 +7,7 @@ import BrandMark from "./BrandMark";
 import OfflineNotices from "./OfflineNotices";
 import { useOnline } from "../lib/online";
 import { useInstallPrompt } from "../lib/install";
-import { DownloadIcon, HomeIcon, KeyIcon, LogoutIcon, MenuIcon, PlusIcon, XIcon } from "./icons";
+import { DownloadIcon, HomeIcon, LogoutIcon, MenuIcon, PlusIcon, UserIcon, XIcon } from "./icons";
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
@@ -85,7 +85,13 @@ export default function Layout() {
       </nav>
 
       <div className="shrink-0 border-t border-white/10 p-3">
-        <div className="flex items-center gap-3 px-2 py-1.5">
+        <Link
+          to="/profile"
+          aria-current={pathname === "/profile" ? "page" : undefined}
+          className={`flex items-center gap-3 rounded-lg px-2 py-1.5 transition ${
+            pathname === "/profile" ? "bg-white/[0.12]" : "hover:bg-white/[0.06]"
+          }`}
+        >
           <Avatar name={user?.name ?? ""} />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-sm font-medium text-white">{user?.name}</div>
@@ -94,7 +100,7 @@ export default function Layout() {
               {user?.department ? ` · ${user.department}` : ""}
             </div>
           </div>
-        </div>
+        </Link>
         {canInstall && (
           <button
             type="button"
@@ -107,11 +113,11 @@ export default function Layout() {
         )}
         <div className="mt-2 grid grid-cols-2 gap-1">
           <NavLink
-            to="/account"
+            to="/profile"
             className="flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-green-200 transition hover:bg-white/10 hover:text-white"
           >
-            <KeyIcon className="h-3.5 w-3.5" />
-            Password
+            <UserIcon className="h-3.5 w-3.5" />
+            Profile
           </NavLink>
           <button
             type="button"

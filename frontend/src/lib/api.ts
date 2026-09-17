@@ -58,7 +58,7 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
 
 // Searches change with every keystroke and the login check has its own
 // fallback, so neither is worth keeping a copy of.
-const keepsCopy = (path: string) => !path.startsWith("/auth/") && !path.includes("/search");
+const keepsCopy = (path: string) => !path.startsWith("/auth/me") && !path.includes("/search");
 
 /**
  * Reads come from the server when it can be reached, and otherwise from the

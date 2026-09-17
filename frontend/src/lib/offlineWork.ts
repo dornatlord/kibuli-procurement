@@ -44,6 +44,8 @@ export async function saveForOffline(can: Can): Promise<boolean> {
     ...(can("requests.create", "reserve_prices.manage") ? ["/baskets"] : []),
     ...(can("purchase_orders.view") ? ["/purchase-orders"] : []),
     "/settings/terms",
+    "/auth/profile",
+    "/auth/sessions",
   ]);
   const voteIds = ids("/lookup/votes");
   await loadAll([

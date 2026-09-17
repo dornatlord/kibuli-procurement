@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { when } from "../lib/dates";
 import { useOfflineWork } from "../lib/offlineWork";
 import { AlertIcon, CheckCircleIcon, ProgressIcon, WifiOffIcon, XIcon } from "./icons";
 
@@ -11,16 +12,6 @@ const TONES = {
 };
 
 const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-/** "today at 14:32", "yesterday at 09:05", "12 Sep at 16:40". */
-function when(time: number) {
-  const date = new Date(time);
-  const clock = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-  const days = Math.round((new Date().setHours(0, 0, 0, 0) - new Date(time).setHours(0, 0, 0, 0)) / 86400000);
-  if (days === 0) return `today at ${clock}`;
-  if (days === 1) return `yesterday at ${clock}`;
-  return `${date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} at ${clock}`;
-}
 
 /** Working without internet: what still works, what's waiting, and what was sent. */
 export default function OfflineNotices() {

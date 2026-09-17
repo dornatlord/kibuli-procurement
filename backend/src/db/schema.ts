@@ -11,6 +11,8 @@ import {
   pgEnum,
   unique,
   uuid,
+  varchar,
+  json,
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("user_role", [
@@ -609,3 +611,13 @@ export const termlyReports = pgTable(
   },
   (t) => [unique().on(t.year, t.term)]
 );
+
+/**
+ * Logins, written by connect-pg-simple (migration 010). Declared here so the
+ * profile page can list and sign out a person's devices.
+ */
+export const userSessions = pgTable("user_sessions", {
+  sid: varchar("sid").primaryKey(),
+  sess: json("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
+});

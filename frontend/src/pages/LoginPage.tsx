@@ -1,5 +1,5 @@
 import { useState, FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ROLE_ORDER, ROLE_LABELS, ROLE_DESCRIPTIONS } from "../lib/permissions";
 import BrandMark from "../components/BrandMark";
@@ -148,6 +148,18 @@ export default function LoginPage() {
                 {loading && <SpinnerIcon />}
                 {loading ? "Signing in…" : "Sign in"}
               </button>
+
+              <p className="text-center text-xs leading-5 text-gray-500">
+                By signing in you agree to the{" "}
+                <Link to="/terms" className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900">
+                  Terms of Use
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" className="font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
             </form>
 
             <p className="mt-6 text-center text-sm text-gray-500">
@@ -180,10 +192,20 @@ export default function LoginPage() {
           </div>
         </main>
 
-        <p className="text-xs text-gray-400">
-          © {new Date().getFullYear()} Kibuli Secondary School · Public Procurement and Disposal of
-          Public Assets Act, 2003
-        </p>
+        <div className="flex flex-col gap-1.5 text-xs text-gray-400">
+          <p>
+            © {new Date().getFullYear()} Kibuli Secondary School · Public Procurement and Disposal of Public Assets
+            Act, 2003
+          </p>
+          <nav aria-label="Legal" className="flex shrink-0 gap-4">
+            <Link to="/privacy" className="transition hover:text-gray-700">
+              Privacy
+            </Link>
+            <Link to="/terms" className="transition hover:text-gray-700">
+              Terms
+            </Link>
+          </nav>
+        </div>
       </div>
 
       {/* Brand panel */}
