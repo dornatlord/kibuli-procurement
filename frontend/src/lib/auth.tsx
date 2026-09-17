@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { api, ApiError, UNAUTHORIZED_EVENT } from "./api";
+import { forgetCopies, setCopyOwner } from "./savedCopies";
 
 interface User {
   id: number;
@@ -50,19 +51,29 @@ function rememberUser(user: User | null) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const userRef = useRef<User | null>(null);
+
+  // Saved copies belong to whoever is signed in. Set before the state changes,
+  // because pages start loading in the same render that shows them.
+  function adopt(u: User | null) {
+    userRef.current = u;
+    setCopyOwner(u?.id ?? null);
+    setUser(u);
+  }
 
   async function refresh() {
     try {
       const u = await api.get<User>("/auth/me");
-      setUser(u);
+      adopt(u);
       rememberUser(u);
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
-        setUser(null);
+        adopt(null);
         rememberUser(null);
+        void forgetCopies();
       } else {
         // No connection, or the server is struggling: neither is a sign-out.
-        setUser((current) => current ?? recallUser());
+        adopt(userRef.current ?? recallUser());
       }
     }
   }
@@ -83,14 +94,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function login(email: string, password: string) {
     const u = await api.post<User>("/auth/login", { email, password });
-    setUser(u);
+    adopt(u);
     rememberUser(u);
   }
 
   async function logout() {
     await api.post("/auth/logout", {});
-    setUser(null);
+    adopt(null);
     rememberUser(null);
+    await forgetCopies();
   }
 
   function can(...permissions: string[]) {

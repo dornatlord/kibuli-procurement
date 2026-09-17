@@ -4,9 +4,10 @@ import { useAuth } from "../lib/auth";
 import { roleLabel } from "../lib/permissions";
 import { MODULES, MODULE_GROUPS } from "../lib/modules";
 import BrandMark from "./BrandMark";
+import OfflineNotices from "./OfflineNotices";
 import { useOnline } from "../lib/online";
 import { useInstallPrompt } from "../lib/install";
-import { DownloadIcon, HomeIcon, KeyIcon, LogoutIcon, MenuIcon, PlusIcon, WifiOffIcon, XIcon } from "./icons";
+import { DownloadIcon, HomeIcon, KeyIcon, LogoutIcon, MenuIcon, PlusIcon, XIcon } from "./icons";
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
@@ -163,18 +164,7 @@ export default function Layout() {
         </header>
 
         <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">
-          {!online && (
-            <div
-              role="status"
-              className="mb-6 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-            >
-              <WifiOffIcon className="mt-0.5 h-5 w-5 shrink-0" />
-              <p>
-                <span className="font-semibold">You're offline.</span> The app still opens, but loading and saving
-                need the internet. Reconnect to carry on.
-              </p>
-            </div>
-          )}
+          <OfflineNotices />
           <Outlet />
         </main>
       </div>

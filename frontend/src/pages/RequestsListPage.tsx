@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useOnline } from "../lib/online";
+import { discardQueued, onOutboxChange, queuedRequests, sendQueued } from "../lib/outbox";
+import type { QueuedRequest } from "../lib/outbox";
+import Badge from "../components/Badge";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
-import { ChevronRightIcon, InboxIcon, PlusIcon, SearchIcon } from "../components/icons";
+import { CheckCircleIcon, ChevronRightIcon, InboxIcon, PlusIcon, SearchIcon } from "../components/icons";
 
 interface Request {
   id: number;
@@ -21,20 +25,57 @@ interface Request {
 
 export default function RequestsListPage() {
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const location = useLocation();
+  const { can, user } = useAuth();
+  const online = useOnline();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterYear, setFilterYear] = useState("");
+  const [queued, setQueued] = useState<QueuedRequest[]>(() => (user ? queuedRequests(user.id) : []));
+  const [sending, setSending] = useState(false);
+  const justQueued = (location.state as { queued?: string } | null)?.queued;
 
-  useEffect(() => {
+  function loadRequests() {
     api
       .get<Request[]>("/requests")
-      .then(setRequests)
+      .then((rows) => {
+        setRequests(rows);
+        setLoadError("");
+      })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Couldn't load requests"))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(loadRequests, []);
+
+  // Requests waiting on this computer; reload the list once one has been sent.
+  useEffect(() => {
+    if (!user) return;
+    let waiting = queuedRequests(user.id).length;
+    return onOutboxChange(() => {
+      const now = queuedRequests(user.id);
+      setQueued(now);
+      if (now.length < waiting) loadRequests();
+      waiting = now.length;
+    });
+  }, [user?.id]);
+
+  async function sendNow() {
+    if (!user) return;
+    setSending(true);
+    await sendQueued(user.id);
+    setSending(false);
+  }
+
+  function discard(q: QueuedRequest) {
+    if (!user) return;
+    if (!window.confirm(`Remove “${q.summary.subject}”? It hasn't been sent, so it will be lost.`)) return;
+    discardQueued(user.id, q.clientRef);
+  }
 
   const q = query.trim().toLowerCase();
   const filtered = requests.filter((r) => {
@@ -73,6 +114,65 @@ export default function RequestsListPage() {
           )
         }
       />
+
+      {justQueued && queued.length > 0 && (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900"
+        >
+          <CheckCircleIcon className="mt-0.5 h-5 w-5 shrink-0" />
+          <p>
+            <span className="font-semibold">“{justQueued}” is saved on this computer.</span> It will be sent
+            automatically when you're back online, and get its reference number then.
+          </p>
+        </div>
+      )}
+
+      {queued.length > 0 && (
+        <section className="card overflow-hidden">
+          <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Waiting to send</h2>
+              <p className="text-xs text-gray-500">
+                Filled in without internet. They go to the server when this computer is back online, as drafts.
+              </p>
+            </div>
+            {online && (
+              <button type="button" onClick={sendNow} disabled={sending} className="btn btn-secondary btn-sm">
+                {sending ? "Sending…" : "Send now"}
+              </button>
+            )}
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {queued.map((item) => (
+              <li key={item.clientRef} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-gray-900">{item.summary.subject}</div>
+                  <div className="mt-0.5 text-xs text-gray-500">
+                    <span className="capitalize">{item.summary.procurementSize}</span> ·{" "}
+                    {item.summary.itemCount} item{item.summary.itemCount === 1 ? "" : "s"}
+                    {item.summary.total ? ` · UGX ${item.summary.total.toLocaleString("en-UG")}` : ""} · filled in{" "}
+                    {new Date(item.queuedAt).toLocaleString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                  {item.error && <div className="mt-1 text-xs text-red-700">Couldn't send: {item.error}</div>}
+                </div>
+                <Badge
+                  tone={item.error ? "red" : online ? "blue" : "amber"}
+                  label={item.error ? "Needs attention" : online ? "Sending" : "Waiting for internet"}
+                />
+                <button type="button" onClick={() => discard(item)} className="btn btn-ghost btn-sm self-start sm:self-auto">
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="card overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-gray-200 p-4 md:flex-row md:items-center">
@@ -118,6 +218,8 @@ export default function RequestsListPage() {
 
         {loading ? (
           <div className="px-6 py-16 text-center text-sm text-gray-400">Loading…</div>
+        ) : loadError ? (
+          <div className="px-6 py-16 text-center text-sm text-gray-500">{loadError}</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-16 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-gray-100 text-gray-400">

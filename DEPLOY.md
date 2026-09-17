@@ -68,8 +68,8 @@ before this version of the backend starts.
 3. Environment variables:
    | Key | Value |
    |-----|-------|
-   | `VITE_API_URL` | `/api` with the `/api/*` rewrite below, or `https://kibuli-procurement-api.onrender.com/api` without it |
-4. Add the rewrite rules below, then deploy
+   | `VITE_API_URL` | `https://kibuli-procurement-api.onrender.com/api`, or `/api` if you add the optional `/api/*` rewrite below |
+4. Add the rewrite rule below, then deploy
 
 ---
 
@@ -80,22 +80,24 @@ before this version of the backend starts.
   seed script sets, change it straight away: this repository is public.
 - UptimeRobot: monitor `https://kibuli-procurement-api.onrender.com/api/health`
 
-### Required: rewrite rules
+### Rewrite rules
 
 `frontend/public/_redirects` is a Netlify convention and **Render ignores it**.
-Set the rules in the Render dashboard: Static site → **Redirects/Rewrites**.
-Keep them in this order, both with Action **Rewrite** (not Redirect):
+Set the rules in the Render dashboard: Static site → **Redirects/Rewrites**,
+with Action **Rewrite** (not Redirect):
 
-| # | Source | Destination |
-|---|--------|-------------|
-| 1 | `/api/*` | `https://kibuli-procurement-api.onrender.com/api/*` |
-| 2 | `/*` | `/index.html` |
+| # | Source | Destination | |
+|---|--------|-------------|---|
+| 1 | `/api/*` | `https://kibuli-procurement-api.onrender.com/api/*` | optional; must sit above rule 2 |
+| 2 | `/*` | `/index.html` | **required** |
 
-1. **The API on the app's own address.** The browser then treats the API as the
-   same site as the app, so the login cookie is first-party. Safari (iPhone,
-   iPad, Mac) blocks cross-site cookies, so without this rule signing in fails
-   there. Pair it with `VITE_API_URL=/api` on the static site. The backend sends
-   `Cache-Control: no-store`, so Render's CDN never keeps a copy of anyone's data.
+1. **The API on the app's own address (optional).** The browser then treats the
+   API as the same site as the app, so the login cookie is first-party. Only
+   Safari needs this: it blocks cross-site cookies, so signing in fails there
+   without it. Skip it unless someone signs in with Safari (iPhone, iPad or
+   Mac). If you add it, set `VITE_API_URL=/api` on the static site. The backend
+   sends `Cache-Control: no-store`, so Render's CDN never keeps a copy of
+   anyone's data.
 2. **Single-page app.** Every page path returns `index.html`. Without it,
    opening or refreshing any URL other than `/` returns **Not Found** —
    `/login`, `/requests`, `/requests/1`, and so on.
@@ -108,7 +110,7 @@ Verify afterwards:
 ```bash
 # 200 for each page
 for p in /login /requests /dashboard; do curl -s -o /dev/null -w "$p %{http_code}\n" "https://kibuli-procurement.onrender.com$p"; done
-# rule 1: {"status":"ok"} from the backend, through the static site
+# only with rule 1: {"status":"ok"} from the backend, through the static site
 curl -s https://kibuli-procurement.onrender.com/api/health
 # the offline app's files: JavaScript and a manifest, not index.html
 curl -s -o /dev/null -w "sw.js %{http_code} %{content_type}\n" https://kibuli-procurement.onrender.com/sw.js
@@ -130,7 +132,17 @@ The frontend is a Progressive Web App; there is nothing to configure beyond the 
 - **Offline.** The build writes `sw.js` (from `frontend/sw/service-worker.js`)
   listing every file the app needs, and the browser saves them on the first visit.
   Without internet the app still opens, as the last person signed in on that
-  device, and says it is offline. Loading and saving records need the connection.
+  computer, for staff working from home without Wi-Fi:
+  - **Viewing:** pages show the copy saved the last time they loaded
+    (`frontend/src/lib/savedCopies.ts`). While online, the app also saves the
+    request list, the 40 newest requests, every budget line, the price list and
+    baskets in the background, at most every 3 hours
+    (`frontend/src/lib/offlineWork.ts`). Signing out deletes the copies.
+  - **New requests:** saving without a connection keeps the request on the
+    computer (`frontend/src/lib/outbox.ts`). It is sent by itself once the server
+    can be reached and arrives as a draft. Each request carries a one-time id
+    (`client_ref`, migration `011`), so a repeated send never creates a copy.
+  - Approvals, LPOs, deliveries, invoices and settings need the internet.
 - **Updates.** Each deploy changes the version inside `sw.js`. The installed app
   saves the new files in the background and uses them the next time it opens.
 

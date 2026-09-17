@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, OfflineError } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { newClientRef, queueRequest } from "../lib/outbox";
 import ItemPickerModal, { itemKey } from "../components/ItemPickerModal";
 import type { PriceListItem } from "../components/ItemPickerModal";
 import PartTwoTable, { EMPTY_SUBMISSION } from "../components/PartTwoForm";
@@ -92,7 +93,7 @@ function getFinancialWeek(date: Date): { year: number; week: number } {
 
 export default function NewRequestPage() {
   const navigate = useNavigate();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -162,8 +163,13 @@ export default function NewRequestPage() {
   const now = new Date();
   const { year } = yearType === "financial" ? getFinancialWeek(now) : getCalendarWeek(now);
 
+  // Offline, lookups come from the copies saved on this computer; if there are
+  // none yet, say so rather than leave the dropdowns silently empty.
+  const showLoadError = (err: unknown) =>
+    setError(err instanceof Error ? err.message : "Couldn't load the budget lines");
+
   useEffect(() => {
-    api.get<Vote[]>("/lookup/votes").then(setVotes);
+    api.get<Vote[]>("/lookup/votes").then(setVotes).catch(showLoadError);
   }, []);
 
   useEffect(() => {
@@ -180,15 +186,21 @@ export default function NewRequestPage() {
     // Ignore replies for a vote the user has already moved past (e.g. arrowing
     // through the list), or the sub-programmes shown can belong to another vote.
     let cancelled = false;
-    api.get<SubProgramme[]>(`/lookup/votes/${voteId}/sub-programmes`).then((sps) => {
-      if (cancelled) return;
-      setSubProgrammes(sps);
-      if (sps.length === 0) {
-        api.get<BudgetItem[]>(`/lookup/votes/${voteId}/items`).then((rows) => {
-          if (!cancelled) setBudgetItems(rows);
-        });
-      }
-    });
+    api
+      .get<SubProgramme[]>(`/lookup/votes/${voteId}/sub-programmes`)
+      .then((sps) => {
+        if (cancelled) return;
+        setSubProgrammes(sps);
+        if (sps.length === 0) {
+          api
+            .get<BudgetItem[]>(`/lookup/votes/${voteId}/items`)
+            .then((rows) => {
+              if (!cancelled) setBudgetItems(rows);
+            })
+            .catch(showLoadError);
+        }
+      })
+      .catch(showLoadError);
     return () => {
       cancelled = true;
     };
@@ -201,13 +213,16 @@ export default function NewRequestPage() {
     if (!subProgrammeId) return;
     let cancelled = false;
     const sp = subProgrammes.find((s) => s.id === subProgrammeId);
-    api.get<BudgetItem[]>(`/lookup/sub-programmes/${subProgrammeId}/items`).then((rows) => {
-      if (cancelled) return;
-      setBudgetItems(rows);
-      // Tuition Stores departments have no budget items, so choosing the
-      // sub-programme is the last step of the fund availability check.
-      if (rows.length === 0 && sp) offerPicker(sp.name, sp.priceCategories, `sp:${sp.id}`);
-    });
+    api
+      .get<BudgetItem[]>(`/lookup/sub-programmes/${subProgrammeId}/items`)
+      .then((rows) => {
+        if (cancelled) return;
+        setBudgetItems(rows);
+        // Tuition Stores departments have no budget items, so choosing the
+        // sub-programme is the last step of the fund availability check.
+        if (rows.length === 0 && sp) offerPicker(sp.name, sp.priceCategories, `sp:${sp.id}`);
+      })
+      .catch(showLoadError);
     return () => {
       cancelled = true;
     };
@@ -244,7 +259,18 @@ export default function NewRequestPage() {
         : Promise.resolve([]),
       api
         .get<ReservePriceItem[]>(`/reserve-prices/search?q=${encodeURIComponent(q)}`)
-        .catch(() => []),
+        .catch(async (err) => {
+          if (!(err instanceof OfflineError)) return [];
+          // Offline: search the price list saved on this computer, the way the server would.
+          const all = await api
+            .get<(ReservePriceItem & { isActive?: boolean })[]>("/reserve-prices")
+            .catch(() => []);
+          const needle = q.toLowerCase();
+          return all
+            .filter((r) => r.isActive !== false && r.itemName.toLowerCase().includes(needle))
+            .sort((a, b) => a.itemName.localeCompare(b.itemName))
+            .slice(0, 10);
+        }),
     ]);
 
     const results: Suggestion[] = [
@@ -455,9 +481,29 @@ export default function NewRequestPage() {
           marketPrice: it.marketPrice || null,
         })),
         partTwo: showPartTwo ? partTwo : undefined,
+        // Lets the server recognise this request if it arrives more than once.
+        clientRef: newClientRef(),
       };
-      const req = await api.post<{ id: number }>("/requests", payload);
-      navigate(`/requests/${req.id}`);
+      try {
+        const req = await api.post<{ id: number }>("/requests", payload);
+        navigate(`/requests/${req.id}`);
+      } catch (err) {
+        if (!(err instanceof OfflineError) || !user) throw err;
+        // No connection: keep it on this computer and send it once there is one.
+        // It may have reached the server already; the clientRef stops a copy.
+        queueRequest(user.id, {
+          clientRef: payload.clientRef,
+          queuedAt: new Date().toISOString(),
+          payload,
+          summary: {
+            subject: subject.trim() || "Untitled request",
+            procurementSize,
+            itemCount: items.filter((it) => it.description.trim()).length,
+            total: itemsTotal || null,
+          },
+        });
+        navigate("/requests", { state: { queued: subject.trim() || "Untitled request" } });
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {

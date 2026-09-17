@@ -10,6 +10,7 @@ import {
   jsonb,
   pgEnum,
   unique,
+  uuid,
 } from "drizzle-orm/pg-core";
 
 export const roleEnum = pgEnum("user_role", [
@@ -228,6 +229,9 @@ export const procurementRequests = pgTable("procurement_requests", {
     scale: 2,
   }),
   status: requestStatusEnum("status").default("draft").notNull(),
+  // Set by the browser when the request was filled in (possibly offline), so
+  // sending it twice can't create two requests. Unique when present.
+  clientRef: uuid("client_ref"),
   createdBy: integer("created_by")
     .notNull()
     .references(() => users.id),

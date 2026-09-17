@@ -205,12 +205,35 @@ router.get(
   }
 );
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUniqueViolation(err: unknown) {
+  const e = err as { code?: string; cause?: { code?: string } };
+  return (e.code ?? e.cause?.code) === "23505";
+}
+
 router.post("/", requirePermission("requests.create"), async (req, res) => {
   const body = req.body;
   const now = new Date();
   const yearType: "calendar" | "financial" = body.yearType || "calendar";
   const { year, week } = getWeekNumber(now, yearType);
-  const seq = await nextSequence(year, yearType);
+
+  // A request filled in offline can arrive twice: a send whose reply was lost
+  // is sent again. The id the browser gave it finds the copy already saved.
+  const clientRef =
+    typeof body.clientRef === "string" && UUID.test(body.clientRef) ? body.clientRef.toLowerCase() : null;
+  const sendSaved = async () => {
+    if (!clientRef) return false;
+    const [saved] = await db
+      .select()
+      .from(procurementRequests)
+      .where(eq(procurementRequests.clientRef, clientRef));
+    if (!saved) return false;
+    if (saved.createdBy === req.session.userId) res.status(200).json(saved);
+    else res.status(409).json({ error: "A different request was already saved with this id." });
+    return true;
+  };
+  if (await sendSaved()) return;
 
   // Part III names one budget line: take its vote, sub-programme and supply
   // code from the most specific choice rather than trusting the form to keep
@@ -239,42 +262,56 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
     }
   }
 
-  // Written the way the school writes them — KSS/SUPLS/26/017/00155: entity,
-  // category, year, the code of what is being bought, then the running number.
-  const refNum = `KSS/${categoryCode(body.category)}/${yearCode(year, yearType)}/${
-    supplyCode ?? "000"
-  }/${String(seq).padStart(5, "0")}`;
-
-  const [request] = await db
-    .insert(procurementRequests)
-    .values({
-      referenceNumber: refNum,
-      category: body.category,
-      yearType,
-      year,
-      weekNumber: week,
-      sequenceNumber: seq,
-      supplyCode,
-      budgetCategory: body.budgetCategory,
-      procurementSize: body.procurementSize,
-      subjectOfProcurement: body.subjectOfProcurement,
-      procurementPlanReference: body.procurementPlanReference,
-      locationForDelivery: body.locationForDelivery,
-      dateRequired: body.dateRequired,
-      estimatedTotalCost: body.estimatedTotalCost,
-      isMultiyear: body.isMultiyear || false,
-      multiyearYearOne: body.multiyearYearOne,
-      multiyearYearTwo: body.multiyearYearTwo,
-      multiyearYearThree: body.multiyearYearThree,
-      multiyearYearFour: body.multiyearYearFour,
-      voteId,
-      subProgrammeId,
-      budgetItemId: body.budgetItemId,
-      balanceRemainingManual: body.balanceRemainingManual,
-      status: "draft",
-      createdBy: req.session.userId!,
-    })
-    .returning();
+  // Two requests saved at the same moment can be given the same running number,
+  // as when several laptops send work done offline once they reconnect. The
+  // reference is unique, so the loser takes the next number.
+  let request: typeof procurementRequests.$inferSelect | undefined;
+  for (let attempt = 1; !request; attempt++) {
+    const seq = await nextSequence(year, yearType);
+    // Written the way the school writes them — KSS/SUPLS/26/017/00155: entity,
+    // category, year, the code of what is being bought, then the running number.
+    const refNum = `KSS/${categoryCode(body.category)}/${yearCode(year, yearType)}/${
+      supplyCode ?? "000"
+    }/${String(seq).padStart(5, "0")}`;
+    try {
+      [request] = await db
+        .insert(procurementRequests)
+        .values({
+          referenceNumber: refNum,
+          category: body.category,
+          yearType,
+          year,
+          weekNumber: week,
+          sequenceNumber: seq,
+          supplyCode,
+          budgetCategory: body.budgetCategory,
+          procurementSize: body.procurementSize,
+          subjectOfProcurement: body.subjectOfProcurement,
+          procurementPlanReference: body.procurementPlanReference,
+          locationForDelivery: body.locationForDelivery,
+          dateRequired: body.dateRequired,
+          estimatedTotalCost: body.estimatedTotalCost,
+          isMultiyear: body.isMultiyear || false,
+          multiyearYearOne: body.multiyearYearOne,
+          multiyearYearTwo: body.multiyearYearTwo,
+          multiyearYearThree: body.multiyearYearThree,
+          multiyearYearFour: body.multiyearYearFour,
+          voteId,
+          subProgrammeId,
+          budgetItemId: body.budgetItemId,
+          balanceRemainingManual: body.balanceRemainingManual,
+          status: "draft",
+          clientRef,
+          createdBy: req.session.userId!,
+        })
+        .returning();
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      // The same request sent twice at once: the other send saved it.
+      if (await sendSaved()) return;
+      if (attempt >= 5) throw err;
+    }
+  }
 
   // Insert procurement items
   if (body.items?.length) {
