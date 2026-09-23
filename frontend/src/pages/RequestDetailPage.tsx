@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useOfficials } from "../lib/officials";
+import type { Officials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import StatusBadge from "../components/StatusBadge";
 import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
@@ -128,7 +130,9 @@ function formDate(v: string | null | undefined) {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB");
 }
 
-function printTForm(request: Request) {
+function printTForm(request: Request, officials: Officials) {
+  // Standing office holders, entered once under Officials.
+  const held = (key: string) => officials[key];
   const sigOf = (role: string) => request.signatures.find((s) => s.role === role);
   const isMacro = request.procurementSize === "macro";
 
@@ -268,10 +272,10 @@ function printTForm(request: Request) {
     <table style="width:100%;border-collapse:collapse;border:none;margin-top:18px;">
       <tr>
         <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", "")}</td>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", held("pdu_head")?.name ?? "")}</td>
       </tr>
       <tr>
-        <td style="border:none;">${dotLine("Position:", "")}</td>
+        <td style="border:none;">${dotLine("Position:", held("pdu_head")?.title ?? "")}</td>
         <td style="border:none;">${dotLine("Date:", dateOf.submittedToCommittee)}</td>
       </tr>
     </table>
@@ -284,7 +288,7 @@ function printTForm(request: Request) {
     <table style="width:100%;border-collapse:collapse;border:none;margin-top:18px;">
       <tr>
         <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", "")}</td>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", held("committee_chairperson")?.name ?? "")}</td>
       </tr>
       <tr>
         <td style="border:none;">Position: &nbsp;<strong>Chairperson Contracts Committee</strong></td>
@@ -295,7 +299,7 @@ function printTForm(request: Request) {
     <table style="width:100%;border-collapse:collapse;border:none;margin-top:24px;">
       <tr>
         <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", "")}</td>
+        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", held("committee_secretary")?.name ?? "")}</td>
       </tr>
       <tr>
         <td style="border:none;">Position: &nbsp;<strong>Secretary Contracts Committee</strong></td>
@@ -432,11 +436,11 @@ ${pageHeader}
     <td style="width:50%;border:none;vertical-align:top;">
       <div style="font-size:9px;"><strong>(3)&nbsp; Confirmation of Funding and Approval to Procure</strong><br/><em>(Accounting Officer)</em></div>
       <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
-      <div style="margin-top:4px;">${dotLine("Title:", aoSig ? (aoSig.title || "Accounting Officer") : "")}</div>
+      <div style="margin-top:4px;">${dotLine("Title:", aoSig ? aoSig.title || "Accounting Officer" : held("accounting_officer")?.title ?? "")}</div>
     </td>
     <td style="width:50%;border:none;vertical-align:top;padding-left:16px;">
       <div style="font-size:9px;">&nbsp;</div>
-      <div style="margin-top:10px;">${dotLine("Name:", aoSig ? aoSig.name : "")}</div>
+      <div style="margin-top:10px;">${dotLine("Name:", aoSig ? aoSig.name : held("accounting_officer")?.name ?? "")}</div>
       <div style="margin-top:4px;">${dotLine("Date:", dateOf.accountingOfficer)}</div>
     </td>
   </tr>
@@ -580,6 +584,7 @@ table { width: 100%; border-collapse: collapse; }
 export default function RequestDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
+  const officials = useOfficials();
   const [request, setRequest] = useState<Request | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -702,7 +707,7 @@ export default function RequestDetailPage() {
                   <PrinterIcon className="h-4 w-4" />
                   Price schedule
                 </button>
-                <button type="button" onClick={() => printTForm(request)} className="btn btn-secondary">
+                <button type="button" onClick={() => printTForm(request, officials)} className="btn btn-secondary">
                   <PrinterIcon className="h-4 w-4" />
                   Print TFORM 5
                 </button>

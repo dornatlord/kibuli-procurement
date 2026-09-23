@@ -44,6 +44,7 @@ export async function saveForOffline(can: Can): Promise<boolean> {
     ...(can("requests.create", "reserve_prices.manage") ? ["/baskets"] : []),
     ...(can("purchase_orders.view") ? ["/purchase-orders"] : []),
     "/settings/terms",
+    "/settings/officials",
     "/auth/profile",
     "/auth/sessions",
   ]);

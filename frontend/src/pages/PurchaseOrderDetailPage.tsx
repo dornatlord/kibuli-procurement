@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useOfficials } from "../lib/officials";
+import type { Officials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
@@ -32,6 +34,8 @@ interface PODetail {
   procurementRequestId: number | null;
   referenceNumber: string | null;
   requestStatus: string | null;
+  /** Whoever prepared it, printed under "Prepared by". */
+  preparedByName: string | null;
   items: POItem[];
 }
 
@@ -58,6 +62,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 export default function PurchaseOrderDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
+  const officials = useOfficials();
   const [po, setPo] = useState<PODetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -138,7 +143,7 @@ export default function PurchaseOrderDetailPage() {
               )}
             </p>
           </div>
-          <button type="button" onClick={() => printLpo(po)} className="btn btn-secondary">
+          <button type="button" onClick={() => printLpo(po, officials)} className="btn btn-secondary">
             <PrinterIcon className="h-4 w-4" />
             Print LPO
           </button>
@@ -250,7 +255,9 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** The LPO laid out like a page from the school's LPO book, number in red. */
-function printLpo(po: PODetail) {
+function printLpo(po: PODetail, officials: Officials) {
+  // The Head Teacher authorises LPOs; some schools name the Accounting Officer instead.
+  const authorises = officials.head_teacher ?? officials.accounting_officer;
   const total = po.items.reduce((s, it) => s + Number(it.totalPrice || 0), 0);
   const ROWS = 13;
   const rows = Array.from({ length: Math.max(ROWS, po.items.length) }, (_, i) => {
@@ -296,6 +303,7 @@ th { font-size: 16px; }
 .sign { display: flex; justify-content: space-between; margin-top: 30px; font-weight: bold; font-size: 15px; }
 .sign > div { width: 40%; text-align: center; }
 .sign .dots { display: block; min-width: 0; margin: 30px 0 10px; }
+.sign .who { font-family: Arial, Helvetica, sans-serif; font-weight: normal; font-size: 13px; margin-bottom: 2px; }
 </style></head><body>
 <div class="head">
   <img src="${KSS_BADGE}" alt="" />
@@ -328,8 +336,8 @@ th { font-size: 16px; }
 <div class="words"><span>Amount in words :</span><div class="line fill">${shillingsInWords(total)}</div></div>
 <div class="line" style="margin-top:10px;"></div>
 <div class="sign">
-  <div>Prepared by<span class="dots"></span>Signature &amp; Title</div>
-  <div>Authorised by<span class="dots"></span>Headteacher</div>
+  <div>Prepared by<span class="dots"></span>${po.preparedByName ? `<div class="who">${esc(po.preparedByName)}</div>` : ""}Signature &amp; Title</div>
+  <div>Authorised by<span class="dots"></span>${authorises ? `<div class="who">${esc(authorises.name)}</div>` : ""}Headteacher</div>
 </div>
 </body></html>`;
 

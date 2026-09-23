@@ -6,6 +6,7 @@ import {
   suppliers,
   procurementRequests,
   procurementItems,
+  users,
 } from "../db/schema.js";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
@@ -95,10 +96,13 @@ router.get("/:id", requirePermission("purchase_orders.view"), async (req, res) =
       procurementRequestId: purchaseOrders.procurementRequestId,
       referenceNumber: procurementRequests.referenceNumber,
       requestStatus: procurementRequests.status,
+      // Printed on the LPO as "Prepared by".
+      preparedByName: users.name,
     })
     .from(purchaseOrders)
     .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
     .leftJoin(procurementRequests, eq(purchaseOrders.procurementRequestId, procurementRequests.id))
+    .leftJoin(users, eq(purchaseOrders.createdBy, users.id))
     .where(eq(purchaseOrders.id, id));
 
   if (!po) {

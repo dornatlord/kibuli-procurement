@@ -329,6 +329,22 @@ export const MODULES: ProcurementModule[] = [
     ),
   },
   {
+    key: "officials",
+    label: "Officials",
+    to: "/admin/officials",
+    group: "Reports & Administration",
+    status: "live",
+    permissions: ["system.settings"],
+    description: "Who signs the forms: Accounting Officer, committee, Head Teacher",
+    icon: (
+      <Svg>
+        <circle cx="9" cy="8" r="3.2" />
+        <path d="M3.5 20a5.5 5.5 0 0 1 11 0" />
+        <path d="M16 5.5a3 3 0 0 1 0 5M18.5 20a5.6 5.6 0 0 0-2.4-4.5" />
+      </Svg>
+    ),
+  },
+  {
     key: "settings",
     label: "Settings",
     to: "/admin/settings",

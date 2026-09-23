@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useOfficials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import PageHeader from "../components/PageHeader";
 import ReportTabs from "../components/ReportTabs";
@@ -181,6 +182,7 @@ export default function TermlyReportPage() {
   const canPrepare = can("reports.prepare");
   const thisYear = new Date().getFullYear();
 
+  const officials = useOfficials();
   const [terms, setTerms] = useState<SchoolTerm[] | null>(null);
   const [year, setYear] = useState(thisYear);
   const [term, setTerm] = useState<number | null>(null);
@@ -192,6 +194,13 @@ export default function TermlyReportPage() {
   const [saving, setSaving] = useState(false);
   const [refilling, setRefilling] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+
+  // The office holders load after the report; fill an empty declaration then.
+  useEffect(() => {
+    const ao = officials.accounting_officer;
+    if (!ao || report?.saved?.declaration) return;
+    setDeclaration((d) => (d.name ? d : { ...d, name: ao.name, title: ao.title }));
+  }, [officials.accounting_officer, report]);
 
   // Open on the term we're in.
   useEffect(() => {
@@ -220,8 +229,9 @@ export default function TermlyReportPage() {
         setParts(r.saved?.parts ?? r.generated);
         setDeclaration(
           r.saved?.declaration ?? {
-            name: r.lastDeclaration?.name ?? "",
-            title: r.lastDeclaration?.title || "ACCOUNTING OFFICER",
+            // Falls back to the Accounting Officer entered under Officials.
+            name: r.lastDeclaration?.name || officials.accounting_officer?.name || "",
+            title: r.lastDeclaration?.title || officials.accounting_officer?.title || "ACCOUNTING OFFICER",
             date: today(),
           }
         );

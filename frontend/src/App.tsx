@@ -34,6 +34,7 @@ import BasketEditorPage from "./pages/BasketEditorPage";
 import TermlyReportPage from "./pages/TermlyReportPage";
 import DisposalsPage from "./pages/DisposalsPage";
 import SettingsPage from "./pages/SettingsPage";
+import OfficialsPage from "./pages/OfficialsPage";
 import Layout from "./components/Layout";
 import SplashScreen from "./components/SplashScreen";
 
@@ -287,6 +288,14 @@ function AppRoutes() {
           element={
             <Guard permissions={["disposals.view"]}>
               <DisposalsPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="admin/officials"
+          element={
+            <Guard permissions={["system.settings"]}>
+              <OfficialsPage />
             </Guard>
           }
         />
