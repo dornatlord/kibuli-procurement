@@ -122,6 +122,33 @@ so everyone signs in once more after that deploy.
 
 ---
 
+## Security
+
+Set up in code and in the database; nothing to configure except the last item.
+
+- **The database is closed to Supabase's public API.** Migration
+  `012_lock_down_database.sql` revokes every privilege from the `anon` and
+  `authenticated` roles and turns on row level security for all tables, so the
+  publishable key can't read or change anything. Only the backend, which
+  connects as the owner with `DATABASE_URL`, reaches the data. **Apply this
+  migration to any new database**, and keep it in mind when adding tables: new
+  ones inherit the revoked default privileges, but run
+  `ALTER TABLE … ENABLE ROW LEVEL SECURITY` on them too.
+- **Sign-in throttling:** a few wrong passwords per account and per address in
+  a quarter of an hour, then a wait (`backend/src/lib/rateLimit.ts`).
+- **Headers:** the API sends a content security policy, `nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy` and HSTS in production, and
+  doesn't announce Express. The app's own policy is in `index.html`, written at
+  build time with the API's address (`vite.config.ts`).
+- **Not indexed:** `robots.txt` disallows everything and the page carries
+  `noindex`.
+- **One thing for the dashboard (optional):** a page's policy can't stop other
+  sites from framing it — that needs a header. Static site → Headers → path
+  `/*`, add `X-Frame-Options: DENY` and
+  `Content-Security-Policy: frame-ancestors 'none'`.
+
+---
+
 ## Installable app and offline use
 
 The frontend is a Progressive Web App; there is nothing to configure beyond the steps above.

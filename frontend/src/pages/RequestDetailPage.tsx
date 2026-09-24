@@ -116,6 +116,11 @@ const NEXT_STATUS: Record<
   ],
 };
 
+/** Anything a person typed is escaped before it goes into printed HTML. */
+function esc(s: string | null | undefined) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function fmt(n: string | number | null | undefined) {
   if (!n) return "—";
   return Number(n).toLocaleString("en-UG");
@@ -143,9 +148,9 @@ function printTForm(request: Request, officials: Officials) {
   const itemRowsHtml = itemRows.map((it, i) => `
     <tr style="height:16px;">
       <td class="c" style="font-size:8px;">${it.description ? i + 1 : ""}</td>
-      <td style="font-size:8px;">${it.description || ""}</td>
-      <td class="c" style="font-size:8px;">${it.quantity || ""}</td>
-      <td class="c" style="font-size:8px;">${it.unitOfMeasure || ""}</td>
+      <td style="font-size:8px;">${esc(it.description)}</td>
+      <td class="c" style="font-size:8px;">${esc(it.quantity)}</td>
+      <td class="c" style="font-size:8px;">${esc(it.unitOfMeasure)}</td>
       <td class="r" style="font-size:8px;">${it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : ""}</td>
       <td class="r" style="font-size:8px;">${it.totalCost ? Number(it.totalCost).toLocaleString("en-UG") : ""}</td>
     </tr>`).join("");
@@ -175,32 +180,32 @@ function printTForm(request: Request, officials: Officials) {
   // Part II: the PDU's answer under each question, and the committee's
   // decision and conditions for that row. Free text is escaped for the HTML.
   const part2 = request.decision;
-  const esc = (s: string | null | undefined) =>
+  const escLines = (s: string | null | undefined) =>
     (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
   const partTwoRowsHtml = [
     {
       key: "1",
       height: 55,
       label: "Recommended method of procurement and justification",
-      answer: [part2?.recommendedMethod, part2?.methodJustification].filter(Boolean).map(esc).join("<br/>"),
+      answer: [part2?.recommendedMethod, part2?.methodJustification].filter(Boolean).map(escLines).join("<br/>"),
     },
     {
       key: "2",
       height: 55,
       label: "Names of shortlisted provider (s) and justification for selection",
-      answer: esc(part2?.shortlistedProviders),
+      answer: escLines(part2?.shortlistedProviders),
     },
     {
       key: "3",
       height: 55,
       label: "Bidding document. Persons involved in preparation of proposal document <em>(Names and positions)</em>",
-      answer: esc(part2?.biddingDocumentTeam),
+      answer: escLines(part2?.biddingDocumentTeam),
     },
     {
       key: "4",
       height: 55,
       label: "Names of persons recommended to constitute the Evaluation Committee and the justification <em>(Names and positions)</em>",
-      answer: esc(part2?.evaluationCommittee),
+      answer: escLines(part2?.evaluationCommittee),
     },
     {
       key: "5",
@@ -212,7 +217,7 @@ function printTForm(request: Request, officials: Officials) {
       key: "6",
       height: 35,
       label: "Any other information",
-      answer: esc(part2?.otherInformation),
+      answer: escLines(part2?.otherInformation),
     },
   ].map((r) => {
     const decided = part2?.rowDecisions?.[r.key];
@@ -220,13 +225,13 @@ function printTForm(request: Request, officials: Officials) {
     <tr style="height:${r.height}px;">
       <td style="border:1px solid #000;padding:3px;vertical-align:top;">${r.key}.</td>
       <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${r.label}${r.answer ? `<div style="margin-top:4px;">${r.answer}</div>` : ""}</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${esc(decided?.decision)}</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${esc(decided?.conditions)}</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${escLines(decided?.decision)}</td>
+      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${escLines(decided?.conditions)}</td>
     </tr>`;
   }).join("");
 
   const dotLine = (label: string, value = "") =>
-    `<div style="margin-top:5px;">${label} <span style="border-bottom:1px solid #000;display:inline-block;min-width:160px;padding-bottom:1px;">${value}</span></div>`;
+    `<div style="margin-top:5px;">${label} <span style="border-bottom:1px solid #000;display:inline-block;min-width:160px;padding-bottom:1px;">${esc(value)}</span></div>`;
 
   const refParts = request.referenceNumber.split("/");
   const seqNo   = refParts[refParts.length - 1] || "";
@@ -330,7 +335,7 @@ ${pageHeader}
   </tr>
   <tr style="height:22px;">
     <td style="border:1px solid #000;padding:3px;">Kibuli Secondary School</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${request.category || ""}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${esc(request.category)}</td>
     <td style="border:1px solid #000;padding:3px;text-align:center;">${finYear}</td>
     <td style="border:1px solid #000;padding:3px;text-align:center;">${
       request.supplyCode ? `${request.supplyCode}/${seqNo}` : seqNo
@@ -349,8 +354,8 @@ ${pageHeader}
   <tr style="height:22px;">
     <td style="border:1px solid #000;padding:3px;text-align:center;">${request.budgetCategory === "recurrent" ? "✓" : ""}</td>
     <td style="border:1px solid #000;padding:3px;text-align:center;">${request.budgetCategory === "development" ? "✓" : ""}</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${(request as any).voteCode || ""}</td>
-    <td style="border:1px solid #000;padding:3px;">${(request as any).budgetItemName || ""}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${esc((request as any).voteCode)}</td>
+    <td style="border:1px solid #000;padding:3px;">${esc((request as any).budgetItemName)}</td>
   </tr>
 </table>
 
@@ -368,9 +373,9 @@ ${pageHeader}
   const page2Content = `
 <table style="width:100%;border-collapse:collapse;">
   <tr><td colspan="2" style="border:1px solid #000;padding:4px;font-weight:bold;">Particulars of Procurement</td></tr>
-  <tr><td style="width:35%;border:1px solid #000;padding:3px;">Subject of Procurement</td><td style="border:1px solid #000;padding:3px;">${request.subjectOfProcurement || ""}</td></tr>
-  <tr><td style="border:1px solid #000;padding:3px;">Procurement Plan Reference</td><td style="border:1px solid #000;padding:3px;">${request.procurementPlanReference || ""}</td></tr>
-  <tr><td style="border:1px solid #000;padding:3px;">Location for Delivery</td><td style="border:1px solid #000;padding:3px;">${request.locationForDelivery || ""}</td></tr>
+  <tr><td style="width:35%;border:1px solid #000;padding:3px;">Subject of Procurement</td><td style="border:1px solid #000;padding:3px;">${esc(request.subjectOfProcurement)}</td></tr>
+  <tr><td style="border:1px solid #000;padding:3px;">Procurement Plan Reference</td><td style="border:1px solid #000;padding:3px;">${esc(request.procurementPlanReference)}</td></tr>
+  <tr><td style="border:1px solid #000;padding:3px;">Location for Delivery</td><td style="border:1px solid #000;padding:3px;">${esc(request.locationForDelivery)}</td></tr>
   <tr><td style="border:1px solid #000;padding:3px;">Date Required</td><td style="border:1px solid #000;padding:3px;">${formDate(request.dateRequired)}</td></tr>
 </table>
 
@@ -423,10 +428,10 @@ ${pageHeader}
     <th style="width:15%;border:1px solid #000;padding:3px;text-align:center;">Balance remaining</th>
   </tr>
   <tr style="height:24px;">
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${(request as any).voteCode || ""}</td>
-    <td style="border:1px solid #000;padding:3px;">${(request as any).voteName || ""}</td>
-    <td style="border:1px solid #000;padding:3px;">${(request as any).subProgrammeName || ""}</td>
-    <td style="border:1px solid #000;padding:3px;">${(request as any).budgetItemName || ""}</td>
+    <td style="border:1px solid #000;padding:3px;text-align:center;">${esc((request as any).voteCode)}</td>
+    <td style="border:1px solid #000;padding:3px;">${esc((request as any).voteName)}</td>
+    <td style="border:1px solid #000;padding:3px;">${esc((request as any).subProgrammeName)}</td>
+    <td style="border:1px solid #000;padding:3px;">${esc((request as any).budgetItemName)}</td>
     <td style="border:1px solid #000;padding:3px;text-align:right;">${(request as any).balanceRemainingManual ? Number((request as any).balanceRemainingManual).toLocaleString("en-UG") : ""}</td>
   </tr>
 </table>
@@ -454,7 +459,7 @@ ${pageHeader}
 <html>
 <head>
 <meta charset="utf-8"/>
-<title>FORM 5 &mdash; ${request.referenceNumber}</title>
+<title>FORM 5 &mdash; ${esc(request.referenceNumber)}</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
@@ -513,7 +518,6 @@ ${macroPages}
  * procurement reference, and the running number (00246) as the call-off order.
  */
 function printPriceSchedule(request: Request) {
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const money = (v: string | number | null | undefined) =>
     v === null || v === undefined || v === "" ? "" : Number(v).toLocaleString("en-UG");
   const parts = request.referenceNumber.split("/");

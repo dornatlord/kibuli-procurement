@@ -7,14 +7,30 @@ import { permissionsFor, ROLE_LABELS, Role } from "../lib/permissions.js";
 import { requireAuth } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { describeDevice } from "../lib/devices.js";
+import { forget, inWords, throttle } from "../lib/rateLimit.js";
 
 const router = asyncRouter();
+
+// A few tries per quarter of an hour, counted per computer and per account,
+// so a password can't be guessed by brute force.
+const TRIES_PER_ADDRESS = 15;
+const TRIES_PER_ACCOUNT = 6;
+const WINDOW = 15 * 60 * 1000;
 
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
       res.status(400).json({ error: "Email and password required" });
+      return;
+    }
+
+    const fromAddress = `ip:${req.ip}`;
+    const forAccount = `email:${String(email).toLowerCase().slice(0, 120)}`;
+    const wait =
+      throttle(fromAddress, TRIES_PER_ADDRESS, WINDOW) || throttle(forAccount, TRIES_PER_ACCOUNT, WINDOW);
+    if (wait) {
+      res.status(429).json({ error: `Too many sign-in attempts. Try again in ${inWords(wait)}.` });
       return;
     }
 
@@ -38,6 +54,7 @@ router.post("/login", async (req, res) => {
       return;
     }
 
+    forget(fromAddress, forAccount);
     req.session.userId = user.id;
     req.session.role = user.role;
     req.session.name = user.name;

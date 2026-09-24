@@ -5,11 +5,31 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { KSS_BADGE_SVG } from "./src/lib/badge";
 
-/** Draws the school badge into the index.html splash, from the app's one copy of it. */
-function splashBadge(): Plugin {
+/**
+ * Fills in the two things index.html can't know by itself: the school badge for
+ * the splash, and a content security policy naming the API this build talks to,
+ * so the page may only load its own files, its typeface and that API.
+ */
+function indexHtmlExtras(): Plugin {
+  let apiOrigin = "";
   return {
-    name: "kibuli-splash-badge",
-    transformIndexHtml: (html) => html.replace("<!-- kss-badge -->", KSS_BADGE_SVG),
+    name: "kibuli-index-html",
+    configResolved(config) {
+      const api = config.env.VITE_API_URL || "";
+      apiOrigin = api.startsWith("http") ? new URL(api).origin : "";
+    },
+    transformIndexHtml: (html) =>
+      html
+        .replace("<!-- kss-badge -->", KSS_BADGE_SVG)
+        .replace(
+          "<!-- kss-csp -->",
+          `<meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self'; connect-src 'self'${
+        apiOrigin ? ` ${apiOrigin}` : ""
+      }; form-action 'self'"
+    />`
+        ),
   };
 }
 
@@ -71,7 +91,7 @@ function listFiles(dir: string): string[] {
 }
 
 export default defineConfig({
-  plugins: [react(), splashBadge(), serviceWorker()],
+  plugins: [react(), indexHtmlExtras(), serviceWorker()],
   server: {
     proxy: {
       "/api": {

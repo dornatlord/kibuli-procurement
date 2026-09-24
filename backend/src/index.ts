@@ -29,6 +29,25 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.set("trust proxy", 1);
+// Don't announce what the server runs on.
+app.disable("x-powered-by");
+
+// This API only ever answers JSON, so browsers are told to treat it as nothing
+// else: no framing, no sniffing, no referrers, and HTTPS only.
+app.use((_req, res, next) => {
+  res.set({
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+    "Cross-Origin-Resource-Policy": "same-site",
+  });
+  if (process.env.NODE_ENV === "production") {
+    res.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
 
 const allowedOrigins = [
   "http://localhost:5173",

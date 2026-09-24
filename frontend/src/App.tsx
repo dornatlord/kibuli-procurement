@@ -37,6 +37,7 @@ import SettingsPage from "./pages/SettingsPage";
 import OfficialsPage from "./pages/OfficialsPage";
 import Layout from "./components/Layout";
 import SplashScreen from "./components/SplashScreen";
+import NotFoundPage from "./pages/NotFoundPage";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -341,6 +342,8 @@ function AppRoutes() {
             </Guard>
           }
         />
+        {/* An address inside the app that doesn't exist. */}
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
