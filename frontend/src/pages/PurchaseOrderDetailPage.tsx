@@ -1,43 +1,14 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useOfficials } from "../lib/officials";
-import type { Officials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
-import { ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
-import { KSS_BADGE } from "../lib/badge";
+import { ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon, XIcon } from "../components/icons";
 import { shillingsInWords } from "../lib/words";
-
-interface POItem {
-  id: number;
-  description: string;
-  quantity: string;
-  unitOfMeasure: string | null;
-  unitPrice: string;
-  totalPrice: string;
-}
-
-interface PODetail {
-  id: number;
-  poNumber: string;
-  status: string;
-  issueDate: string | null;
-  expectedDeliveryDate: string | null;
-  deliveryLocation: string | null;
-  totalAmount: string | null;
-  termsAndConditions: string | null;
-  createdAt: string;
-  supplierName: string | null;
-  supplierAddress: string | null;
-  supplierPhone: string | null;
-  procurementRequestId: number | null;
-  referenceNumber: string | null;
-  requestStatus: string | null;
-  /** Whoever prepared it, printed under "Prepared by". */
-  preparedByName: string | null;
-  items: POItem[];
-}
+import { dayFirst, money } from "../lib/print";
+import { completionDefaults, deliveryDateOf, printCompletionCertificate, printLpo } from "../lib/forms/lpoForms";
+import type { CompletionDetails, LpoRecord } from "../lib/forms/lpoForms";
 
 const NEXT: Record<string, { next: string; label: string }[]> = {
   draft: [
@@ -54,24 +25,20 @@ const NEXT: Record<string, { next: string; label: string }[]> = {
   ],
 };
 
-const money = (v: string | number | null | undefined) =>
-  v === null || v === undefined || v === "" ? "" : Number(v).toLocaleString("en-UG");
-const dayFirst = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
 export default function PurchaseOrderDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
   const officials = useOfficials();
-  const [po, setPo] = useState<PODetail | null>(null);
+  const [po, setPo] = useState<LpoRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [error, setError] = useState("");
+  const [certificate, setCertificate] = useState<CompletionDetails | null>(null);
 
   function load() {
     setLoading(true);
     api
-      .get<PODetail>(`/purchase-orders/${id}`)
+      .get<LpoRecord>(`/purchase-orders/${id}`)
       .then(setPo)
       .finally(() => setLoading(false));
   }
@@ -112,6 +79,13 @@ export default function PurchaseOrderDetailPage() {
   const awaitingApproval = po.procurementRequestId !== null && po.requestStatus !== "approved";
   const total = po.items.reduce((s, it) => s + Number(it.totalPrice || 0), 0);
 
+  function printCertificate(e: FormEvent) {
+    e.preventDefault();
+    if (!po || !certificate) return;
+    printCompletionCertificate(po, certificate);
+    setCertificate(null);
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
@@ -143,12 +117,113 @@ export default function PurchaseOrderDetailPage() {
               )}
             </p>
           </div>
-          <button type="button" onClick={() => printLpo(po, officials)} className="btn btn-secondary">
-            <PrinterIcon className="h-4 w-4" />
-            Print LPO
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setCertificate(completionDefaults(po, officials))}
+              className="btn btn-secondary"
+            >
+              <PrinterIcon className="h-4 w-4" />
+              Completion certificate
+            </button>
+            <button type="button" onClick={() => printLpo(po, officials)} className="btn btn-secondary">
+              <PrinterIcon className="h-4 w-4" />
+              Print LPO
+            </button>
+          </div>
         </div>
       </div>
+
+      {certificate && (
+        <form onSubmit={printCertificate} className="card space-y-4 p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">Completion certificate</h2>
+              <p className="mt-0.5 text-sm text-gray-500">
+                Filled in from this LPO and the officials. Check the details, then print for signing.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCertificate(null)}
+              className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Close"
+            >
+              <XIcon className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <CertificateField label="Date">
+              <input
+                type="date"
+                className="input"
+                value={certificate.date}
+                onChange={(e) => setCertificate((c) => c && { ...c, date: e.target.value })}
+              />
+            </CertificateField>
+            <CertificateField label="Department">
+              <input
+                className="input"
+                value={certificate.department}
+                onChange={(e) => setCertificate((c) => c && { ...c, department: e.target.value })}
+              />
+            </CertificateField>
+            <CertificateField label="Service" wide>
+              <input
+                className="input"
+                value={certificate.service}
+                onChange={(e) => setCertificate((c) => c && { ...c, service: e.target.value })}
+              />
+            </CertificateField>
+            <CertificateField label="Has completed the" wide>
+              <textarea
+                className="input"
+                rows={3}
+                value={certificate.completed}
+                onChange={(e) => setCertificate((c) => c && { ...c, completed: e.target.value })}
+              />
+            </CertificateField>
+            <CertificateField label="Submitted by (Contract Manager)">
+              <input
+                className="input"
+                list="official-names"
+                value={certificate.submittedBy}
+                onChange={(e) => setCertificate((c) => c && { ...c, submittedBy: e.target.value })}
+              />
+            </CertificateField>
+            <CertificateField label="Verified by (Deputy Headteacher)">
+              <input
+                className="input"
+                list="official-names"
+                value={certificate.verifiedBy}
+                onChange={(e) => setCertificate((c) => c && { ...c, verifiedBy: e.target.value })}
+              />
+            </CertificateField>
+            <CertificateField label="Approved by (Headteacher)">
+              <input
+                className="input"
+                list="official-names"
+                value={certificate.approvedBy}
+                onChange={(e) => setCertificate((c) => c && { ...c, approvedBy: e.target.value })}
+              />
+            </CertificateField>
+          </div>
+          <datalist id="official-names">
+            {Array.from(new Set(Object.values(officials).map((o) => o.name))).map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+          <div className="flex gap-2">
+            <button type="submit" className="btn btn-primary">
+              <PrinterIcon className="h-4 w-4" />
+              Print certificate
+            </button>
+            <button type="button" onClick={() => setCertificate(null)} className="btn btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       {awaitingApproval && po.status === "draft" && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
@@ -182,7 +257,7 @@ export default function PurchaseOrderDetailPage() {
 
       <dl className="card grid gap-px overflow-hidden bg-gray-100 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Date">{dayFirst(po.issueDate) || new Date(po.createdAt).toLocaleDateString("en-GB")}</Field>
-        <Field label="Expected delivery">{dayFirst(po.expectedDeliveryDate) || "—"}</Field>
+        <Field label="Delivery date">{dayFirst(deliveryDateOf(po)) || "—"}</Field>
         <Field label="Deliver to">{po.deliveryLocation || "—"}</Field>
         <Field label="Total (UGX)">{money(total) || "—"}</Field>
       </dl>
@@ -254,97 +329,11 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** The LPO laid out like a page from the school's LPO book, number in red. */
-function printLpo(po: PODetail, officials: Officials) {
-  // The Head Teacher authorises LPOs; some schools name the Accounting Officer instead.
-  const authorises = officials.head_teacher ?? officials.accounting_officer;
-  const total = po.items.reduce((s, it) => s + Number(it.totalPrice || 0), 0);
-  const ROWS = 13;
-  const rows = Array.from({ length: Math.max(ROWS, po.items.length) }, (_, i) => {
-    const it = po.items[i];
-    if (!it) return `<tr><td></td><td></td><td></td><td></td></tr>`;
-    const qty = `${Number(it.quantity).toLocaleString("en-UG")}${it.unitOfMeasure ? ` ${esc(it.unitOfMeasure)}` : ""}`;
-    return `<tr><td class="c">${qty}</td><td>${esc(it.description)}</td><td class="r">${money(it.unitPrice)}</td><td class="r">${money(it.totalPrice)}</td></tr>`;
-  }).join("");
-  const date = dayFirst(po.issueDate) || new Date(po.createdAt).toLocaleDateString("en-GB");
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>LPO No. ${esc(po.poNumber)}</title>
-<style>
-@page { size: A4 portrait; margin: 14mm 16mm; }
-* { box-sizing: border-box; }
-body { margin: 0; color: #000; font-family: "Times New Roman", Times, serif; font-size: 14px; }
-@media screen { body { padding: 14mm 16mm; max-width: 210mm; } }
-.head { display: flex; align-items: center; gap: 14px; }
-.head img { width: 86px; height: auto; }
-.name { font-size: 29px; font-weight: bold; letter-spacing: 0.5px; }
-.addr { font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: bold; margin-top: 2px; }
-.bar-wrap { text-align: center; margin-top: 14px; }
-.bar { display: inline-block; background: #1f1f1f; color: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 16px; letter-spacing: 1px; padding: 7px 32px; }
-.row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 20px; font-weight: bold; }
-.no { font-size: 16px; }
-.no .red { color: #c0392b; font-size: 30px; font-weight: normal; letter-spacing: 1px; margin-left: 6px; }
-.fill { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
-.dots { display: inline-block; min-width: 170px; border-bottom: 2px dotted #000; padding: 0 6px 2px; }
-.line { border-bottom: 2px dotted #000; min-height: 26px; padding: 4px 6px 2px; }
-.to { margin-top: 22px; font-weight: bold; }
-.to-first { display: flex; gap: 8px; align-items: flex-end; }
-.to-first .line { flex: 1; }
-.to-rest { margin-left: 44px; }
-.lead { font-weight: bold; font-size: 15px; margin-top: 18px; }
-table { width: 100%; border-collapse: collapse; margin-top: 3px; }
-th, td { border: 2px solid #000; padding: 4px 8px; height: 31px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; }
-th { font-size: 16px; }
-.c { text-align: center; }
-.r { text-align: right; white-space: nowrap; }
-.total { text-align: right; font-weight: bold; font-size: 16px; }
-.quote { text-align: center; font-weight: bold; font-size: 15px; margin-top: 14px; }
-.words { display: flex; gap: 8px; align-items: flex-end; margin-top: 20px; font-weight: bold; font-size: 15px; }
-.words .line { flex: 1; font-size: 14px; }
-.sign { display: flex; justify-content: space-between; margin-top: 30px; font-weight: bold; font-size: 15px; }
-.sign > div { width: 40%; text-align: center; }
-.sign .dots { display: block; min-width: 0; margin: 30px 0 10px; }
-.sign .who { font-family: Arial, Helvetica, sans-serif; font-weight: normal; font-size: 13px; margin-bottom: 2px; }
-</style></head><body>
-<div class="head">
-  <img src="${KSS_BADGE}" alt="" />
-  <div>
-    <div class="name">KIBULI SECONDARY SCHOOL</div>
-    <div class="addr">P.O Box 4216 Kampala - Uganda Tel: 0414 257339</div>
-  </div>
-</div>
-<div class="bar-wrap"><span class="bar">LOCAL PURCHASE ORDER</span></div>
-<div class="row">
-  <div class="no">No. <span class="red">${esc(po.poNumber)}</span></div>
-  <div>Date: <span class="dots fill">${date}</span></div>
-</div>
-<div class="to">
-  <div class="to-first"><span>To:</span><div class="line fill">${esc(po.supplierName ?? "")}</div></div>
-  <div class="to-rest">
-    <div class="line fill">${esc(po.supplierAddress ?? "")}</div>
-    <div class="line fill">${po.supplierPhone ? `Tel: ${esc(po.supplierPhone)}` : ""}</div>
-  </div>
-</div>
-<div class="lead">Please supply / render the following goods / services:</div>
-<table>
-  <thead><tr><th style="width:17%">Quantity</th><th>Description</th><th style="width:17%">Unit Price</th><th style="width:21%">Amount</th></tr></thead>
-  <tbody>
-    ${rows}
-    <tr><td></td><td colspan="2" class="total">TOTAL</td><td class="r"><strong>${money(total)}</strong></td></tr>
-  </tbody>
-</table>
-<div class="quote">Please quote our Order number on your Invoice</div>
-<div class="words"><span>Amount in words :</span><div class="line fill">${shillingsInWords(total)}</div></div>
-<div class="line" style="margin-top:10px;"></div>
-<div class="sign">
-  <div>Prepared by<span class="dots"></span>${po.preparedByName ? `<div class="who">${esc(po.preparedByName)}</div>` : ""}Signature &amp; Title</div>
-  <div>Authorised by<span class="dots"></span>${authorises ? `<div class="who">${esc(authorises.name)}</div>` : ""}Headteacher</div>
-</div>
-</body></html>`;
-
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 400);
+function CertificateField({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
+  return (
+    <label className={`block ${wide ? "sm:col-span-2" : ""}`}>
+      <span className="label">{label}</span>
+      {children}
+    </label>
+  );
 }

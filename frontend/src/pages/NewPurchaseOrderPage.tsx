@@ -24,6 +24,9 @@ interface SourceRequest {
   referenceNumber: string;
   subjectOfProcurement: string | null;
   status: string;
+  /** The date required on the request: the LPO's delivery date. */
+  dateRequired: string | null;
+  locationForDelivery: string | null;
 }
 
 interface NewSupplier {
@@ -70,6 +73,9 @@ export default function NewPurchaseOrderPage() {
       .get<{ request: SourceRequest; items: Record<string, unknown>[] }>(`/purchase-orders/from-request/${requestId}`)
       .then(({ request: r, items: reqItems }) => {
         setRequest(r);
+        // The request's date required is when the goods are to be delivered.
+        if (r.dateRequired) setExpectedDeliveryDate(r.dateRequired.slice(0, 10));
+        if (r.locationForDelivery) setDeliveryLocation(r.locationForDelivery);
         if (reqItems.length) {
           setItems(
             reqItems.map((it) => ({
@@ -330,7 +336,7 @@ export default function NewPurchaseOrderPage() {
           </div>
           <div>
             <label className="label" htmlFor="lpo-delivery">
-              Expected delivery
+              Delivery date
             </label>
             <input
               id="lpo-delivery"

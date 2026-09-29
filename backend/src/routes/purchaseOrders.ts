@@ -54,6 +54,12 @@ async function insertWithNextNumber(values: Omit<typeof purchaseOrders.$inferIns
 
 router.get("/", requirePermission("purchase_orders.view"), async (req, res) => {
   const status = req.query.status ? String(req.query.status) : null;
+  // ?requestId= narrows the list to the LPOs raised from one request.
+  const requestId = Number(req.query.requestId) || null;
+  const filters = [
+    status ? eq(purchaseOrders.status, status as any) : undefined,
+    requestId ? eq(purchaseOrders.procurementRequestId, requestId) : undefined,
+  ].filter(Boolean);
   const rows = await db
     .select({
       id: purchaseOrders.id,
@@ -71,7 +77,7 @@ router.get("/", requirePermission("purchase_orders.view"), async (req, res) => {
     .from(purchaseOrders)
     .leftJoin(suppliers, eq(purchaseOrders.supplierId, suppliers.id))
     .leftJoin(procurementRequests, eq(purchaseOrders.procurementRequestId, procurementRequests.id))
-    .where(status ? eq(purchaseOrders.status, status as any) : undefined)
+    .where(filters.length ? and(...filters) : undefined)
     .orderBy(desc(purchaseOrders.createdAt));
   res.json(rows);
 });
@@ -96,7 +102,10 @@ router.get("/:id", requirePermission("purchase_orders.view"), async (req, res) =
       procurementRequestId: purchaseOrders.procurementRequestId,
       referenceNumber: procurementRequests.referenceNumber,
       requestStatus: procurementRequests.status,
-      // Printed on the LPO as "Prepared by".
+      // The request's date required is the delivery date on the LPO.
+      requestDateRequired: procurementRequests.dateRequired,
+      requestSubject: procurementRequests.subjectOfProcurement,
+      requestCreatedBy: procurementRequests.createdBy,
       preparedByName: users.name,
     })
     .from(purchaseOrders)
@@ -115,7 +124,19 @@ router.get("/:id", requirePermission("purchase_orders.view"), async (req, res) =
     .from(purchaseOrderItems)
     .where(eq(purchaseOrderItems.purchaseOrderId, id));
 
-  res.json({ ...po, items });
+  // The completion certificate names the department that asked for the work:
+  // the department of whoever raised the request.
+  const { requestCreatedBy, ...rest } = po;
+  let requestDepartment: string | null = null;
+  if (requestCreatedBy) {
+    const [requester] = await db
+      .select({ department: users.department })
+      .from(users)
+      .where(eq(users.id, requestCreatedBy));
+    requestDepartment = requester?.department ?? null;
+  }
+
+  res.json({ ...rest, requestDepartment, items });
 });
 
 /** Pulls items from an approved request so a PO can be pre-filled instead of retyped. */

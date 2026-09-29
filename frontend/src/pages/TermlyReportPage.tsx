@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useOfficials } from "../lib/officials";
+import { cornerBadge, flowCss, frameClose, frameOpen, openPrint } from "../lib/print";
 import { useAuth } from "../lib/auth";
 import PageHeader from "../components/PageHeader";
 import ReportTabs from "../components/ReportTabs";
@@ -317,12 +318,7 @@ export default function TermlyReportPage() {
 
   function print() {
     if (!parts || term === null) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(form27Html(year, term, parts, declaration));
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 400);
+    openPrint(form27Html(year, term, parts, declaration));
   }
 
   const current = terms?.find((t) => t.term === term) ?? null;
@@ -648,9 +644,8 @@ function form27Html(year: number, term: number, parts: Parts, declaration: Decla
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>FORM 27 — Term ${term} ${year}</title>
 <style>
-@page { size: A4 landscape; margin: 12mm; }
-* { box-sizing: border-box; }
-body { font-family: Arial, Helvetica, sans-serif; font-size: 9px; color: #000; margin: 0; }
+${flowCss("landscape")}
+body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; }
 .c { text-align: center; }
 .r { text-align: right; }
 td.r { white-space: nowrap; }
@@ -659,7 +654,7 @@ thead { display: table-header-group; }
 tr { page-break-inside: avoid; }
 th, td { border: 1px solid #000; padding: 3px 4px; vertical-align: top; }
 th { font-weight: bold; text-align: left; }
-th.part { font-size: 9.5px; background: #e5e5e5; }
+th.part { font-size: 11.5pt; background: #e5e5e5; }
 tr.total td { font-weight: bold; }
 .meta { width: 40%; margin-top: 8px; }
 .meta td:first-child { font-weight: bold; width: 50%; }
@@ -667,11 +662,13 @@ tr.total td { font-weight: bold; }
 .declaration p { margin: 6px 0; }
 .line { display: inline-block; min-width: 240px; border-bottom: 1px solid #000; padding: 0 4px 1px; }
 </style></head><body>
-<div class="r" style="font-weight:bold;font-size:10px;">FORM 27</div>
+${cornerBadge}
+${frameOpen}
+<div class="r" style="font-weight:bold;">FORM 27</div>
 <div class="r" style="font-style:italic;">Regulation 5(2)</div>
-<div class="c" style="font-size:10px;margin-top:4px;">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
-<div class="c" style="font-size:11px;font-weight:bold;margin-top:3px;">QUARTERLY REPORT ON PROCUREMENT AND DISPOSAL CONTRACTS</div>
-<div class="c" style="font-size:10px;font-weight:bold;margin-top:3px;">KIBULI SECONDARY SCHOOL</div>
+<div class="c" style="margin-top:4px;">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
+<div class="c" style="font-size:12.5pt;font-weight:bold;margin-top:3px;">QUARTERLY REPORT ON PROCUREMENT AND DISPOSAL CONTRACTS</div>
+<div class="c" style="font-weight:bold;margin-top:3px;">KIBULI SECONDARY SCHOOL</div>
 <table class="meta">
   <tr><td>Quarter of Reporting</td><td>TERM ${term}</td></tr>
   <tr><td>Financial year</td><td>${year}</td></tr>
@@ -684,5 +681,6 @@ ${PARTS.map(table).join("\n")}
   <p>Title: <span class="line">${esc(declaration.title)}</span></p>
   <p>Date: <span class="line">${esc(declaration.date)}</span></p>
 </div>
+${frameClose}
 </body></html>`;
 }

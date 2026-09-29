@@ -22,9 +22,35 @@ export interface RowDecision {
 
 export type RowDecisions = Record<string, RowDecision>;
 
+/**
+ * Common grounds for the recommended method, from the PPDA Act and regulations
+ * and PPDA's guidance on preference and reservation schemes. The first is used
+ * until someone picks another; "Other" lets them write their own.
+ */
+export const METHOD_JUSTIFICATIONS = [
+  "Support of local companies: reserved for, or giving preference to, national and local providers",
+  "The estimated value falls within the threshold for this method",
+  "Buy Uganda Build Uganda: the goods are made or assembled in Uganda",
+  "Urgent need: the time open bidding takes would disrupt the school",
+  "Only one provider can supply the item (sole source or proprietary item)",
+  "Compatibility with the school's existing equipment (standardisation)",
+  "Few qualified providers exist in the market for this requirement",
+  "The providers are prequalified on the school's shortlist",
+  "Additional quantities under an existing contract, on the same terms",
+  "Call-off under an existing framework contract",
+  "Best value for money for the amount involved",
+  "Specialised expertise or technical capacity is required",
+  "Promotes open, fair competition and transparency",
+  "The requirement is sensitive for security or confidentiality reasons",
+];
+
+export const DEFAULT_JUSTIFICATION = METHOD_JUSTIFICATIONS[0];
+
+const OTHER_JUSTIFICATION = "__other__";
+
 export const EMPTY_SUBMISSION: PartTwoSubmission = {
   recommendedMethod: "",
-  methodJustification: "",
+  methodJustification: DEFAULT_JUSTIFICATION,
   shortlistedProviders: "",
   biddingDocumentTeam: "",
   evaluationCommittee: "",
@@ -62,7 +88,7 @@ export function submissionFrom(
 ): PartTwoSubmission {
   return {
     recommendedMethod: d?.recommendedMethod ?? "",
-    methodJustification: d?.methodJustification ?? "",
+    methodJustification: d?.methodJustification || DEFAULT_JUSTIFICATION,
     shortlistedProviders: d?.shortlistedProviders ?? "",
     biddingDocumentTeam: d?.biddingDocumentTeam ?? "",
     evaluationCommittee: d?.evaluationCommittee ?? "",
@@ -128,7 +154,8 @@ export default function PartTwoTable({
       />
     );
     switch (key) {
-      case "1":
+      case "1": {
+        const listed = METHOD_JUSTIFICATIONS.includes(submission.methodJustification);
         return (
           <div className="space-y-1">
             <input
@@ -138,9 +165,25 @@ export default function PartTwoTable({
               className="input text-xs"
               placeholder="Method — e.g. Open Domestic Bidding"
             />
-            {area("methodJustification", "Justification", 2)}
+            <select
+              aria-label="Justification"
+              value={listed ? submission.methodJustification : OTHER_JUSTIFICATION}
+              onChange={(e) =>
+                set({ methodJustification: e.target.value === OTHER_JUSTIFICATION ? "" : e.target.value })
+              }
+              className="input text-xs"
+            >
+              {METHOD_JUSTIFICATIONS.map((j) => (
+                <option key={j} value={j}>
+                  {j}
+                </option>
+              ))}
+              <option value={OTHER_JUSTIFICATION}>Other (type your own)</option>
+            </select>
+            {!listed && area("methodJustification", "Type the justification", 2)}
           </div>
         );
+      }
       case "2":
         return area("shortlistedProviders", "One provider per line, with why each was chosen");
       case "3":

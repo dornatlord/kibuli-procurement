@@ -6,10 +6,12 @@ export interface Official {
   key: string;
   label: string;
   defaultTitle: string;
-  /** Which forms carry this name. */
+  /** Which forms carry this name, or for an office the school added, what it is responsible for. */
   usedFor: string;
   name: string;
   title: string;
+  /** Added by the school rather than printed on a form. */
+  custom: boolean;
 }
 
 export type Officials = Record<string, { name: string; title: string }>;

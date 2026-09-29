@@ -2,7 +2,7 @@ import { useState, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ROLE_ORDER, ROLE_LABELS, ROLE_DESCRIPTIONS } from "../lib/permissions";
-import BrandMark from "../components/BrandMark";
+import { KSS_BADGE } from "../lib/badge";
 import { useOnline } from "../lib/online";
 import {
   AlertIcon,
@@ -62,20 +62,18 @@ export default function LoginPage() {
     <div className="min-h-screen bg-white lg:grid lg:grid-cols-2">
       {/* Sign-in */}
       <div className="flex min-h-screen flex-col px-6 py-8 sm:px-10 lg:px-16">
-        <div className="flex items-center gap-3">
-          <BrandMark />
-          <div className="leading-tight">
-            <div className="text-sm font-semibold text-gray-900">Kibuli Secondary School</div>
-            <div className="text-xs text-gray-500">Procurement &amp; Disposal Unit</div>
-          </div>
-        </div>
-
-        <main className="flex flex-1 items-center justify-center py-12">
+        <main className="flex flex-1 items-center justify-center py-8">
           <div className="w-full max-w-sm">
-            <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Welcome back</h1>
-            <p className="mt-2 text-sm leading-6 text-gray-500">
-              Use the account your administrator set up for you.
-            </p>
+            <div className="text-center">
+              <img src={KSS_BADGE} alt="Kibuli Secondary School badge" className="mx-auto h-32 w-auto" />
+              <h1 className="mt-5 text-4xl font-extrabold uppercase leading-tight tracking-tight text-gray-900 sm:text-5xl">
+                <span className="block">Welcome to</span> <span className="block">Kibuli SS</span>
+              </h1>
+              <p className="mt-1 text-sm font-medium text-green-700">Procurement &amp; Disposal Unit</p>
+              <p className="mt-3 text-sm leading-6 text-gray-500">
+                Sign in with the account your administrator set up for you.
+              </p>
+            </div>
 
             {!online && (
               <div

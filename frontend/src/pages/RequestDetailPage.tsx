@@ -2,85 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useOfficials } from "../lib/officials";
-import type { Officials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
+import { dayFirst as formDate } from "../lib/print";
+import { printCallOffOrder, printPriceSchedule, printTForm } from "../lib/forms/requestForms";
+import type { RequestRecord as Request } from "../lib/forms/requestForms";
 import StatusBadge from "../components/StatusBadge";
 import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
 import PartTwoTable, { rowDecisionsFrom, submissionFrom } from "../components/PartTwoForm";
 import type { PartTwoSubmission, RowDecisions } from "../components/PartTwoForm";
-
-interface LineItem {
-  id: number;
-  itemNo: number;
-  description: string;
-  quantity: string;
-  unitOfMeasure: string;
-  estimatedUnitCost: string;
-  marketPrice: string;
-  totalCost: string;
-}
-
-interface Signature {
-  id: number;
-  role: string;
-  name: string;
-  title: string;
-  signedAt: string;
-}
-
-interface CommitteeDecision {
-  id: number;
-  submissionDate: string | null;
-  committeeMeetingDate: string | null;
-  meetingReference: string | null;
-  recommendedMethod: string | null;
-  methodJustification: string | null;
-  shortlistedProviders: string | null;
-  biddingDocumentTeam: string | null;
-  evaluationCommittee: string | null;
-  biddingDocumentCost: string | null;
-  otherInformation: string | null;
-  /** The committee's decision and conditions for each Part II row, keyed "1"–"6". */
-  rowDecisions: Record<string, { decision: string | null; conditions: string | null }> | null;
-  decision: string | null;
-  decisionJustification: string | null;
-}
-
-/** When each approval step happened (ISO timestamps or YYYY-MM-DD dates). */
-interface StepDates {
-  requested: string | null;
-  headOfDepartment: string | null;
-  accountingOfficer: string | null;
-  submittedToCommittee: string | null;
-  committeeMeeting: string | null;
-  chairperson: string | null;
-  secretary: string | null;
-}
-
-interface Request {
-  id: number;
-  referenceNumber: string;
-  /** Code of the budget line being spent — the fourth part of the reference. */
-  supplyCode: string | null;
-  category: string;
-  yearType: string;
-  year: number;
-  weekNumber: number;
-  budgetCategory: string;
-  procurementSize: string;
-  subjectOfProcurement: string;
-  procurementPlanReference: string;
-  locationForDelivery: string;
-  dateRequired: string;
-  estimatedTotalCost: string;
-  isMultiyear: boolean;
-  status: string;
-  createdAt: string;
-  items: LineItem[];
-  signatures: Signature[];
-  decision: CommitteeDecision | null;
-  stepDates?: StepDates;
-}
 
 /** Part II while it is being edited on the request page. */
 interface PartTwoDraft {
@@ -89,6 +18,13 @@ interface PartTwoDraft {
   meetingReference: string;
   decision: string;
   decisionJustification: string;
+}
+
+/** The LPO raised from this request, for the call-off order's provider and date. */
+interface LinkedLpo {
+  supplierName: string | null;
+  issueDate: string | null;
+  status: string;
 }
 
 /**
@@ -116,480 +52,12 @@ const NEXT_STATUS: Record<
   ],
 };
 
-/** Anything a person typed is escaped before it goes into printed HTML. */
-function esc(s: string | null | undefined) {
-  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function fmt(n: string | number | null | undefined) {
-  if (!n) return "—";
-  return Number(n).toLocaleString("en-UG");
-}
-
-/** Day-first date as on the paper form: "2026-09-09" or an ISO timestamp → "09/09/2026". */
-function formDate(v: string | null | undefined) {
-  if (!v) return "";
-  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
-  if (day) return `${day[3]}/${day[2]}/${day[1]}`;
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB");
-}
-
-function printTForm(request: Request, officials: Officials) {
-  // Standing office holders, entered once under Officials.
-  const held = (key: string) => officials[key];
-  const sigOf = (role: string) => request.signatures.find((s) => s.role === role);
-  const isMacro = request.procurementSize === "macro";
-
-  // Pad items to at least 15 rows to match official form
-  const itemRows = [...request.items];
-  while (itemRows.length < 15) itemRows.push({ id: 0, itemNo: itemRows.length + 1, description: "", quantity: "", unitOfMeasure: "", estimatedUnitCost: "", marketPrice: "", totalCost: "" });
-
-  const itemRowsHtml = itemRows.map((it, i) => `
-    <tr style="height:16px;">
-      <td class="c" style="font-size:8px;">${it.description ? i + 1 : ""}</td>
-      <td style="font-size:8px;">${esc(it.description)}</td>
-      <td class="c" style="font-size:8px;">${esc(it.quantity)}</td>
-      <td class="c" style="font-size:8px;">${esc(it.unitOfMeasure)}</td>
-      <td class="r" style="font-size:8px;">${it.estimatedUnitCost ? Number(it.estimatedUnitCost).toLocaleString("en-UG") : ""}</td>
-      <td class="r" style="font-size:8px;">${it.totalCost ? Number(it.totalCost).toLocaleString("en-UG") : ""}</td>
-    </tr>`).join("");
-
-  const totalCost = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
-  const userSig = sigOf("user_dept");
-  const hodSig  = sigOf("head_of_dept");
-  const aoSig   = sigOf("accounting_officer");
-
-  // Every Date line fills itself from when that step happened. A step that
-  // hasn't happened yet stays blank. Older API responses without stepDates
-  // fall back to the signatures.
-  const steps = request.stepDates;
-  const dateOf = {
-    requested: formDate(steps?.requested ?? userSig?.signedAt),
-    headOfDepartment: formDate(steps?.headOfDepartment ?? hodSig?.signedAt),
-    accountingOfficer: formDate(steps?.accountingOfficer ?? aoSig?.signedAt),
-    submittedToCommittee: formDate(steps?.submittedToCommittee ?? request.decision?.submissionDate),
-    committeeMeeting: formDate(steps?.committeeMeeting ?? request.decision?.committeeMeetingDate),
-    chairperson: formDate(steps?.chairperson),
-    secretary: formDate(steps?.secretary),
-  };
-  const meetingDateRef = [dateOf.committeeMeeting, request.decision?.meetingReference]
-    .filter(Boolean)
-    .join(" / ");
-
-  // Part II: the PDU's answer under each question, and the committee's
-  // decision and conditions for that row. Free text is escaped for the HTML.
-  const part2 = request.decision;
-  const escLines = (s: string | null | undefined) =>
-    (s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br/>");
-  const partTwoRowsHtml = [
-    {
-      key: "1",
-      height: 55,
-      label: "Recommended method of procurement and justification",
-      answer: [part2?.recommendedMethod, part2?.methodJustification].filter(Boolean).map(escLines).join("<br/>"),
-    },
-    {
-      key: "2",
-      height: 55,
-      label: "Names of shortlisted provider (s) and justification for selection",
-      answer: escLines(part2?.shortlistedProviders),
-    },
-    {
-      key: "3",
-      height: 55,
-      label: "Bidding document. Persons involved in preparation of proposal document <em>(Names and positions)</em>",
-      answer: escLines(part2?.biddingDocumentTeam),
-    },
-    {
-      key: "4",
-      height: 55,
-      label: "Names of persons recommended to constitute the Evaluation Committee and the justification <em>(Names and positions)</em>",
-      answer: escLines(part2?.evaluationCommittee),
-    },
-    {
-      key: "5",
-      height: 35,
-      label: "Cost of the bidding document, if any",
-      answer: part2?.biddingDocumentCost ? `UGX ${Number(part2.biddingDocumentCost).toLocaleString("en-UG")}` : "",
-    },
-    {
-      key: "6",
-      height: 35,
-      label: "Any other information",
-      answer: escLines(part2?.otherInformation),
-    },
-  ].map((r) => {
-    const decided = part2?.rowDecisions?.[r.key];
-    return `
-    <tr style="height:${r.height}px;">
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;">${r.key}.</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${r.label}${r.answer ? `<div style="margin-top:4px;">${r.answer}</div>` : ""}</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${escLines(decided?.decision)}</td>
-      <td style="border:1px solid #000;padding:3px;vertical-align:top;font-size:9px;">${escLines(decided?.conditions)}</td>
-    </tr>`;
-  }).join("");
-
-  const dotLine = (label: string, value = "") =>
-    `<div style="margin-top:5px;">${label} <span style="border-bottom:1px solid #000;display:inline-block;min-width:160px;padding-bottom:1px;">${esc(value)}</span></div>`;
-
-  const refParts = request.referenceNumber.split("/");
-  const seqNo   = refParts[refParts.length - 1] || "";
-  // References carry two digits of the year (KSS/SUPLS/26/…); the form wants all four.
-  const finYear = String(request.year);
-
-  // Macro-only pages (4 & 5)
-  const macroPages = isMacro ? `
-
-<!-- PAGE 4: Part II Contracts Committee table — landscape -->
-<div class="pg">
-  <div style="text-align:center;font-weight:bold;font-size:10px;margin-bottom:10px;">
-    PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD
-  </div>
-  <table style="width:100%;border-collapse:collapse;">
-    <tr>
-      <td style="width:5%;border:1px solid #000;padding:3px;"></td>
-      <td style="width:45%;border:1px solid #000;padding:4px;font-weight:bold;text-align:center;">Submission by the Procurement<br/>and Disposal Unit</td>
-      <td style="width:25%;border:1px solid #000;padding:4px;font-weight:bold;text-align:center;">Decision of the<br/>Contracts Committee</td>
-      <td style="width:25%;border:1px solid #000;padding:4px;font-weight:bold;text-align:center;">Conditions/<br/>Justification for Decision</td>
-    </tr>
-    <tr>
-      <td style="border:1px solid #000;padding:3px;"></td>
-      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date of Submission to Contracts Committee: <span style="font-weight:normal;">${dateOf.submittedToCommittee}</span></td>
-      <td style="border:1px solid #000;padding:4px;font-weight:bold;">Date/Reference of Contracts<br/>Committee Meeting: <span style="font-weight:normal;">${esc(meetingDateRef)}</span></td>
-      <td style="border:1px solid #000;"></td>
-    </tr>
-    ${partTwoRowsHtml}
-  </table>
-</div>
-
-<!-- PAGE 5: Documents Attached + Declarations — portrait -->
-<div class="pg">
-
-  <div style="font-size:9px;margin-bottom:16px;">
-    <div><em><strong>Documents attached:</strong></em></div>
-    <div style="margin-left:20px;margin-top:4px;">Bidding Document</div>
-  </div>
-
-  <div style="font-size:9px;margin-bottom:24px;">
-    <div style="font-weight:bold;">Declaration by Procurement and Disposal Unit</div>
-    <div style="margin-top:4px;">The information contained in this form and the attached documents is complete, true and accurate and in accordance with the Public Procurement and Disposal of Public Assets Act, 2003.</div>
-    <table style="width:100%;border-collapse:collapse;border:none;margin-top:18px;">
-      <tr>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", held("pdu_head")?.name ?? "")}</td>
-      </tr>
-      <tr>
-        <td style="border:none;">${dotLine("Position:", held("pdu_head")?.title ?? "")}</td>
-        <td style="border:none;">${dotLine("Date:", dateOf.submittedToCommittee)}</td>
-      </tr>
-    </table>
-  </div>
-
-  <div style="font-size:9px;">
-    <div style="font-weight:bold;">Declaration by Contracts Committee</div>
-    <div style="margin-top:4px;">The information contained in this form is a true and accurate record of the decision of the Contracts Committee meeting held on the above date.</div>
-
-    <table style="width:100%;border-collapse:collapse;border:none;margin-top:18px;">
-      <tr>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", held("committee_chairperson")?.name ?? "")}</td>
-      </tr>
-      <tr>
-        <td style="border:none;">Position: &nbsp;<strong>Chairperson Contracts Committee</strong></td>
-        <td style="border:none;">${dotLine("Date:", dateOf.chairperson)}</td>
-      </tr>
-    </table>
-
-    <table style="width:100%;border-collapse:collapse;border:none;margin-top:24px;">
-      <tr>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Signature:", "")}</td>
-        <td style="border:none;width:50%;padding-bottom:8px;">${dotLine("Name:", held("committee_secretary")?.name ?? "")}</td>
-      </tr>
-      <tr>
-        <td style="border:none;">Position: &nbsp;<strong>Secretary Contracts Committee</strong></td>
-        <td style="border:none;">${dotLine("Date:", dateOf.secretary)}</td>
-      </tr>
-    </table>
-  </div>
-
-</div>` : "";
-
-  const pageHeader = `
-<div style="text-align:right;font-size:9px;font-weight:bold;">FORM 5</div>
-<div style="text-align:right;font-size:8.5px;font-style:italic;">Regulation 3(1), 13(3), 15(3), 17(3) 24(2), 53(6), 54(5)</div>
-<div style="text-align:center;font-size:10px;margin-top:6px;">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
-<div style="text-align:center;font-size:10.5px;font-weight:bold;margin-top:4px;">REQUEST FOR APPROVAL OF PROCUREMENT</div>
-<div style="text-align:center;font-size:10px;font-weight:bold;margin-top:4px;">PART I: REQUEST BY USER DEPARTMENT FOR APPROVAL OF PROCUREMENT</div>`;
-
-  const page1Content = `
-${pageHeader}
-
-<table style="width:100%;border-collapse:collapse;margin-top:8px;">
-  <tr><td colspan="4" style="border:1px solid #000;padding:4px;text-align:center;font-weight:bold;">Procurement Reference Number</td></tr>
-  <tr>
-    <td style="width:30%;border:1px solid #000;padding:3px;text-align:center;">Code of Procuring and Disposing Entity</td>
-    <td style="width:30%;border:1px solid #000;padding:3px;text-align:center;">Supplies/Works/Non-consultancy<br/>services</td>
-    <td style="width:20%;border:1px solid #000;padding:3px;text-align:center;">Financial Year</td>
-    <td style="width:20%;border:1px solid #000;padding:3px;text-align:center;">Sequence Number</td>
-  </tr>
-  <tr style="height:22px;">
-    <td style="border:1px solid #000;padding:3px;">Kibuli Secondary School</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${esc(request.category)}</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${finYear}</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${
-      request.supplyCode ? `${request.supplyCode}/${seqNo}` : seqNo
-    }</td>
-  </tr>
-</table>
-
-<div style="margin-top:8px;font-size:9px;">Category of procurement and budget</div>
-<table style="width:100%;border-collapse:collapse;margin-top:2px;">
-  <tr>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Recurrent Budget</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Development Budget</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Project Code</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Project Title</td>
-  </tr>
-  <tr style="height:22px;">
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${request.budgetCategory === "recurrent" ? "✓" : ""}</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${request.budgetCategory === "development" ? "✓" : ""}</td>
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${esc((request as any).voteCode)}</td>
-    <td style="border:1px solid #000;padding:3px;">${esc((request as any).budgetItemName)}</td>
-  </tr>
-</table>
-
-<div style="margin-top:8px;font-size:9px;">Is procurement going to result into multiyear contracting?</div>
-<table style="width:100%;border-collapse:collapse;margin-top:2px;">
-  <tr>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year One</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year Two</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year Three</td>
-    <td style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Required Resources (UGX Bn) Year Four</td>
-  </tr>
-  <tr style="height:22px;"><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td><td style="border:1px solid #000;"></td></tr>
-</table>`;
-
-  const page2Content = `
-<table style="width:100%;border-collapse:collapse;">
-  <tr><td colspan="2" style="border:1px solid #000;padding:4px;font-weight:bold;">Particulars of Procurement</td></tr>
-  <tr><td style="width:35%;border:1px solid #000;padding:3px;">Subject of Procurement</td><td style="border:1px solid #000;padding:3px;">${esc(request.subjectOfProcurement)}</td></tr>
-  <tr><td style="border:1px solid #000;padding:3px;">Procurement Plan Reference</td><td style="border:1px solid #000;padding:3px;">${esc(request.procurementPlanReference)}</td></tr>
-  <tr><td style="border:1px solid #000;padding:3px;">Location for Delivery</td><td style="border:1px solid #000;padding:3px;">${esc(request.locationForDelivery)}</td></tr>
-  <tr><td style="border:1px solid #000;padding:3px;">Date Required</td><td style="border:1px solid #000;padding:3px;">${formDate(request.dateRequired)}</td></tr>
-</table>
-
-<table style="width:100%;border-collapse:collapse;margin-top:6px;">
-  <tr><td colspan="6" style="border:1px solid #000;padding:4px;text-align:center;font-weight:bold;">Details Relating to the Procurement</td></tr>
-  <tr>
-    <th style="width:5%;border:1px solid #000;padding:3px;text-align:center;">Item<br/>No.</th>
-    <th style="width:40%;border:1px solid #000;padding:3px;text-align:center;">Description<br/><em>(Attach specifications, terms of reference or scope of works)</em></th>
-    <th style="width:8%;border:1px solid #000;padding:3px;text-align:center;">Quantity</th>
-    <th style="width:10%;border:1px solid #000;padding:3px;text-align:center;">Unit of<br/>Measure</th>
-    <th style="width:18%;border:1px solid #000;padding:3px;text-align:center;">Estimated<br/>Unit Cost</th>
-    <th style="width:19%;border:1px solid #000;padding:3px;text-align:center;">Estimated Cost</th>
-  </tr>
-  ${itemRowsHtml}
-  <tr>
-    <td colspan="4" style="border:none;"></td>
-    <td colspan="2" style="border:1px solid #000;padding:3px;font-weight:bold;text-align:right;">
-      Estimated Total Cost: (Ug: x)&nbsp;&nbsp;${totalCost ? totalCost.toLocaleString("en-UG") : ""}
-    </td>
-  </tr>
-</table>`;
-
-  const page3Content = `
-<table style="width:100%;border-collapse:collapse;border:none;">
-  <tr>
-    <td style="width:50%;border:none;vertical-align:top;padding-right:16px;">
-      <div style="font-size:9px;"><strong>(1)&nbsp; Request for Procurement</strong><br/><em>(Member of user department)</em></div>
-      <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
-      <div style="margin-top:4px;">${dotLine("Name:", userSig ? userSig.name : "")}</div>
-      <div style="margin-top:4px;">${dotLine("Title:", userSig ? (userSig.title || "") : "")}</div>
-      <div style="margin-top:4px;">${dotLine("Date:", dateOf.requested)}</div>
-    </td>
-    <td style="width:50%;border:none;vertical-align:top;padding-left:16px;">
-      <div style="font-size:9px;"><strong>(2)&nbsp; Confirmation of Request</strong><br/><em>(Head of user department)</em></div>
-      <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
-      <div style="margin-top:4px;">${dotLine("Name:", hodSig ? hodSig.name : "")}</div>
-      <div style="margin-top:4px;">${dotLine("Title:", hodSig ? (hodSig.title || "") : "")}</div>
-      <div style="margin-top:4px;">${dotLine("Date:", dateOf.headOfDepartment)}</div>
-    </td>
-  </tr>
-</table>
-
-<div style="margin-top:16px;font-size:8.5px;font-style:italic;">Availability of funds to be confirmed prior to approval by Accounting Officer/ Head teacher:</div>
-<table style="width:100%;border-collapse:collapse;margin-top:4px;">
-  <tr>
-    <th style="width:20%;border:1px solid #000;padding:3px;text-align:center;">Vote/head No</th>
-    <th style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Programme</th>
-    <th style="width:25%;border:1px solid #000;padding:3px;text-align:center;">Sub-programme</th>
-    <th style="width:15%;border:1px solid #000;padding:3px;text-align:center;">Item</th>
-    <th style="width:15%;border:1px solid #000;padding:3px;text-align:center;">Balance remaining</th>
-  </tr>
-  <tr style="height:24px;">
-    <td style="border:1px solid #000;padding:3px;text-align:center;">${esc((request as any).voteCode)}</td>
-    <td style="border:1px solid #000;padding:3px;">${esc((request as any).voteName)}</td>
-    <td style="border:1px solid #000;padding:3px;">${esc((request as any).subProgrammeName)}</td>
-    <td style="border:1px solid #000;padding:3px;">${esc((request as any).budgetItemName)}</td>
-    <td style="border:1px solid #000;padding:3px;text-align:right;">${(request as any).balanceRemainingManual ? Number((request as any).balanceRemainingManual).toLocaleString("en-UG") : ""}</td>
-  </tr>
-</table>
-
-<table style="width:100%;border-collapse:collapse;border:none;margin-top:16px;">
-  <tr>
-    <td style="width:50%;border:none;vertical-align:top;">
-      <div style="font-size:9px;"><strong>(3)&nbsp; Confirmation of Funding and Approval to Procure</strong><br/><em>(Accounting Officer)</em></div>
-      <div style="margin-top:10px;">${dotLine("Signature:", "")}</div>
-      <div style="margin-top:4px;">${dotLine("Title:", aoSig ? aoSig.title || "Accounting Officer" : held("accounting_officer")?.title ?? "")}</div>
-    </td>
-    <td style="width:50%;border:none;vertical-align:top;padding-left:16px;">
-      <div style="font-size:9px;">&nbsp;</div>
-      <div style="margin-top:10px;">${dotLine("Name:", aoSig ? aoSig.name : held("accounting_officer")?.name ?? "")}</div>
-      <div style="margin-top:4px;">${dotLine("Date:", dateOf.accountingOfficer)}</div>
-    </td>
-  </tr>
-</table>
-
-<div style="margin-top:12px;font-size:7.5px;color:#777;text-align:right;border-top:1px solid #ccc;padding-top:3px;">
-  Printed: ${new Date().toLocaleString("en-UG")} &mdash; Kibuli Secondary School Procurement System
-</div>`;
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>FORM 5 &mdash; ${esc(request.referenceNumber)}</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: "Times New Roman", serif; font-size: 9px; color: #000; background: #fff; }
-
-${isMacro
-  ? `@page { size: A4 landscape; margin: 12mm 15mm; }
-.pg { width:267mm; min-height:171mm; page-break-after:always; page-break-inside:avoid; display:block; }
-.pg:last-of-type { page-break-after:auto; }`
-  : `@page { size: A4 portrait; margin: 10mm 12mm; }`
-}
-
-@media screen {
-  body { background: #888; }
-  ${isMacro
-    ? `.pg { background:#fff; margin:8mm auto; padding:12mm 15mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }`
-    : `.micro-page { background:#fff; width:190mm; margin:8mm auto; padding:10mm 12mm; box-shadow:0 2px 10px rgba(0,0,0,.4); }`
-  }
-}
-@media print {
-  body { background:#fff; }
-  .pg, .micro-page { margin:0; padding:0; box-shadow:none; }
-}
-table { width:100%; border-collapse:collapse; }
-td, th { border:1px solid #000; padding:2px 4px; vertical-align:top; font-size:8.5px; }
-</style>
-</head>
-<body>
-
-${isMacro ? `
-<div class="pg">${page1Content}</div>
-<div class="pg">${page2Content}</div>
-<div class="pg">${page3Content}</div>
-${macroPages}
-` : `
-<div class="micro-page">
-  ${page1Content}
-  <div style="margin-top:10px;">${page2Content}</div>
-  <div style="margin-top:10px;">${page3Content}</div>
-</div>
-`}
-
-</body>
-</html>`;
-
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 400);
-}
-
-/**
- * The school's "List of Supplies and Price Schedule". Its references split
- * the request's number the way the school's own do: KSS/SUPLS/26/029 as the
- * procurement reference, and the running number (00246) as the call-off order.
- */
-function printPriceSchedule(request: Request) {
-  const money = (v: string | number | null | undefined) =>
-    v === null || v === undefined || v === "" ? "" : Number(v).toLocaleString("en-UG");
-  const parts = request.referenceNumber.split("/");
-  const callOff = parts.length > 1 ? parts[parts.length - 1] : "";
-  const procurementRef = parts.length > 1 ? parts.slice(0, -1).join("/") : request.referenceNumber;
-  const total = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
-
-  const ROWS = 25;
-  const rows = Array.from({ length: Math.max(ROWS, request.items.length) }, (_, i) => {
-    const it = request.items[i];
-    if (!it) return `<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
-    return `<tr><td class="c">${i + 1}</td><td>${esc(it.description)}</td><td class="c">${
-      it.quantity ? Number(it.quantity).toLocaleString("en-UG") : ""
-    }</td><td class="c">${esc(it.unitOfMeasure ?? "")}</td><td class="r">${money(it.estimatedUnitCost)}</td><td class="r">${money(
-      it.totalCost
-    )}</td></tr>`;
-  }).join("");
-
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Price schedule — ${esc(request.referenceNumber)}</title>
-<style>
-@page { size: A4 portrait; margin: 15mm 14mm; }
-* { box-sizing: border-box; }
-body { margin: 0; color: #000; font-family: "Times New Roman", Times, serif; font-size: 13px; }
-@media screen { body { padding: 15mm 14mm; max-width: 210mm; } }
-h1 { text-align: center; font-size: 21px; margin: 0 0 16px; }
-.refs { text-align: center; font-weight: bold; font-size: 14px; line-height: 2; }
-.refs .v { font-family: Arial, Helvetica, sans-serif; margin-left: 36px; }
-table { width: 100%; border-collapse: collapse; }
-.items { margin-top: 16px; }
-.items th, .items td { border: 1.5px solid #000; padding: 2px 6px; height: 22px; }
-.items th { background: #d9d9d9; text-align: left; vertical-align: top; font-size: 14px; height: 50px; }
-.items td { font-family: Arial, Helvetica, sans-serif; font-size: 12px; }
-.c { text-align: center; }
-.r { text-align: right; white-space: nowrap; }
-.totals { width: 44%; margin-left: auto; margin-top: -1.5px; }
-.totals td { border: 1.5px solid #000; padding: 4px 6px; height: 30px; }
-.totals .label { text-align: right; font-weight: bold; font-size: 14px; width: 68%; }
-.totals .v { font-family: Arial, Helvetica, sans-serif; }
-</style></head><body>
-<h1>List of Supplies and Price Schedule</h1>
-<div class="refs">
-  <div>Procurement Reference No:<span class="v">${esc(procurementRef)}</span></div>
-  <div>Call-Off Order Reference No:<span class="v">${esc(callOff)}</span></div>
-</div>
-<table class="items">
-  <thead><tr>
-    <th style="width:6%">Item No</th><th style="width:27%">Description of Supplies</th><th style="width:10%">Quantity</th>
-    <th style="width:13%">Unit of Measure</th><th style="width:30%">Unit Price</th><th style="width:14%">Total Price</th>
-  </tr></thead>
-  <tbody>${rows}</tbody>
-</table>
-<table class="totals">
-  <tr><td class="label">Other additional costs</td><td></td></tr>
-  <tr><td class="label">Subtotal</td><td></td></tr>
-  <tr><td class="label">VAT @ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; %</td><td></td></tr>
-  <tr><td class="label">Total Price</td><td class="r v">${money(total)}</td></tr>
-</table>
-</body></html>`;
-
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 400);
-}
-
 export default function RequestDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
   const officials = useOfficials();
   const [request, setRequest] = useState<Request | null>(null);
+  const [linkedLpo, setLinkedLpo] = useState<LinkedLpo | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [partTwoEdit, setPartTwoEdit] = useState<PartTwoDraft | null>(null);
@@ -605,6 +73,15 @@ export default function RequestDetailPage() {
   }
 
   useEffect(() => { load(); }, [id]);
+
+  // Loaded up front, so printing the call-off order needs no wait.
+  useEffect(() => {
+    if (!can("purchase_orders.view")) return;
+    api
+      .get<LinkedLpo[]>(`/purchase-orders?requestId=${id}`)
+      .then((rows) => setLinkedLpo(rows.find((r) => r.status !== "cancelled") ?? null))
+      .catch(() => setLinkedLpo(null));
+  }, [id]);
 
   async function transition(next: string) {
     setActing(true);
@@ -711,6 +188,19 @@ export default function RequestDetailPage() {
                   <PrinterIcon className="h-4 w-4" />
                   Price schedule
                 </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    printCallOffOrder(request, officials, {
+                      provider: linkedLpo?.supplierName ?? null,
+                      date: linkedLpo?.issueDate ?? null,
+                    })
+                  }
+                  className="btn btn-secondary"
+                >
+                  <PrinterIcon className="h-4 w-4" />
+                  Call-off order
+                </button>
                 <button type="button" onClick={() => printTForm(request, officials)} className="btn btn-secondary">
                   <PrinterIcon className="h-4 w-4" />
                   Print TFORM 5
@@ -761,7 +251,7 @@ export default function RequestDetailPage() {
         </Field>
         <Field label="Supply code">{request.supplyCode || "—"}</Field>
         <Field label="Location">{request.locationForDelivery || "—"}</Field>
-        <Field label="Date required">{formDate(request.dateRequired) || "—"}</Field>
+        <Field label="Date required (delivery)">{formDate(request.dateRequired) || "—"}</Field>
         <Field label="Plan reference">{request.procurementPlanReference || "—"}</Field>
         <Field label="Estimated total">
           {request.estimatedTotalCost

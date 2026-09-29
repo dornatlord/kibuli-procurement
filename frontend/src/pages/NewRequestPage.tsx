@@ -709,8 +709,9 @@ export default function NewRequestPage() {
             <input value={location} readOnly className="input bg-gray-100 cursor-not-allowed" />
           </div>
           <div>
-            <label className="label">Date Required</label>
+            <label className="label">Date Required (delivery date)</label>
             <input type="date" value={dateRequired} onChange={(e) => setDateRequired(e.target.value)} className="input" />
+            <p className="mt-1 text-xs text-gray-500">Printed as the delivery date on the LPO.</p>
           </div>
           <div>
             <label className="label">Estimated Total Cost (UGX)</label>

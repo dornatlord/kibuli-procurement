@@ -6,6 +6,7 @@ import PageHeader from "../components/PageHeader";
 import ReportTabs from "../components/ReportTabs";
 import { PrinterIcon } from "../components/icons";
 import { PageLoading } from "../components/Loading";
+import { cornerBadge, esc, flowCss, frameClose, frameOpen, openPrint } from "../lib/print";
 
 interface PartI {
   referenceNumber: string;
@@ -78,51 +79,52 @@ export default function MonthlyReportPage() {
 
   function printReport() {
     if (!data) return;
+    const day = (v: string) => esc(new Date(v).toLocaleDateString("en-GB"));
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Monthly Report — ${MONTHS[month - 1]} ${year}</title>
 <style>
-* { box-sizing:border-box; margin:0; padding:0; }
-body { font-family: Arial, sans-serif; font-size:9px; color:#000; padding:12mm 15mm; }
+${flowCss("landscape")}
+body { font-family: Arial, sans-serif; font-size: 11pt; }
 table { width:100%; border-collapse:collapse; margin-top:6px; margin-bottom:14px; }
-td,th { border:1px solid #000; padding:3px 4px; }
+thead { display: table-header-group; }
+td,th { border:1px solid #000; padding:3px 4px; vertical-align: top; }
 .hdr { text-align:center; }
 .part { font-weight:bold; background:#eee; text-align:center; padding:4px; margin-top:14px; }
-@page { size:A4 landscape; margin:0; }
+.r { text-align: right; white-space: nowrap; }
+.none { text-align:center; color:#666; }
 </style></head><body>
-  <div class="hdr" style="font-size:11px;font-weight:bold;">FORM 2 — Regulation 15(1)</div>
-  <div class="hdr" style="font-size:10px;">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
-  <div class="hdr" style="font-size:11px;font-weight:bold;">MONTHLY REPORT ON PROCUREMENT</div>
+${cornerBadge}
+${frameOpen}
+  <div class="hdr" style="font-weight:bold;">FORM 2 — Regulation 15(1)</div>
+  <div class="hdr">THE PUBLIC PROCUREMENT AND DISPOSAL OF PUBLIC ASSETS ACT, 2003</div>
+  <div class="hdr" style="font-size:12.5pt;font-weight:bold;">MONTHLY REPORT ON PROCUREMENT</div>
   <div class="hdr">KIBULI SECONDARY SCHOOL — ${MONTHS[month - 1]} ${year}</div>
 
   <div class="part">PART I: CONTRACTS AWARDED (except Micro Procurements)</div>
   <table>
-    <tr><th>Ref No</th><th>Subject</th><th>Category</th><th>Provider</th><th>Provider Category</th><th>Target Group</th><th>Date of Award</th><th>Market Price</th><th>Contract Value</th><th>Beneficial Ownership</th></tr>
-    ${data.partI.map((r) => `<tr><td>${r.referenceNumber}</td><td>${r.subject || ""}</td><td>${r.category}</td><td>${r.providerName || ""}</td><td>${r.providerCategory || ""}</td><td>${r.targetGroup || ""}</td><td>${new Date(r.dateOfAward).toLocaleDateString("en-UG")}</td><td style="text-align:right;">${fmt(r.marketPrice)}</td><td style="text-align:right;">${fmt(r.contractValue)}</td><td>${r.ownerNames || ""}</td></tr>`).join("") || `<tr><td colspan="10" style="text-align:center;color:#888;">No contracts awarded this month</td></tr>`}
+    <thead><tr><th>Ref No</th><th>Subject</th><th>Category</th><th>Provider</th><th>Provider Category</th><th>Target Group</th><th>Date of Award</th><th>Market Price</th><th>Contract Value</th><th>Beneficial Ownership</th></tr></thead>
+    ${data.partI.map((r) => `<tr><td>${esc(r.referenceNumber)}</td><td>${esc(r.subject)}</td><td>${esc(r.category)}</td><td>${esc(r.providerName)}</td><td>${esc(r.providerCategory)}</td><td>${esc(r.targetGroup)}</td><td>${day(r.dateOfAward)}</td><td class="r">${fmt(r.marketPrice)}</td><td class="r">${fmt(r.contractValue)}</td><td>${esc(r.ownerNames)}</td></tr>`).join("") || `<tr><td colspan="10" class="none">No contracts awarded this month</td></tr>`}
   </table>
 
   <div class="part">PART II: CONTRACTS AMENDED</div>
   <table>
-    <tr><th>Ref No</th><th>Contract No</th><th>Subject</th><th>Provider</th><th>Date of Amendment</th><th>Value of Amendment</th><th>Revised Contract Value</th></tr>
-    ${data.partII.map((r) => `<tr><td>${r.referenceNumber || ""}</td><td>${r.contractNumber}</td><td>${r.subject}</td><td>${r.providerName || ""}</td><td>${new Date(r.amendmentDate).toLocaleDateString("en-UG")}</td><td style="text-align:right;">${fmt(r.valueChange)}</td><td style="text-align:right;">${fmt(r.revisedContractValue)}</td></tr>`).join("") || `<tr><td colspan="7" style="text-align:center;color:#888;">No amendments this month</td></tr>`}
+    <thead><tr><th>Ref No</th><th>Contract No</th><th>Subject</th><th>Provider</th><th>Date of Amendment</th><th>Value of Amendment</th><th>Revised Contract Value</th></tr></thead>
+    ${data.partII.map((r) => `<tr><td>${esc(r.referenceNumber)}</td><td>${esc(r.contractNumber)}</td><td>${esc(r.subject)}</td><td>${esc(r.providerName)}</td><td>${day(r.amendmentDate)}</td><td class="r">${fmt(r.valueChange)}</td><td class="r">${fmt(r.revisedContractValue)}</td></tr>`).join("") || `<tr><td colspan="7" class="none">No amendments this month</td></tr>`}
   </table>
 
   <div class="part">PART III: CONTRACTS COMPLETED</div>
   <table>
-    <tr><th>Ref No</th><th>Contract No</th><th>Subject</th><th>Provider</th><th>Category</th><th>Contract Value</th></tr>
-    ${data.partIII.map((r) => `<tr><td>${r.referenceNumber || ""}</td><td>${r.contractNumber}</td><td>${r.subject}</td><td>${r.providerName || ""}</td><td>${r.providerCategory || ""}</td><td style="text-align:right;">${fmt(r.contractValue)}</td></tr>`).join("") || `<tr><td colspan="6" style="text-align:center;color:#888;">No contracts completed this month</td></tr>`}
+    <thead><tr><th>Ref No</th><th>Contract No</th><th>Subject</th><th>Provider</th><th>Category</th><th>Contract Value</th></tr></thead>
+    ${data.partIII.map((r) => `<tr><td>${esc(r.referenceNumber)}</td><td>${esc(r.contractNumber)}</td><td>${esc(r.subject)}</td><td>${esc(r.providerName)}</td><td>${esc(r.providerCategory)}</td><td class="r">${fmt(r.contractValue)}</td></tr>`).join("") || `<tr><td colspan="6" class="none">No contracts completed this month</td></tr>`}
   </table>
 
   <div class="part">PART IV: MICRO PROCUREMENTS</div>
   <table>
-    <tr><th>Ref No</th><th>Subject</th><th>Item</th><th>Date of Award</th><th>Value</th></tr>
-    ${data.partIV.map((r) => `<tr><td>${r.referenceNumber}</td><td>${r.subject || ""}</td><td>${r.itemDescription || ""}</td><td>${new Date(r.dateOfAward).toLocaleDateString("en-UG")}</td><td style="text-align:right;">${fmt(r.estimatedTotalCost)}</td></tr>`).join("") || `<tr><td colspan="5" style="text-align:center;color:#888;">No micro procurements this month</td></tr>`}
+    <thead><tr><th>Ref No</th><th>Subject</th><th>Item</th><th>Date of Award</th><th>Value</th></tr></thead>
+    ${data.partIV.map((r) => `<tr><td>${esc(r.referenceNumber)}</td><td>${esc(r.subject)}</td><td>${esc(r.itemDescription)}</td><td>${day(r.dateOfAward)}</td><td class="r">${fmt(r.estimatedTotalCost)}</td></tr>`).join("") || `<tr><td colspan="5" class="none">No micro procurements this month</td></tr>`}
   </table>
+${frameClose}
 </body></html>`;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => win.print(), 400);
+    openPrint(html);
   }
 
   return (
