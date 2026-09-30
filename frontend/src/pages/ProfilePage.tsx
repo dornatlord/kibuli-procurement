@@ -476,6 +476,7 @@ const ACTIONS: Record<string, string> = {
   "plan_item.created": "Added to the procurement plan",
   "plan_item.updated": "Updated the procurement plan",
   "termly_report.saved": "Saved a termly PPDA return",
+  "termly_report.imported": "Imported a termly PPDA return",
   "settings.terms_updated": "Changed the school terms",
   "user.created": "Added a user",
   "user.updated": "Updated a user",
@@ -513,7 +514,7 @@ function describe(entry: Entry) {
       : ACTIONS[entry.action] ?? capitalise(entry.action.replace(/[._]/g, " "));
   const ref =
     d.referenceNumber ??
-    (d.poNumber ? `LPO ${d.poNumber}` : null) ??
+    (d.poNumber ? `LPO ${d.poNumber}${d.year ? `/${d.year}` : ""}` : null) ??
     d.grnNumber ??
     d.invoiceNumber ??
     d.contractNumber ??

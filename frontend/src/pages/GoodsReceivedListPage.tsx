@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { lpoNumber } from "../lib/forms/lpoForms";
 import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
@@ -12,6 +13,7 @@ interface GRNRow {
   status: string;
   receivedDate: string;
   poNumber: string | null;
+  poYear?: number | null;
   supplierName: string | null;
   receivedByName: string | null;
 }
@@ -58,7 +60,7 @@ export default function GoodsReceivedListPage() {
               {rows.map((g) => (
                 <tr key={g.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 font-mono text-xs">{g.grnNumber}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{g.poNumber || "—"}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{lpoNumber({ poNumber: g.poNumber, year: g.poYear }) || "—"}</td>
                   <td className="px-4 py-2">{g.supplierName || "—"}</td>
                   <td className="px-4 py-2 text-xs">{g.receivedDate}</td>
                   <td className="px-4 py-2 text-xs text-gray-500">{g.receivedByName || "—"}</td>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { lpoNumber } from "../lib/forms/lpoForms";
 import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
@@ -14,6 +15,7 @@ interface InvoiceRow {
   status: string;
   paidDate: string | null;
   poNumber: string | null;
+  poYear?: number | null;
   supplierName: string | null;
   poMatched: boolean | null;
   goodsReceived: boolean | null;
@@ -82,7 +84,7 @@ export default function InvoicesListPage() {
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 font-mono text-xs">{r.invoiceNumber}</td>
                   <td className="px-4 py-2">{r.supplierName || "—"}</td>
-                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{r.poNumber || "—"}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{lpoNumber({ poNumber: r.poNumber, year: r.poYear }) || "—"}</td>
                   <td className="px-4 py-2 text-right">{Number(r.amount).toLocaleString("en-UG")}</td>
                   <td className="px-4 py-2">
                     <div className="flex gap-1.5">

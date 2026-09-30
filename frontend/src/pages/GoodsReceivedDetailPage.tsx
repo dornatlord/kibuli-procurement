@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { lpoNumber } from "../lib/forms/lpoForms";
 import { useAuth } from "../lib/auth";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { PageLoading } from "../components/Loading";
@@ -22,6 +23,7 @@ interface GRNDetail {
   receivedDate: string;
   notes: string | null;
   poNumber: string | null;
+  poYear?: number | null;
   supplierName: string | null;
   receivedByName: string | null;
   items: GRNItem[];
@@ -59,7 +61,7 @@ export default function GoodsReceivedDetailPage() {
         <div>
           <h1 className="page-title font-mono">{grn.grnNumber}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {grn.poNumber} · {grn.supplierName}
+            {lpoNumber({ poNumber: grn.poNumber, year: grn.poYear })} · {grn.supplierName}
           </p>
         </div>
         <Badge tone={STATUS_TONES.grn[grn.status] ?? "gray"} label={statusLabel(grn.status)} />

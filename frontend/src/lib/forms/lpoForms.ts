@@ -15,6 +15,8 @@ export interface LpoItem {
 export interface LpoRecord {
   id: number;
   poNumber: string;
+  /** Numbers start again at 1 each year; the year tells LPO 1 of 2025 from LPO 1 of 2026. */
+  year?: number | null;
   status: string;
   issueDate: string | null;
   expectedDeliveryDate: string | null;
@@ -39,6 +41,14 @@ export interface LpoRecord {
 
 /** The date goods are due: the LPO's own, or else the date the request needs them by. */
 export const deliveryDateOf = (po: LpoRecord) => po.expectedDeliveryDate || po.requestDateRequired || null;
+
+/**
+ * How the system names an LPO: "3/2026". Numbers start again at 1 each year,
+ * like the LPO books, so the year is what tells LPO 1 of 2025 from LPO 1 of
+ * 2026. The printed LPO keeps just its red number, as in the book.
+ */
+export const lpoNumber = (po: { poNumber: string | null; year?: number | null }) =>
+  po.poNumber ? (po.year ? `${po.poNumber}/${po.year}` : po.poNumber) : "";
 
 // ── The LPO ─────────────────────────────────────────────────────────────
 
@@ -158,7 +168,7 @@ ${bottom}
     most: { first: LPO_FIRST_PAGE, rest: LPO_LATER_PAGES },
   });
 
-  openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>LPO No. ${esc(po.poNumber)}</title>
+  openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>LPO No. ${esc(lpoNumber(po))}</title>
 <style>${LPO_CSS}</style></head><body>${sheets}</body></html>`);
 }
 
@@ -183,7 +193,7 @@ export function completionDefaults(po: LpoRecord, officials: Officials): Complet
     department: po.requestDepartment ?? "",
     service,
     completed: po.items.length
-      ? `${po.items.map((it) => it.description).join(", ")} as per LPO No. ${po.poNumber}`
+      ? `${po.items.map((it) => it.description).join(", ")} as per LPO No. ${lpoNumber(po)}`
       : "",
     submittedBy: officials.contract_manager?.name ?? "",
     verifiedBy: officials.deputy_head_teacher?.name ?? "",
@@ -201,7 +211,7 @@ export function printCompletionCertificate(po: LpoRecord, details: CompletionDet
     <div class="row sub"><span class="num"></span><span class="role">${role}</span><span class="spacer"></span><span class="side">Sign :</span>${dotted("", false)}</div>
   </div>`;
 
-  openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Completion Certificate — LPO No. ${esc(po.poNumber)}</title>
+  openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Completion Certificate — LPO No. ${esc(lpoNumber(po))}</title>
 <style>
 ${sheetCss("portrait", "18mm 18mm 14mm 26mm")}
 body { font-family: Calibri, Carlito, Arial, Helvetica, sans-serif; font-size: 13pt; }
@@ -227,7 +237,7 @@ h2 { text-align: center; font-size: 14pt; font-weight: bold; margin: 0 0 12mm; }
   <h1>KIBULI SECONDARY SCHOOL</h1>
   <h2>COMPLETION CERTIFICATE</h2>
 
-  <div class="row"><span class="label">Date:</span>${dotted(dayFirst(details.date), false)}<span class="label side">Order No:</span>${dotted(po.poNumber)}</div>
+  <div class="row"><span class="label">Date:</span>${dotted(dayFirst(details.date), false)}<span class="label side">Order No:</span>${dotted(lpoNumber(po))}</div>
   <div class="row"><span class="label">Department :</span>${dotted(details.department)}</div>
   <div class="row"><span class="label">Service :</span>${dotted(details.service)}</div>
   <div class="row"><span class="label">Procurement Ref NO:</span>${dotted(po.referenceNumber ?? "")}</div>

@@ -7,7 +7,7 @@ import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon, XIcon } from "../components/icons";
 import { shillingsInWords } from "../lib/words";
 import { dayFirst, money } from "../lib/print";
-import { completionDefaults, deliveryDateOf, printCompletionCertificate, printLpo } from "../lib/forms/lpoForms";
+import { completionDefaults, deliveryDateOf, lpoNumber, printCompletionCertificate, printLpo } from "../lib/forms/lpoForms";
 import type { CompletionDetails, LpoRecord } from "../lib/forms/lpoForms";
 
 const NEXT: Record<string, { next: string; label: string }[]> = {
@@ -99,7 +99,7 @@ export default function PurchaseOrderDetailPage() {
         <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="page-title">LPO No. {po.poNumber}</h1>
+              <h1 className="page-title">LPO No. {lpoNumber(po)}</h1>
               <Badge tone={STATUS_TONES.po[po.status] ?? "gray"} label={statusLabel(po.status)} />
             </div>
             <p className="mt-1 text-sm text-gray-500">

@@ -1,9 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
+import { lpoNumber } from "../lib/forms/lpoForms";
 
 interface Supplier { id: number; name: string; }
-interface PORow { id: number; poNumber: string; supplierId: number; supplierName: string | null; }
+interface PORow { id: number; poNumber: string; year?: number | null; supplierId: number; supplierName: string | null; }
 
 export default function NewInvoicePage() {
   const navigate = useNavigate();
@@ -116,7 +117,7 @@ export default function NewInvoicePage() {
             <select value={purchaseOrderId} onChange={(e) => setPurchaseOrderId(e.target.value ? Number(e.target.value) : "")} className="input">
               <option value="">— No PO —</option>
               {pos.map((p) => (
-                <option key={p.id} value={p.id}>{p.poNumber}</option>
+                <option key={p.id} value={p.id}>{lpoNumber(p)}</option>
               ))}
             </select>
           </div>

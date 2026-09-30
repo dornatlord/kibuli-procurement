@@ -22,26 +22,31 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 };
 
-/** LPO numbers count up from 1 and never restart, like the school's numbered LPO books. */
-async function nextPoNumber(): Promise<string> {
+/** The year LPOs are numbered in, by Kampala's calendar. */
+const lpoYear = () =>
+  Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala", year: "numeric" }).format(new Date()));
+
+/** LPO numbers count up from 1 and start again each year, like the school's LPO books. */
+async function nextPoNumber(year: number): Promise<string> {
   const [row] = await db
     .select({ last: sql<number>`COALESCE(MAX(CAST(po_number AS INTEGER)), 0)` })
     .from(purchaseOrders)
-    .where(sql`po_number ~ '^[0-9]+$'`);
+    .where(and(eq(purchaseOrders.year, year), sql`po_number ~ '^[0-9]+$'`));
   return String(Number(row?.last ?? 0) + 1);
 }
 
 /**
- * Saves an LPO under the next number. Two LPOs saved at the same moment can
- * pick the same number; the unique constraint catches that and the later one
- * takes the number after.
+ * Saves an LPO under the year's next number. Two LPOs saved at the same moment
+ * can pick the same number; the unique constraint catches that and the later
+ * one takes the number after.
  */
-async function insertWithNextNumber(values: Omit<typeof purchaseOrders.$inferInsert, "poNumber">) {
+async function insertWithNextNumber(values: Omit<typeof purchaseOrders.$inferInsert, "poNumber" | "year">) {
+  const year = lpoYear();
   for (let attempt = 0; ; attempt++) {
     try {
       const [po] = await db
         .insert(purchaseOrders)
-        .values({ ...values, poNumber: await nextPoNumber() })
+        .values({ ...values, year, poNumber: await nextPoNumber(year) })
         .returning();
       return po;
     } catch (err) {
@@ -64,6 +69,7 @@ router.get("/", requirePermission("purchase_orders.view"), async (req, res) => {
     .select({
       id: purchaseOrders.id,
       poNumber: purchaseOrders.poNumber,
+      year: purchaseOrders.year,
       status: purchaseOrders.status,
       issueDate: purchaseOrders.issueDate,
       expectedDeliveryDate: purchaseOrders.expectedDeliveryDate,
@@ -88,6 +94,7 @@ router.get("/:id", requirePermission("purchase_orders.view"), async (req, res) =
     .select({
       id: purchaseOrders.id,
       poNumber: purchaseOrders.poNumber,
+      year: purchaseOrders.year,
       status: purchaseOrders.status,
       issueDate: purchaseOrders.issueDate,
       expectedDeliveryDate: purchaseOrders.expectedDeliveryDate,
@@ -203,6 +210,7 @@ router.post("/", requirePermission("purchase_orders.create"), async (req, res) =
 
   await logAudit(req.session.userId!, "purchase_order.created", "purchase_order", po.id, {
     poNumber: po.poNumber,
+    year: po.year,
     supplierId,
   });
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { lpoNumber } from "../lib/forms/lpoForms";
 import { PageLoading } from "../components/Loading";
 
 interface POItem {
@@ -12,6 +13,7 @@ interface POItem {
 interface PODetail {
   id: number;
   poNumber: string;
+  year?: number | null;
   supplierName: string | null;
   items: POItem[];
 }
@@ -105,7 +107,7 @@ export default function NewGoodsReceivedPage() {
       <div>
         <h1 className="page-title">Record Goods Received</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Against <span className="font-mono">{po.poNumber}</span> — {po.supplierName}
+          Against <span className="font-mono">LPO {lpoNumber(po)}</span> — {po.supplierName}
         </p>
       </div>
 

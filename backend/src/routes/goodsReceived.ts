@@ -33,6 +33,7 @@ router.get("/", requirePermission("goods_received.view"), async (_req, res) => {
       createdAt: goodsReceivedNotes.createdAt,
       purchaseOrderId: goodsReceivedNotes.purchaseOrderId,
       poNumber: purchaseOrders.poNumber,
+      poYear: purchaseOrders.year,
       supplierName: suppliers.name,
       receivedByName: users.name,
     })
@@ -55,6 +56,7 @@ router.get("/:id", requirePermission("goods_received.view"), async (req, res) =>
       notes: goodsReceivedNotes.notes,
       purchaseOrderId: goodsReceivedNotes.purchaseOrderId,
       poNumber: purchaseOrders.poNumber,
+      poYear: purchaseOrders.year,
       supplierName: suppliers.name,
       receivedByName: users.name,
     })

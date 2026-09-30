@@ -54,6 +54,7 @@ router.get("/", requirePermission("invoices.view"), async (_req, res) => {
       paidDate: invoices.paidDate,
       purchaseOrderId: invoices.purchaseOrderId,
       poNumber: purchaseOrders.poNumber,
+      poYear: purchaseOrders.year,
       supplierName: suppliers.name,
     })
     .from(invoices)
@@ -77,6 +78,7 @@ router.get("/:id", requirePermission("invoices.view"), async (req, res) => {
       notes: invoices.notes,
       purchaseOrderId: invoices.purchaseOrderId,
       poNumber: purchaseOrders.poNumber,
+      poYear: purchaseOrders.year,
       poTotalAmount: purchaseOrders.totalAmount,
       supplierName: suppliers.name,
     })

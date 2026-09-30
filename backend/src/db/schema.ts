@@ -14,6 +14,7 @@ import {
   varchar,
   json,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const roleEnum = pgEnum("user_role", [
   "administrator",
@@ -331,7 +332,12 @@ export const suppliers = pgTable("suppliers", {
 
 export const purchaseOrders = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
-  poNumber: text("po_number").unique().notNull(),
+  // Numbered from 1 again each year, like the school's LPO books (migration 013):
+  // LPO 1 of 2025 and LPO 1 of 2026 are told apart by the year.
+  poNumber: text("po_number").notNull(),
+  year: integer("year")
+    .notNull()
+    .default(sql`EXTRACT(YEAR FROM (now() AT TIME ZONE 'Africa/Kampala'))::integer`),
   procurementRequestId: integer("procurement_request_id").references(
     () => procurementRequests.id
   ),
@@ -349,7 +355,7 @@ export const purchaseOrders = pgTable("purchase_orders", {
     .references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [unique("purchase_orders_year_po_number_key").on(t.year, t.poNumber)]);
 
 export const purchaseOrderItems = pgTable("purchase_order_items", {
   id: serial("id").primaryKey(),
