@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 
-interface Supplier { id: number; name: string; }
+interface Supplier { id: number; name: string; onThisYearsList?: boolean; }
 
 export default function NewContractPage() {
   const navigate = useNavigate();
@@ -96,6 +96,9 @@ export default function NewContractPage() {
               {suggestions.map((s) => (
                 <button key={s.id} type="button" onMouseDown={() => { setSupplierId(s.id); setSupplierQuery(s.name); setShowSuggestions(false); }} className="w-full text-left px-3 py-2 text-xs hover:bg-green-50">
                   {s.name}
+                  {s.onThisYearsList === false && (
+                    <span className="ml-2 text-amber-700">not on this year’s list yet: joins it with this contract</span>
+                  )}
                 </button>
               ))}
             </div>

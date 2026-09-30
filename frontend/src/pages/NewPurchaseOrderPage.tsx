@@ -10,6 +10,8 @@ interface Supplier {
   name: string;
   phone?: string | null;
   address?: string | null;
+  /** From the search: false for a supplier not on this year’s list, who joins it with this LPO. */
+  onThisYearsList?: boolean;
 }
 
 interface LpoItem {
@@ -233,6 +235,9 @@ export default function NewPurchaseOrderPage() {
                 >
                   <span className="font-medium text-gray-900">{s.name}</span>
                   {s.phone && <span className="ml-2 text-gray-500">{s.phone}</span>}
+                  {s.onThisYearsList === false && (
+                    <span className="ml-2 text-xs text-amber-700">not on this year’s list yet: joins it with this LPO</span>
+                  )}
                 </button>
               ))}
             </div>

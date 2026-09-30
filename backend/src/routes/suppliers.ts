@@ -1,41 +1,115 @@
 import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
-import { suppliers } from "../db/schema.js";
-import { and, asc, eq, ilike } from "drizzle-orm";
+import { supplierYears, suppliers } from "../db/schema.js";
+import { and, asc, desc, eq, getTableColumns, ilike, sql } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
+import { thisYear, yearFrom } from "../lib/years.js";
+import { putOnYearsList, yearsOnList } from "../lib/supplierYears.js";
 
 const router = asyncRouter();
+
+// Each supplier carries `years`: the years' lists it's on. The page shows one
+// year's list, or every supplier the school has ever had.
 
 router.get("/", requirePermission("suppliers.view"), async (req, res) => {
   const includeInactive = req.query.includeInactive === "true";
   const rows = await db
-    .select()
+    .select({ ...getTableColumns(suppliers), years: yearsOnList })
     .from(suppliers)
     .where(includeInactive ? undefined : eq(suppliers.isActive, true))
     .orderBy(asc(suppliers.name));
   res.json(rows);
 });
 
-/** Used to pick a supplier when creating a PO, contract, or shortlisting a bid. */
+/**
+ * Used to pick a supplier when creating an LPO, contract or invoice. This
+ * year's list comes first; anyone else is marked, and joins this year's list
+ * when an LPO or contract is made out to them.
+ */
 router.get("/search", requirePermission("suppliers.view"), async (req, res) => {
   const q = String(req.query.q || "");
   if (q.length < 2) {
     res.json([]);
     return;
   }
+  const onThisYearsList = sql<boolean>`exists (
+    select 1 from supplier_years sy where sy.supplier_id = ${suppliers.id} and sy.year = ${thisYear()}
+  )`;
   const rows = await db
-    .select()
+    .select({ ...getTableColumns(suppliers), onThisYearsList })
     .from(suppliers)
     .where(and(ilike(suppliers.name, `%${q}%`), eq(suppliers.isActive, true)))
-    .orderBy(asc(suppliers.name))
+    .orderBy(desc(onThisYearsList), asc(suppliers.name))
     .limit(10);
   res.json(rows);
 });
 
+/**
+ * Starts a year's list from another year's: everyone on it, or just the
+ * suppliers ticked. (Starting afresh needs nothing: add suppliers one by one.)
+ */
+router.post("/lists/:year/start", requirePermission("suppliers.manage"), async (req, res) => {
+  const year = yearFrom(req.params.year);
+  const from = yearFrom(req.body?.from);
+  const chosen: unknown = req.body?.supplierIds;
+  if (!year || !from || from === year || (chosen !== undefined && !Array.isArray(chosen))) {
+    res.status(400).json({ error: "Choose the year to carry suppliers from." });
+    return;
+  }
+  const onFrom = await db
+    .select({ id: supplierYears.supplierId })
+    .from(supplierYears)
+    .where(eq(supplierYears.year, from));
+  const fromIds = new Set(onFrom.map((r) => r.id));
+  // Only suppliers on the other year's list can be carried from it.
+  const ids = Array.isArray(chosen) ? chosen.map(Number).filter((id) => fromIds.has(id)) : [...fromIds];
+  const added = await putOnYearsList(ids, year, req.session.userId!);
+  await logAudit(req.session.userId!, "suppliers.list_started", "supplier_list", year, {
+    year,
+    from,
+    carried: added.length,
+    of: fromIds.size,
+  });
+  res.json({ added: added.length });
+});
+
+/** Puts a supplier on a year's list. */
+router.post("/:id/years/:year", requirePermission("suppliers.manage"), async (req, res) => {
+  const id = Number(req.params.id);
+  const year = yearFrom(req.params.year);
+  const [supplier] = await db.select({ id: suppliers.id, name: suppliers.name }).from(suppliers).where(eq(suppliers.id, id));
+  if (!supplier || !year) {
+    res.status(404).json({ error: "Supplier not found" });
+    return;
+  }
+  const added = await putOnYearsList([id], year, req.session.userId!);
+  if (added.length) await logAudit(req.session.userId!, "supplier.listed", "supplier", id, { name: supplier.name, year });
+  res.json({ added: added.length > 0 });
+});
+
+/** Takes a supplier off a year's list. The supplier and its records stay. */
+router.delete("/:id/years/:year", requirePermission("suppliers.manage"), async (req, res) => {
+  const id = Number(req.params.id);
+  const year = yearFrom(req.params.year);
+  if (!year) {
+    res.status(400).json({ error: "Choose a year." });
+    return;
+  }
+  const removed = await db
+    .delete(supplierYears)
+    .where(and(eq(supplierYears.supplierId, id), eq(supplierYears.year, year)))
+    .returning({ id: supplierYears.supplierId });
+  if (removed.length) {
+    const [supplier] = await db.select({ name: suppliers.name }).from(suppliers).where(eq(suppliers.id, id));
+    await logAudit(req.session.userId!, "supplier.unlisted", "supplier", id, { name: supplier?.name, year });
+  }
+  res.json({ removed: removed.length > 0 });
+});
+
 router.get("/:id", requirePermission("suppliers.view"), async (req, res) => {
   const [supplier] = await db
-    .select()
+    .select({ ...getTableColumns(suppliers), years: yearsOnList })
     .from(suppliers)
     .where(eq(suppliers.id, Number(req.params.id)));
   if (!supplier) {
@@ -87,11 +161,17 @@ router.post("/", requirePermission("suppliers.manage"), async (req, res) => {
     })
     .returning();
 
+  // A new supplier joins the list of the year it's added under: this year's
+  // unless the page is showing another.
+  const year = yearFrom(req.body?.year) ?? thisYear();
+  await putOnYearsList([supplier.id], year, req.session.userId!);
+
   await logAudit(req.session.userId!, "supplier.created", "supplier", supplier.id, {
     name: supplier.name,
+    year,
   });
 
-  res.status(201).json(supplier);
+  res.status(201).json({ ...supplier, years: [year] });
 });
 
 router.patch("/:id", requirePermission("suppliers.manage"), async (req, res) => {

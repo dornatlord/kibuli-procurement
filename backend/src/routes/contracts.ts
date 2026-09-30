@@ -9,6 +9,8 @@ import {
 import { eq, desc, sql } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
+import { thisYear } from "../lib/years.js";
+import { putOnYearsList } from "../lib/supplierYears.js";
 
 const router = asyncRouter();
 
@@ -120,6 +122,9 @@ router.post("/", requirePermission("contracts.manage"), async (req, res) => {
       createdBy: req.session.userId!,
     })
     .returning();
+
+  // A supplier the school contracts with is on that year's supplier list.
+  await putOnYearsList([Number(supplierId)], thisYear(), req.session.userId!);
 
   await logAudit(req.session.userId!, "contract.created", "contract", contract.id, {
     contractNumber,

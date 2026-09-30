@@ -12,6 +12,7 @@ import { eq, desc, sql, and } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { thisYear } from "../lib/years.js";
+import { putOnYearsList } from "../lib/supplierYears.js";
 
 const router = asyncRouter();
 
@@ -205,6 +206,9 @@ router.post("/", requirePermission("purchase_orders.create"), async (req, res) =
       totalPrice: String(qty * price),
     });
   }
+
+  // A supplier the school orders from is on that year's supplier list.
+  await putOnYearsList([Number(supplierId)], po.year, req.session.userId!);
 
   await logAudit(req.session.userId!, "purchase_order.created", "purchase_order", po.id, {
     poNumber: po.poNumber,

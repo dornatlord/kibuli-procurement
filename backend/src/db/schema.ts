@@ -350,6 +350,23 @@ export const suppliers = pgTable("suppliers", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/**
+ * Which year's supplier list a supplier is on (migration 015). Each year the
+ * school carries last year's list forward, picks who to keep, or starts afresh.
+ */
+export const supplierYears = pgTable(
+  "supplier_years",
+  {
+    supplierId: integer("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    year: integer("year").notNull(),
+    addedBy: integer("added_by").references(() => users.id),
+    addedAt: timestamp("added_at").defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.supplierId, t.year] })]
+);
+
 export const purchaseOrders = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
   // Numbered from 1 again each year, like the school's LPO books (migration 013):
