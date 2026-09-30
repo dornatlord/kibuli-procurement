@@ -79,6 +79,11 @@ export interface RequestRecord {
   voteName?: string | null;
   subProgrammeName?: string | null;
   budgetItemName?: string | null;
+  /** The budget line's number within its sub-programme (or vote): the 4 in 2212-4. */
+  budgetLineNumber?: number | null;
+  /** TFORM 5's Project Code and Title, e.g. 2212-4 and "Civil works". */
+  projectCode?: string | null;
+  projectTitle?: string | null;
   status: string;
   createdAt: string;
   items: RequestLineItem[];
@@ -235,8 +240,8 @@ export function printTForm(request: RequestRecord, officials: Officials) {
     <tr class="tall">
       <td class="c">${request.budgetCategory === "recurrent" ? "✓" : ""}</td>
       <td class="c">${request.budgetCategory === "development" ? "✓" : ""}</td>
-      <td class="c">${esc(request.voteCode)}</td>
-      <td>${esc(request.budgetItemName)}</td>
+      <td class="c">${esc(request.projectCode ?? request.voteCode)}</td>
+      <td>${esc(request.projectTitle ?? request.budgetItemName)}</td>
     </tr>
   </table>
 
@@ -331,7 +336,7 @@ export function printTForm(request: RequestRecord, officials: Officials) {
       <td></td>
       <td>${esc(request.voteName)}</td>
       <td>${esc(request.subProgrammeName)}</td>
-      <td>${esc(request.budgetItemName)}</td>
+      <td class="c">${esc(request.budgetLineNumber)}</td>
       <td class="r">${money(request.balanceRemainingManual)}</td>
     </tr>
   </table>

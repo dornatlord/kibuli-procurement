@@ -153,6 +153,25 @@ router.get(
     ? await db.select().from(budgetItems).where(eq(budgetItems.id, request.budgetItemId))
     : [null];
 
+  // The budget line's number as the school's budget numbers it: an item counts
+  // within its sub-programme, or within the vote when the vote has none, and a
+  // sub-programme that is a budget line itself (the 2202 departments) counts
+  // within the vote. TFORM 5 prints it in the project code, e.g. 2212-4 for
+  // Civil works item 4, Water repairs. The numbers come from the seeded budget
+  // and nothing renumbers them, so a form reprinted years later reads the same.
+  let budgetLineNumber: number | null = null;
+  if (budgetItem) {
+    budgetLineNumber = budgetItem.displayOrder;
+  } else if (subProg) {
+    const [itemUnder] = await db
+      .select({ id: budgetItems.id })
+      .from(budgetItems)
+      .where(eq(budgetItems.subProgrammeId, subProg.id))
+      .limit(1);
+    // A sub-programme with items of its own needs one picked to have a number.
+    if (!itemUnder) budgetLineNumber = subProg.displayOrder;
+  }
+
   // When each step happened, for the Date lines on the printed form. A
   // signature records it when the requester, head of department or accounting
   // officer acts in person; otherwise the audit trail of status changes does
@@ -201,6 +220,11 @@ router.get(
     voteName: vote?.name || null,
     subProgrammeName: subProg ? `${subProg.romanNumeral ? subProg.romanNumeral + " " : ""}${subProg.name}` : null,
     budgetItemName: budgetItem?.name || null,
+    budgetLineNumber,
+    // TFORM 5's Project Code and Title: 2208-2 "Games & sports" for a vote
+    // without sub-programmes, 2212-4 "Civil works" for one with them.
+    projectCode: vote ? (budgetLineNumber ? `${vote.code}-${budgetLineNumber}` : vote.code) : null,
+    projectTitle: subProg?.name ?? budgetItem?.name ?? null,
   });
   }
 );
