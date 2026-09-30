@@ -11,6 +11,7 @@ import {
 import { eq, desc, sql, and } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
+import { thisYear } from "../lib/years.js";
 
 const router = asyncRouter();
 
@@ -21,10 +22,6 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   completed: [],
   cancelled: [],
 };
-
-/** The year LPOs are numbered in, by Kampala's calendar. */
-const lpoYear = () =>
-  Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala", year: "numeric" }).format(new Date()));
 
 /** LPO numbers count up from 1 and start again each year, like the school's LPO books. */
 async function nextPoNumber(year: number): Promise<string> {
@@ -41,7 +38,8 @@ async function nextPoNumber(year: number): Promise<string> {
  * one takes the number after.
  */
 async function insertWithNextNumber(values: Omit<typeof purchaseOrders.$inferInsert, "poNumber" | "year">) {
-  const year = lpoYear();
+  // Numbered in Kampala's calendar year.
+  const year = thisYear();
   for (let attempt = 0; ; attempt++) {
     try {
       const [po] = await db

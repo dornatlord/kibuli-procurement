@@ -1,10 +1,20 @@
 import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
-import { votes, subProgrammes, budgetItems } from "../db/schema.js";
-import { eq, asc } from "drizzle-orm";
+import { votes, subProgrammes, budgetItems, budgetAmounts } from "../db/schema.js";
+import { and, eq, asc, getTableColumns, type SQL } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
+import { thisYear } from "../lib/years.js";
 
 const router = asyncRouter();
+
+/** Budget lines with this year's amount as `budgetedAmount`, where one is set. */
+const itemsWithThisYearsAmount = (where: SQL) =>
+  db
+    .select({ ...getTableColumns(budgetItems), budgetedAmount: budgetAmounts.amount })
+    .from(budgetItems)
+    .leftJoin(budgetAmounts, and(eq(budgetAmounts.budgetItemId, budgetItems.id), eq(budgetAmounts.year, thisYear())))
+    .where(where)
+    .orderBy(asc(budgetItems.displayOrder));
 
 router.get("/votes", requireAuth, async (_req, res) => {
   const rows = await db.select().from(votes).orderBy(asc(votes.displayOrder));
@@ -21,22 +31,12 @@ router.get("/votes/:voteId/sub-programmes", requireAuth, async (req, res) => {
 });
 
 router.get("/sub-programmes/:subId/items", requireAuth, async (req, res) => {
-  const rows = await db
-    .select()
-    .from(budgetItems)
-    .where(eq(budgetItems.subProgrammeId, Number(req.params.subId)))
-    .orderBy(asc(budgetItems.displayOrder));
-  res.json(rows);
+  res.json(await itemsWithThisYearsAmount(eq(budgetItems.subProgrammeId, Number(req.params.subId))));
 });
 
 router.get("/votes/:voteId/items", requireAuth, async (req, res) => {
   // For votes with no sub-programme
-  const rows = await db
-    .select()
-    .from(budgetItems)
-    .where(eq(budgetItems.voteId, Number(req.params.voteId)))
-    .orderBy(asc(budgetItems.displayOrder));
-  res.json(rows);
+  res.json(await itemsWithThisYearsAmount(eq(budgetItems.voteId, Number(req.params.voteId))));
 });
 
 interface BudgetLine {

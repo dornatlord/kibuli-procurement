@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { lpoNumber } from "../lib/forms/lpoForms";
+import { kampalaYear, thisYear } from "../lib/years";
 import PageHeader from "../components/PageHeader";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ChevronRightIcon, InboxIcon, PlusIcon } from "../components/icons";
@@ -22,9 +23,6 @@ interface PORow {
 }
 
 const dayFirst = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
-const kampalaYear = (d: Date) =>
-  Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala", year: "numeric" }).format(d));
-const thisYear = () => kampalaYear(new Date());
 /** The LPO's numbering year. A copy of the list saved before LPOs had one falls back to when it was made. */
 const yearOf = (po: PORow) => po.year ?? kampalaYear(new Date(po.createdAt));
 

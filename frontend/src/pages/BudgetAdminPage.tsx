@@ -1,111 +1,158 @@
 import { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Navigate } from "react-router-dom";
+import { thisYear, yearChoices } from "../lib/years";
+import PageHeader from "../components/PageHeader";
+import YearSelect from "../components/YearSelect";
+import { PageLoading } from "../components/Loading";
 
-interface Vote { id: number; code: string; name: string; displayOrder: number; }
-interface SubProgramme { id: number; voteId: number; romanNumeral: string | null; name: string; displayOrder: number; }
-interface BudgetItem { id: number; voteId: number; subProgrammeId: number | null; name: string; budgetedAmount: string | null; displayOrder: number; }
+interface Vote { id: number; code: string; name: string; }
+interface SubProgramme { id: number; voteId: number; romanNumeral: string | null; name: string; }
+interface BudgetItem { id: number; voteId: number; subProgrammeId: number | null; name: string; amount: string | null; }
+interface Budget { year: number; years: number[]; votes: Vote[]; subProgrammes: SubProgramme[]; items: BudgetItem[]; }
 
+const money = (v: string | number) => Number(v).toLocaleString("en-UG");
+const sumOf = (items: BudgetItem[]) => items.reduce((s, i) => s + Number(i.amount || 0), 0);
+
+/** The school's budget, one year at a time: each year keeps its own amounts. */
 export default function BudgetAdminPage() {
   const { can } = useAuth();
-  const [votes, setVotes] = useState<Vote[]>([]);
-  const [subs, setSubs] = useState<SubProgramme[]>([]);
-  const [items, setItems] = useState<BudgetItem[]>([]);
+  const allowed = can("budget.edit");
+  const [year, setYear] = useState(thisYear());
+  const [budget, setBudget] = useState<Budget | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [editing, setEditing] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
-
-  if (!can("budget.edit")) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  const [copying, setCopying] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      api.get<Vote[]>("/lookup/votes"),
-    ]).then(async ([vs]) => {
-      setVotes(vs);
-      const allSubs: SubProgramme[] = [];
-      const allItems: BudgetItem[] = [];
-      for (const v of vs) {
-        const [spList, biList] = await Promise.all([
-          api.get<SubProgramme[]>(`/lookup/votes/${v.id}/sub-programmes`),
-          api.get<BudgetItem[]>(`/lookup/votes/${v.id}/items`),
-        ]);
-        allSubs.push(...spList);
-        allItems.push(...biList);
-        for (const sp of spList) {
-          const spItems = await api.get<BudgetItem[]>(`/lookup/sub-programmes/${sp.id}/items`);
-          allItems.push(...spItems);
-        }
-      }
-      setSubs(allSubs);
-      // Deduplicate
-      const seen = new Set<number>();
-      setItems(allItems.filter((i) => { if (seen.has(i.id)) return false; seen.add(i.id); return true; }));
-    }).finally(() => setLoading(false));
-  }, []);
+    if (!allowed) return;
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    api
+      .get<Budget>(`/budget?year=${year}`)
+      .then((b) => !cancelled && setBudget(b))
+      .catch((e) => !cancelled && setError(e instanceof Error ? e.message : "Could not load the budget"))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [year, allowed]);
+
+  if (!allowed) return <Navigate to="/dashboard" replace />;
 
   async function save(itemId: number) {
     setSaving((p) => ({ ...p, [itemId]: true }));
+    setError("");
     try {
-      await api.patch(`/budget/items/${itemId}`, { budgetedAmount: editing[itemId] });
-      setItems((prev) =>
-        prev.map((i) => (i.id === itemId ? { ...i, budgetedAmount: editing[itemId] } : i))
-      );
-      setEditing((p) => { const n = { ...p }; delete n[itemId]; return n; });
+      const res = await api.put<{ amount: string | null }>(`/budget/amounts/${itemId}`, { year, amount: editing[itemId] });
+      setBudget((b) => b && { ...b, items: b.items.map((i) => (i.id === itemId ? { ...i, amount: res.amount } : i)) });
+      setEditing((p) => {
+        const n = { ...p };
+        delete n[itemId];
+        return n;
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save the amount");
     } finally {
       setSaving((p) => ({ ...p, [itemId]: false }));
     }
   }
 
-  if (loading) return <div className="text-center py-12 text-gray-400">Loading budget structure…</div>;
+  // The latest earlier year with a budget, to start this one from.
+  const earlier = budget?.years.filter((y) => y < year).sort((a, b) => b - a)[0];
+  const empty = !!budget && budget.items.every((i) => !i.amount);
+
+  async function copyFrom(from: number) {
+    setCopying(true);
+    setError("");
+    try {
+      await api.post("/budget/copy", { from, to: year });
+      setBudget(await api.get<Budget>(`/budget?year=${year}`));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not copy the budget");
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  const years = yearChoices(budget?.years ?? [], thisYear() + 1);
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Budget Amounts</h1>
-      <p className="text-sm text-gray-500">Confidential — only visible to Accounting Officer and Head Teacher.</p>
+      <PageHeader
+        title="Budget"
+        subtitle="Each year keeps its own amounts, so setting next year's never changes this year's. Confidential: for the Accounting Officer and Head Teacher."
+      />
 
-      {votes.map((v) => {
-        const vSubs = subs.filter((s) => s.voteId === v.id);
-        const flatItems = items.filter((i) => i.voteId === v.id);
-
-        return (
-          <div key={v.id} className="card overflow-hidden">
-            <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">
-              {v.code} — {v.name}
-            </div>
-
-            {vSubs.length === 0 ? (
-              <ItemsTable
-                items={flatItems}
-                editing={editing}
-                saving={saving}
-                setEditing={setEditing}
-                save={save}
-              />
-            ) : (
-              vSubs.map((sp) => {
-                const spItems = flatItems.filter((i) => i.subProgrammeId === sp.id);
-                return (
-                  <div key={sp.id}>
-                    <div className="px-4 py-1.5 bg-gray-50 text-xs font-semibold text-gray-600 border-b border-gray-100">
-                      {sp.romanNumeral ? `${sp.romanNumeral} ` : ""}{sp.name}
-                    </div>
-                    <ItemsTable
-                      items={spItems}
-                      editing={editing}
-                      saving={saving}
-                      setEditing={setEditing}
-                      save={save}
-                    />
-                  </div>
-                );
-              })
-            )}
+      <div className="card flex flex-wrap items-end justify-between gap-4 p-4">
+        <YearSelect id="budget-year" value={year} years={years} onChange={(y) => y !== "all" && setYear(y)} />
+        {budget && (
+          <div className="text-right">
+            <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{year} budget</div>
+            <div className="text-xl font-semibold tabular-nums text-gray-900">UGX {money(sumOf(budget.items))}</div>
           </div>
-        );
-      })}
+        )}
+      </div>
+
+      {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+
+      {loading || !budget ? (
+        <PageLoading />
+      ) : (
+        <>
+          {empty && (
+            <div className="card flex flex-wrap items-center justify-between gap-3 border-amber-200 bg-amber-50 px-5 py-4">
+              <p className="text-sm text-amber-900">
+                No amounts for {year} yet.{" "}
+                {earlier ? `Start from ${earlier}'s and change what's different, or type each one.` : "Click an amount to set it."}
+              </p>
+              {earlier && (
+                <button type="button" onClick={() => copyFrom(earlier)} disabled={copying} className="btn btn-primary btn-sm">
+                  {copying ? "Copying…" : `Copy ${earlier}'s amounts`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {budget.votes.map((v) => {
+            const voteItems = budget.items.filter((i) => i.voteId === v.id);
+            const subs = budget.subProgrammes.filter((s) => s.voteId === v.id);
+            return (
+              <div key={v.id} className="card overflow-hidden">
+                <div className="flex items-center justify-between gap-3 bg-green-800 px-4 py-2 text-sm font-semibold text-white">
+                  <span>
+                    {v.code} — {v.name}
+                  </span>
+                  <span className="tabular-nums text-green-100">{money(sumOf(voteItems))}</span>
+                </div>
+                {subs.length === 0 ? (
+                  <ItemsTable items={voteItems} editing={editing} saving={saving} setEditing={setEditing} save={save} />
+                ) : (
+                  subs.map((sp) => (
+                    <div key={sp.id}>
+                      <div className="border-b border-gray-100 bg-gray-50 px-4 py-1.5 text-xs font-semibold text-gray-600">
+                        {sp.romanNumeral ? `${sp.romanNumeral} ` : ""}
+                        {sp.name}
+                      </div>
+                      <ItemsTable
+                        items={voteItems.filter((i) => i.subProgrammeId === sp.id)}
+                        editing={editing}
+                        saving={saving}
+                        setEditing={setEditing}
+                        save={save}
+                      />
+                    </div>
+                  ))
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }
@@ -123,35 +170,37 @@ function ItemsTable({
   setEditing: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   save: (id: number) => void;
 }) {
-  if (items.length === 0) return <div className="px-4 py-2 text-xs text-gray-400 italic">No items</div>;
+  if (items.length === 0) return <div className="px-4 py-2 text-xs italic text-gray-400">No items</div>;
   return (
     <table className="w-full text-sm">
       <tbody className="divide-y divide-gray-50">
         {items.map((item) => (
           <tr key={item.id} className="hover:bg-gray-50">
             <td className="px-4 py-2">{item.name}</td>
-            <td className="px-4 py-2 w-48">
+            <td className="w-56 px-4 py-2">
               {item.id in editing ? (
-                <div className="flex items-center gap-2">
+                <form
+                  className="flex items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    save(item.id);
+                  }}
+                >
                   <input
                     type="number"
                     value={editing[item.id]}
-                    onChange={(e) =>
-                      setEditing((p) => ({ ...p, [item.id]: e.target.value }))
-                    }
-                    className="border border-gray-300 rounded px-2 py-1 text-xs w-32 text-right"
+                    onChange={(e) => setEditing((p) => ({ ...p, [item.id]: e.target.value }))}
+                    className="w-32 rounded border border-gray-300 px-2 py-1 text-right text-xs"
                     min="0"
                     step="1"
+                    aria-label={`Amount for ${item.name}`}
                     autoFocus
                   />
-                  <button
-                    onClick={() => save(item.id)}
-                    disabled={saving[item.id]}
-                    className="text-xs text-green-700 font-medium hover:underline"
-                  >
+                  <button type="submit" disabled={saving[item.id]} className="text-xs font-medium text-green-700 hover:underline">
                     Save
                   </button>
                   <button
+                    type="button"
                     onClick={() =>
                       setEditing((p) => {
                         const n = { ...p };
@@ -163,20 +212,14 @@ function ItemsTable({
                   >
                     Cancel
                   </button>
-                </div>
+                </form>
               ) : (
                 <button
-                  onClick={() =>
-                    setEditing((p) => ({
-                      ...p,
-                      [item.id]: item.budgetedAmount ?? "",
-                    }))
-                  }
-                  className="text-xs text-right w-full text-gray-700 hover:text-green-700 tabular-nums"
+                  type="button"
+                  onClick={() => setEditing((p) => ({ ...p, [item.id]: item.amount ? String(Number(item.amount)) : "" }))}
+                  className="w-full text-right text-xs tabular-nums text-gray-700 hover:text-green-700"
                 >
-                  {item.budgetedAmount
-                    ? `UGX ${Number(item.budgetedAmount).toLocaleString("en-UG")}`
-                    : <span className="text-gray-300">— click to set —</span>}
+                  {item.amount ? `UGX ${money(item.amount)}` : <span className="text-gray-300">— click to set —</span>}
                 </button>
               )}
             </td>

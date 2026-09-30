@@ -477,6 +477,8 @@ const ACTIONS: Record<string, string> = {
   "plan_item.updated": "Updated the procurement plan",
   "termly_report.saved": "Saved a termly PPDA return",
   "termly_report.imported": "Imported a termly PPDA return",
+  "budget.amount_set": "Set a budget amount",
+  "budget.copied": "Started a year's budget from another's",
   "settings.terms_updated": "Changed the school terms",
   "user.created": "Added a user",
   "user.updated": "Updated a user",

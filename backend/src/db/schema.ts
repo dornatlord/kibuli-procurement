@@ -10,6 +10,7 @@ import {
   jsonb,
   pgEnum,
   unique,
+  primaryKey,
   uuid,
   varchar,
   json,
@@ -168,6 +169,25 @@ export const budgetItems = pgTable("budget_items", {
   // 3-digit code of this line, the fourth part of a request's reference number.
   supplyCode: text("supply_code"),
 });
+
+/**
+ * A budget line's amount for one year (migration 014). Each year keeps its
+ * own, so a new year's budget never overwrites an old one.
+ * budget_items.budgeted_amount is no longer read.
+ */
+export const budgetAmounts = pgTable(
+  "budget_amounts",
+  {
+    budgetItemId: integer("budget_item_id")
+      .notNull()
+      .references(() => budgetItems.id),
+    year: integer("year").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+    updatedBy: integer("updated_by").references(() => users.id),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.budgetItemId, t.year] })]
+);
 
 export const reservePriceItems = pgTable("reserve_price_items", {
   id: serial("id").primaryKey(),

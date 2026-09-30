@@ -5,6 +5,8 @@ import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import { statusLabel } from "../components/Badge";
 import { PageLoading } from "../components/Loading";
+import YearSelect from "../components/YearSelect";
+import { thisYear, yearChoices } from "../lib/years";
 
 interface GroupCount { count: number; total: string; }
 interface Summary {
@@ -33,40 +35,57 @@ function fmt(v: string | number) {
 
 export default function ReportsPage() {
   const { can } = useAuth();
+  const allowed = can("reports.view");
+  // One year at a time, so a new year starts from nothing and an old one reads as it did.
+  const [year, setYear] = useState(thisYear());
+  const [years, setYears] = useState<number[]>([thisYear()]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [budget, setBudget] = useState<BudgetRow[]>([]);
   const [topSuppliers, setTopSuppliers] = useState<TopSupplier[]>([]);
   const [loading, setLoading] = useState(true);
 
-  if (!can("reports.view")) return <Navigate to="/dashboard" replace />;
+  useEffect(() => {
+    if (!allowed) return;
+    api.get<number[]>("/reports/years").then(setYears).catch(() => {});
+  }, [allowed]);
 
   useEffect(() => {
+    if (!allowed) return;
+    let cancelled = false;
+    setLoading(true);
     Promise.all([
-      api.get<Summary>("/reports/summary"),
-      api.get<BudgetRow[]>("/reports/budget-utilization"),
-      api.get<TopSupplier[]>("/reports/top-suppliers"),
+      api.get<Summary>(`/reports/summary?year=${year}`),
+      api.get<BudgetRow[]>(`/reports/budget-utilization?year=${year}`),
+      api.get<TopSupplier[]>(`/reports/top-suppliers?year=${year}`),
     ])
       .then(([s, b, t]) => {
+        if (cancelled) return;
         setSummary(s);
         setBudget(b);
         setTopSuppliers(t);
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [year, allowed]);
 
-  if (loading) return <PageLoading />;
+  if (!allowed) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="page-title">Reports</h1>
-          <p className="text-sm text-gray-500 mt-1">Spending, budget utilization and top suppliers.</p>
+          <p className="text-sm text-gray-500 mt-1">Spending, budget utilization and top suppliers for {year}.</p>
+          <Link to="/reports/monthly" className="mt-1 inline-block text-sm text-green-700 hover:underline">View Monthly FORM 2 →</Link>
         </div>
-        <Link to="/reports/monthly" className="text-sm text-green-700 hover:underline">View Monthly FORM 2 →</Link>
+        <YearSelect id="reports-year" value={year} years={yearChoices(years)} onChange={(y) => y !== "all" && setYear(y)} />
       </div>
 
-      {summary && (
+      {loading && <PageLoading />}
+
+      {!loading && summary && (
         <div className="grid grid-cols-3 gap-4">
           <StatCard label="Total Requests" value={summary.totals.count} sub={`UGX ${fmt(summary.totals.total)}`} />
           <StatCard
@@ -81,15 +100,16 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {summary && (
+      {!loading && summary && (
         <div className="grid grid-cols-2 gap-4">
           <Breakdown title="By Category" rows={summary.byCategory.map((r) => ({ label: statusLabel(r.category), count: r.count, total: r.total }))} />
           <Breakdown title="By Procurement Size" rows={summary.bySize.map((r) => ({ label: statusLabel(r.size), count: r.count, total: r.total }))} />
         </div>
       )}
 
+      {!loading && <>
       <div className="card overflow-hidden">
-        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Budget Utilization by Vote</div>
+        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Budget Utilization by Vote, {year}</div>
         {budget.length === 0 ? (
           <div className="p-4 text-center text-gray-400 text-sm">No budget data yet.</div>
         ) : (
@@ -110,7 +130,9 @@ export default function ReportsPage() {
                         <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
                           <div className={`h-full ${pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-green-600"}`} style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs text-gray-500">{pct.toFixed(0)}%</span>
+                        <span className="text-xs text-gray-500">
+                          {Number(b.budgeted) > 0 ? `${pct.toFixed(0)}%` : Number(b.spent) > 0 ? "No budget set" : "—"}
+                        </span>
                       </div>
                     </td>
                   </tr>
@@ -122,9 +144,9 @@ export default function ReportsPage() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Top Suppliers by Purchase Order Value</div>
+        <div className="bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 uppercase">Top Suppliers by LPO Value, {year}</div>
         {topSuppliers.length === 0 ? (
-          <div className="p-4 text-center text-gray-400 text-sm">No purchase orders yet.</div>
+          <div className="p-4 text-center text-gray-400 text-sm">No LPOs in {year}.</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
@@ -142,6 +164,7 @@ export default function ReportsPage() {
           </table>
         )}
       </div>
+      </>}
     </div>
   );
 }
