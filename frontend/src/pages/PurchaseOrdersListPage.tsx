@@ -22,8 +22,11 @@ interface PORow {
 }
 
 const dayFirst = (iso: string | null) => (iso ? iso.slice(0, 10).split("-").reverse().join("/") : "");
-const thisYear = () =>
-  Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala", year: "numeric" }).format(new Date()));
+const kampalaYear = (d: Date) =>
+  Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala", year: "numeric" }).format(d));
+const thisYear = () => kampalaYear(new Date());
+/** The LPO's numbering year. A copy of the list saved before LPOs had one falls back to when it was made. */
+const yearOf = (po: PORow) => po.year ?? kampalaYear(new Date(po.createdAt));
 
 /**
  * Does an LPO match what was typed? "3" finds LPO 3 of any year shown, "3/2025"
@@ -33,7 +36,7 @@ function matches(po: PORow, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
   const number = q.match(/^(?:lpo\s*(?:no\.?)?\s*)?(\d+)(?:\s*\/\s*(\d{4}))?$/);
-  if (number) return po.poNumber === String(Number(number[1])) && (!number[2] || po.year === Number(number[2]));
+  if (number) return po.poNumber === String(Number(number[1])) && (!number[2] || yearOf(po) === Number(number[2]));
   return `${po.supplierName ?? ""} ${po.referenceNumber ?? ""}`.toLowerCase().includes(q);
 }
 
@@ -55,11 +58,11 @@ export default function PurchaseOrdersListPage() {
   }, []);
 
   const years = useMemo(() => {
-    const found = new Set(orders.map((po) => po.year).filter((y): y is number => !!y));
+    const found = new Set(orders.map(yearOf));
     found.add(thisYear());
     return [...found].sort((a, b) => b - a);
   }, [orders]);
-  const shown = orders.filter((po) => (year === "all" || po.year === year) && matches(po, query));
+  const shown = orders.filter((po) => (year === "all" || yearOf(po) === year) && matches(po, query));
 
   return (
     <div className="space-y-6">
@@ -165,7 +168,7 @@ export default function PurchaseOrdersListPage() {
                         onClick={(e) => e.stopPropagation()}
                         className="whitespace-nowrap font-semibold tabular-nums text-red-700"
                       >
-                        {lpoNumber(po)}
+                        {lpoNumber({ poNumber: po.poNumber, year: yearOf(po) })}
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-gray-900">{po.supplierName || "—"}</td>
