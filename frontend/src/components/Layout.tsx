@@ -7,7 +7,7 @@ import BrandMark from "./BrandMark";
 import OfflineNotices from "./OfflineNotices";
 import { useOnline } from "../lib/online";
 import { useInstallPrompt } from "../lib/install";
-import { DownloadIcon, HomeIcon, LogoutIcon, MenuIcon, PlusIcon, UserIcon, XIcon } from "./icons";
+import { DownloadIcon, HelpIcon, HomeIcon, LogoutIcon, MenuIcon, PlusIcon, UserIcon, XIcon } from "./icons";
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
@@ -85,6 +85,10 @@ export default function Layout() {
       </nav>
 
       <div className="shrink-0 border-t border-white/10 p-3">
+        {/* Kept out of the scrolling list, so it's always in view. */}
+        <div className="mb-2">
+          <SideLink to="/help" icon={<HelpIcon />} label="Help" active={pathname === "/help"} />
+        </div>
         <Link
           to="/profile"
           aria-current={pathname === "/profile" ? "page" : undefined}

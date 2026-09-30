@@ -9,6 +9,7 @@ import BudgetAdminPage from "./pages/BudgetAdminPage";
 import ReservePricesPage from "./pages/ReservePricesPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 import ProfilePage from "./pages/ProfilePage";
+import HelpPage from "./pages/HelpPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import SuppliersPage from "./pages/SuppliersPage";
@@ -88,6 +89,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="help" element={<HelpPage />} />
         <Route path="account" element={<Navigate to="/profile" replace />} />
 
         <Route

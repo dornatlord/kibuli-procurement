@@ -212,6 +212,28 @@ export const ShieldIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const HelpIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.9" />
+    <path d="M12 17.2h.01" />
+  </Icon>
+);
+
+export const CopyIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15V6a2 2 0 0 1 2-2h9" />
+  </Icon>
+);
+
+export const ChatIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.5-4.1A8 8 0 1 1 20 11.5Z" />
+    <path d="M9.2 8.8c.3 1.8 1.9 3.9 4 4.9l1-1 1.6.8-.4 1.3c-2.9.3-6.5-3-6.9-5.9l1.3-.5.7 1.6-1.3 1" />
+  </Icon>
+);
+
 export function SpinnerIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg className={`animate-spin ${className}`} viewBox="0 0 24 24" fill="none" aria-hidden="true">
