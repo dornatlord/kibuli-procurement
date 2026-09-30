@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
 import { auditLogs, procurementRequests, purchaseOrders, userSessions, users } from "../db/schema.js";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
-import { permissionsFor, ROLE_LABELS, Role } from "../lib/permissions.js";
+import { permissionsOf, ROLE_LABELS, Role } from "../lib/permissions.js";
 import { requireAuth } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { describeDevice } from "../lib/devices.js";
@@ -76,7 +76,7 @@ router.post("/login", async (req, res) => {
       roleLabel: ROLE_LABELS[user.role as Role] ?? user.role,
       department: user.department,
       mustChangePassword: user.mustChangePassword,
-      permissions: permissionsFor(user.role),
+      permissions: permissionsOf(user),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -122,7 +122,7 @@ router.get("/me", async (req, res) => {
     roleLabel: ROLE_LABELS[user.role as Role] ?? user.role,
     department: user.department,
     mustChangePassword: user.mustChangePassword,
-    permissions: permissionsFor(user.role),
+    permissions: permissionsOf(user),
   });
 });
 
@@ -209,7 +209,7 @@ router.get("/profile", requireAuth, async (req, res) => {
     mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt,
     lastLoginAt: user.lastLoginAt,
-    permissions: permissionsFor(user.role),
+    permissions: permissionsOf(user),
     activity: {
       requestsRaised: raised.n,
       requestSteps: steps.n,

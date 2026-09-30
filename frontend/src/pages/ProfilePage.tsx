@@ -482,6 +482,8 @@ const ACTIONS: Record<string, string> = {
   "supplier.listed": "Put a supplier on a year's list",
   "supplier.unlisted": "Took a supplier off a year's list",
   "suppliers.list_started": "Started a year's supplier list",
+  "request.corrected": "Corrected a request",
+  "purchase_order.corrected": "Corrected an LPO",
   "settings.terms_updated": "Changed the school terms",
   "user.created": "Added a user",
   "user.updated": "Updated a user",

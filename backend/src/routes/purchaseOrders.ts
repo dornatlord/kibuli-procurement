@@ -7,9 +7,19 @@ import {
   procurementRequests,
   procurementItems,
   users,
+  goodsReceivedItems,
 } from "../db/schema.js";
-import { eq, desc, sql, and } from "drizzle-orm";
-import { requirePermission } from "../middleware/auth.js";
+import { eq, desc, sql, and, asc, inArray } from "drizzle-orm";
+import { requirePermission, requireCorrectionRight } from "../middleware/auth.js";
+import {
+  changesBetween,
+  correctionsOf,
+  dateFrom,
+  lineChanges,
+  nothingChanged,
+  readLines,
+  textFrom,
+} from "../lib/corrections.js";
 import { logAudit } from "../lib/audit.js";
 import { thisYear } from "../lib/years.js";
 import { putOnYearsList } from "../lib/supplierYears.js";
@@ -142,7 +152,134 @@ router.get("/:id", requirePermission("purchase_orders.view"), async (req, res) =
     requestDepartment = requester?.department ?? null;
   }
 
-  res.json({ ...rest, requestDepartment, items });
+  res.json({
+    ...rest,
+    requestDepartment,
+    items,
+    // When the LPO was corrected, by whom and why; the audit trail has the details.
+    corrections: await correctionsOf("purchase_order", po.id, "purchase_order.corrected"),
+  });
+});
+
+/**
+ * Corrects a saved LPO: its date, delivery date and place, terms, supplier and
+ * items (totals worked out again). Any year's LPO can be corrected, but only by
+ * the people allowed to, and every correction goes in the audit trail with the
+ * reason and what changed. An item with goods received against it can be
+ * changed, not removed.
+ */
+router.put("/:id/correct", requireCorrectionRight, async (req, res) => {
+  const id = Number(req.params.id);
+  const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, id));
+  if (!po) {
+    res.status(404).json({ error: "LPO not found" });
+    return;
+  }
+  const reason = textFrom(req.body?.reason, 500);
+  if (!reason || reason.length < 3) {
+    res.status(400).json({ error: "Say what was wrong, so the audit trail records why it was corrected." });
+    return;
+  }
+  const issueDate = dateFrom(req.body?.issueDate);
+  const expectedDeliveryDate = dateFrom(req.body?.expectedDeliveryDate);
+  if (issueDate === undefined || expectedDeliveryDate === undefined) {
+    res.status(400).json({ error: "A date given isn't a date." });
+    return;
+  }
+  const supplierId = req.body?.supplierId === undefined ? po.supplierId : Number(req.body.supplierId);
+  const [supplierNow, supplierNew] = await Promise.all([
+    db.select({ name: suppliers.name }).from(suppliers).where(eq(suppliers.id, po.supplierId)),
+    db.select({ name: suppliers.name }).from(suppliers).where(eq(suppliers.id, supplierId)),
+  ]);
+  if (!supplierNew[0]) {
+    res.status(400).json({ error: "Choose a supplier from the register." });
+    return;
+  }
+  const lines = readLines(req.body?.items);
+  if (typeof lines === "string") {
+    res.status(400).json({ error: lines });
+    return;
+  }
+  const current = await db
+    .select()
+    .from(purchaseOrderItems)
+    .where(eq(purchaseOrderItems.purchaseOrderId, id))
+    .orderBy(asc(purchaseOrderItems.itemNo));
+  const known = new Set(current.map((i) => i.id));
+  if (lines.some((l) => l.id && !known.has(l.id))) {
+    res.status(400).json({ error: "An item sent doesn't belong to this LPO." });
+    return;
+  }
+  const keep = new Set(lines.filter((l) => l.id).map((l) => l.id));
+  const drop = current.filter((i) => !keep.has(i.id));
+  if (drop.length) {
+    const received = await db
+      .select({ itemId: goodsReceivedItems.purchaseOrderItemId })
+      .from(goodsReceivedItems)
+      .where(inArray(goodsReceivedItems.purchaseOrderItemId, drop.map((i) => i.id)));
+    if (received.length) {
+      const names = drop.filter((i) => received.some((r) => r.itemId === i.id)).map((i) => i.description);
+      res.status(400).json({ error: `Goods were received against ${names.join(", ")}, so it can be changed but not removed.` });
+      return;
+    }
+  }
+
+  const fields = {
+    issueDate,
+    expectedDeliveryDate,
+    deliveryLocation: textFrom(req.body?.deliveryLocation, 200),
+    termsAndConditions: textFrom(req.body?.termsAndConditions, 2000),
+  };
+  const changes = changesBetween(
+    {
+      issueDate: po.issueDate,
+      expectedDeliveryDate: po.expectedDeliveryDate,
+      deliveryLocation: po.deliveryLocation,
+      termsAndConditions: po.termsAndConditions,
+    },
+    fields
+  );
+  if (supplierId !== po.supplierId) changes.push({ field: "supplier", from: supplierNow[0]?.name ?? null, to: supplierNew[0].name });
+  const items = lineChanges(
+    current.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, unitOfMeasure: i.unitOfMeasure, unitPrice: i.unitPrice })),
+    lines
+  );
+  if (nothingChanged(changes, items)) {
+    res.status(400).json({ error: "Nothing was changed." });
+    return;
+  }
+
+  const total = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(purchaseOrders)
+      .set({ ...fields, supplierId, totalAmount: String(total), updatedAt: new Date() })
+      .where(eq(purchaseOrders.id, id));
+    if (drop.length) await tx.delete(purchaseOrderItems).where(inArray(purchaseOrderItems.id, drop.map((i) => i.id)));
+    for (const [n, l] of lines.entries()) {
+      const values = {
+        itemNo: n + 1,
+        description: l.description,
+        quantity: String(l.quantity),
+        unitOfMeasure: l.unitOfMeasure,
+        unitPrice: String(l.unitPrice),
+        totalPrice: String(l.quantity * l.unitPrice),
+      };
+      if (l.id) await tx.update(purchaseOrderItems).set(values).where(eq(purchaseOrderItems.id, l.id));
+      else await tx.insert(purchaseOrderItems).values({ ...values, purchaseOrderId: id });
+    }
+  });
+  if (supplierId !== po.supplierId) await putOnYearsList([supplierId], po.year, req.session.userId!);
+
+  await logAudit(req.session.userId!, "purchase_order.corrected", "purchase_order", id, {
+    poNumber: po.poNumber,
+    year: po.year,
+    reason,
+    changes,
+    items,
+    total: { from: po.totalAmount, to: String(total) },
+  });
+  res.json({ ok: true });
 });
 
 /** Pulls items from an approved request so a PO can be pre-filled instead of retyped. */

@@ -9,6 +9,66 @@ import { shillingsInWords } from "../lib/words";
 import { dayFirst, money } from "../lib/print";
 import { completionDefaults, deliveryDateOf, lpoNumber, printCompletionCertificate, printLpo } from "../lib/forms/lpoForms";
 import type { CompletionDetails, LpoRecord } from "../lib/forms/lpoForms";
+import CorrectionPanel, { CorrectionHistory, toEditLines } from "../components/CorrectionPanel";
+
+interface SupplierChoice {
+  id: number;
+  name: string;
+}
+
+/** Picking the supplier while correcting an LPO: type part of the name, choose from the register. */
+function SupplierPicker({ value, onChange }: { value: SupplierChoice; onChange: (s: SupplierChoice) => void }) {
+  const [text, setText] = useState(value.name);
+  const [options, setOptions] = useState<SupplierChoice[]>([]);
+  useEffect(() => {
+    const q = text.trim();
+    if (q.length < 2 || q === value.name) {
+      setOptions([]);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      api
+        .get<SupplierChoice[]>(`/suppliers/search?q=${encodeURIComponent(q)}`)
+        .then(setOptions)
+        .catch(() => setOptions([]));
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [text, value.name]);
+  return (
+    <div className="relative sm:col-span-2">
+      <label htmlFor="fix-supplier" className="label">
+        Supplier
+      </label>
+      <input
+        id="fix-supplier"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        autoComplete="off"
+        placeholder="Type part of the supplier's name"
+        className="input"
+      />
+      {options.length > 0 && (
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-raised">
+          {options.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => {
+                onChange(s);
+                setText(s.name);
+                setOptions([]);
+              }}
+              className="block w-full px-3 py-2 text-left text-sm hover:bg-green-50"
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
+      {text.trim() !== value.name && <p className="mt-1 text-xs text-amber-700">Choose the supplier from the list for the change to count.</p>}
+    </div>
+  );
+}
 
 const NEXT: Record<string, { next: string; label: string }[]> = {
   draft: [
@@ -34,6 +94,9 @@ export default function PurchaseOrderDetailPage() {
   const [acting, setActing] = useState(false);
   const [error, setError] = useState("");
   const [certificate, setCertificate] = useState<CompletionDetails | null>(null);
+  // Correcting the saved LPO (administrators and those given the right).
+  const [fixSupplier, setFixSupplier] = useState<SupplierChoice | null>(null);
+  const [corrected, setCorrected] = useState(false);
 
   function load() {
     setLoading(true);
@@ -130,9 +193,61 @@ export default function PurchaseOrderDetailPage() {
               <PrinterIcon className="h-4 w-4" />
               Print LPO
             </button>
+            {can("records.correct") && !fixSupplier && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFixSupplier({ id: po.supplierId ?? 0, name: po.supplierName ?? "" });
+                  setCorrected(false);
+                }}
+                className="btn btn-secondary"
+              >
+                Correct
+              </button>
+            )}
           </div>
         </div>
       </div>
+
+      {fixSupplier && (
+        <CorrectionPanel
+          title={`Correct LPO No. ${lpoNumber(po)}`}
+          fields={[
+            { key: "issueDate", label: "LPO date", type: "date" },
+            { key: "expectedDeliveryDate", label: "Delivery date", type: "date" },
+            { key: "deliveryLocation", label: "Delivery place" },
+            { key: "termsAndConditions", label: "Terms and conditions", type: "textarea" },
+          ]}
+          initial={{
+            issueDate: po.issueDate ? po.issueDate.slice(0, 10) : "",
+            expectedDeliveryDate: po.expectedDeliveryDate ? po.expectedDeliveryDate.slice(0, 10) : "",
+            deliveryLocation: po.deliveryLocation ?? "",
+            termsAndConditions: po.termsAndConditions ?? "",
+          }}
+          extra={<SupplierPicker value={fixSupplier} onChange={setFixSupplier} />}
+          lines={toEditLines(
+            po.items.map((it) => ({
+              id: it.id,
+              description: it.description,
+              quantity: it.quantity,
+              unitOfMeasure: it.unitOfMeasure,
+              price: it.unitPrice,
+            }))
+          )}
+          onSave={async ({ values, items, reason }) => {
+            await api.put(`/purchase-orders/${po.id}/correct`, { ...values, supplierId: fixSupplier.id, items, reason });
+            setFixSupplier(null);
+            setCorrected(true);
+            load();
+          }}
+          onClose={() => setFixSupplier(null)}
+        />
+      )}
+      {corrected && (
+        <p role="status" className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+          Corrected. The Audit Trail records what changed, and printing shows the corrected LPO.
+        </p>
+      )}
 
       {certificate && (
         <form onSubmit={printCertificate} className="card space-y-4 p-5">
@@ -316,6 +431,8 @@ export default function PurchaseOrderDetailPage() {
           Record goods received
         </Link>
       )}
+
+      <CorrectionHistory corrections={po.corrections} />
     </div>
   );
 }

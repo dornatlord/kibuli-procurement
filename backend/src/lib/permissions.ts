@@ -75,6 +75,9 @@ export type Permission =
   // Disposals
   | "disposals.view"
   | "disposals.manage"
+  // Correcting a saved request or LPO: administrators, plus anyone given it
+  // on Users & Roles (users.can_correct_records). No other role has it.
+  | "records.correct"
   // System
   | "system.settings";
 
@@ -123,6 +126,7 @@ const ALL_PERMISSIONS: Permission[] = [
   "reports.prepare",
   "disposals.view",
   "disposals.manage",
+  "records.correct",
   "system.settings",
 ];
 
@@ -274,4 +278,10 @@ export function permissionsFor(role: string): Permission[] {
 
 export function hasPermission(role: string, permission: Permission): boolean {
   return permissionsFor(role).includes(permission);
+}
+
+/** Everything a person may do: their role's permissions, plus correcting records if they've been given that. */
+export function permissionsOf(user: { role: string; canCorrectRecords?: boolean | null }): Permission[] {
+  const own = permissionsFor(user.role);
+  return user.canCorrectRecords && !own.includes("records.correct") ? [...own, "records.correct"] : own;
 }

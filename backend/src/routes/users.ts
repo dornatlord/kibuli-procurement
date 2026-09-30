@@ -17,6 +17,7 @@ const SAFE_COLUMNS = {
   department: users.department,
   isActive: users.isActive,
   mustChangePassword: users.mustChangePassword,
+  canCorrectRecords: users.canCorrectRecords,
   lastLoginAt: users.lastLoginAt,
   createdAt: users.createdAt,
 };
@@ -85,7 +86,12 @@ router.post("/", requirePermission("users.create"), async (req, res) => {
 
 router.patch("/:id", requirePermission("users.edit"), async (req, res) => {
   const id = Number(req.params.id);
-  const { name, role, department } = req.body;
+  const { name, role, department, canCorrectRecords } = req.body;
+
+  if (canCorrectRecords !== undefined && typeof canCorrectRecords !== "boolean") {
+    res.status(400).json({ error: "canCorrectRecords must be true or false" });
+    return;
+  }
 
   if (role && !ROLE_PERMISSIONS[role as Role]) {
     res.status(400).json({ error: `Unknown role: ${role}` });
@@ -113,6 +119,8 @@ router.patch("/:id", requirePermission("users.edit"), async (req, res) => {
   if (name !== undefined) patch.name = name;
   if (role !== undefined) patch.role = role;
   if (department !== undefined) patch.department = department || null;
+  // Who may correct saved requests and LPOs, besides administrators.
+  if (canCorrectRecords !== undefined) patch.canCorrectRecords = canCorrectRecords;
 
   const [updated] = await db
     .update(users)
@@ -125,7 +133,7 @@ router.patch("/:id", requirePermission("users.edit"), async (req, res) => {
     return;
   }
 
-  await logAudit(req.session.userId!, "user.updated", "user", id, { role, department });
+  await logAudit(req.session.userId!, "user.updated", "user", id, { role, department, canCorrectRecords });
   res.json(updated);
 });
 

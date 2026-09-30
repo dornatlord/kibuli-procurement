@@ -156,6 +156,7 @@ export const PERMISSION_GROUPS: { title: string; items: [permission: string, lab
       ["users.edit", "Change users' roles and details"],
       ["users.deactivate", "Deactivate users"],
       ["users.reset_password", "Reset passwords"],
+      ["records.correct", "Correct saved requests and LPOs"],
       ["system.settings", "Change system settings"],
     ],
   },

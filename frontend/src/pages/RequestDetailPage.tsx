@@ -10,6 +10,7 @@ import StatusBadge from "../components/StatusBadge";
 import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
 import PartTwoTable, { rowDecisionsFrom, submissionFrom } from "../components/PartTwoForm";
 import type { PartTwoSubmission, RowDecisions } from "../components/PartTwoForm";
+import CorrectionPanel, { CorrectionHistory, toEditLines } from "../components/CorrectionPanel";
 
 /** Part II while it is being edited on the request page. */
 interface PartTwoDraft {
@@ -60,6 +61,9 @@ export default function RequestDetailPage() {
   const [linkedLpo, setLinkedLpo] = useState<LinkedLpo | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
+  // Correcting the saved request (administrators and those given the right).
+  const [correcting, setCorrecting] = useState(false);
+  const [corrected, setCorrected] = useState(false);
   const [partTwoEdit, setPartTwoEdit] = useState<PartTwoDraft | null>(null);
   const [partTwoSaving, setPartTwoSaving] = useState(false);
   const [partTwoError, setPartTwoError] = useState("");
@@ -216,6 +220,18 @@ export default function RequestDetailPage() {
                 </button>
               </>
             )}
+            {can("records.correct") && !correcting && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCorrecting(true);
+                  setCorrected(false);
+                }}
+                className="btn btn-secondary"
+              >
+                Correct
+              </button>
+            )}
             {can("purchase_orders.create") && request.status !== "rejected" && (
               <Link to={`/purchase-orders/new?requestId=${request.id}`} className="btn btn-primary">
                 <PlusIcon className="h-4 w-4" />
@@ -225,6 +241,46 @@ export default function RequestDetailPage() {
           </div>
         </div>
       </div>
+
+      {correcting && (
+        <CorrectionPanel
+          title={`Correct ${request.referenceNumber}`}
+          fields={[
+            { key: "subjectOfProcurement", label: "Subject of procurement" },
+            { key: "procurementPlanReference", label: "Procurement plan reference" },
+            { key: "locationForDelivery", label: "Location for delivery" },
+            { key: "dateRequired", label: "Date required (delivery date)", type: "date" },
+          ]}
+          initial={{
+            subjectOfProcurement: request.subjectOfProcurement ?? "",
+            procurementPlanReference: request.procurementPlanReference ?? "",
+            locationForDelivery: request.locationForDelivery ?? "",
+            dateRequired: request.dateRequired ? request.dateRequired.slice(0, 10) : "",
+          }}
+          lines={toEditLines(
+            request.items.map((it) => ({
+              id: it.id,
+              description: it.description,
+              quantity: it.quantity,
+              unitOfMeasure: it.unitOfMeasure,
+              price: it.estimatedUnitCost,
+            }))
+          )}
+          priceLabel="Estimated unit cost"
+          onSave={async ({ values, items, reason }) => {
+            await api.put(`/requests/${request.id}/correct`, { ...values, items, reason });
+            setCorrecting(false);
+            setCorrected(true);
+            load();
+          }}
+          onClose={() => setCorrecting(false)}
+        />
+      )}
+      {corrected && (
+        <p role="status" className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+          Corrected. The Audit Trail records what changed, and printing shows the corrected request.
+        </p>
+      )}
 
       {actions.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
@@ -518,6 +574,8 @@ export default function RequestDetailPage() {
           </Link>
         </div>
       )}
+
+      <CorrectionHistory corrections={request.corrections} />
     </div>
   );
 }

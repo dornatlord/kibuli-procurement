@@ -179,6 +179,15 @@ const QUESTIONS: Topic[] = [
     link: { to: "/purchase-orders", label: "Open LPOs" },
   },
   {
+    id: "correct-mistake",
+    title: "I found a mistake in a saved request or LPO.",
+    steps: [
+      "Administrators, and people ticked **Can correct records** on **Users & Roles**, see **Correct** on the request or LPO page. Change what's wrong, say what was wrong, and press **Save correction**.",
+      "It works for any year. The Audit Trail keeps what changed and who changed it, the page lists its corrections, and printing shows the corrected version.",
+      "Can't see **Correct**? Ask one of them.",
+    ],
+  },
+  {
     id: "old-records",
     title: "How do I find something from an earlier year?",
     steps: [

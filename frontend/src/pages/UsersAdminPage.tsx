@@ -20,6 +20,8 @@ interface User {
   department: string | null;
   isActive: boolean;
   mustChangePassword: boolean;
+  /** May correct saved requests and LPOs. Administrators always may. */
+  canCorrectRecords?: boolean;
   lastLoginAt: string | null;
   createdAt: string | null;
 }
@@ -92,6 +94,7 @@ export default function UsersAdminPage() {
         name: editing.name,
         role: editing.role,
         department: editing.department,
+        canCorrectRecords: !!editing.canCorrectRecords,
       });
       setEditing(null);
       flash("User updated.");
@@ -305,6 +308,24 @@ export default function UsersAdminPage() {
                 {ROLE_DESCRIPTIONS[editing.role as Role]}
               </p>
             </div>
+            <div>
+              <label className="flex items-start gap-2 text-sm text-gray-800">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={editing.role === "administrator" || !!editing.canCorrectRecords}
+                  disabled={editing.role === "administrator"}
+                  onChange={(e) => setEditing({ ...editing, canCorrectRecords: e.target.checked })}
+                />
+                <span>
+                  Can correct records
+                  <span className="block text-xs text-gray-500">
+                    Fix mistakes in saved requests and LPOs from any year. Every correction is kept in the Audit Trail.
+                    {editing.role === "administrator" && " Administrators always can."}
+                  </span>
+                </span>
+              </label>
+            </div>
             <div className="flex gap-2 pt-2">
               <button
                 type="submit"
@@ -416,6 +437,11 @@ export default function UsersAdminPage() {
                     {u.mustChangePassword && u.isActive && (
                       <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
                         must set password
+                      </span>
+                    )}
+                    {u.canCorrectRecords && u.role !== "administrator" && (
+                      <span className="ml-2 text-xs bg-green-50 text-green-800 px-1.5 py-0.5 rounded">
+                        can correct records
                       </span>
                     )}
                   </td>

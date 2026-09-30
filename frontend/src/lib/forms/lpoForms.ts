@@ -24,6 +24,7 @@ export interface LpoRecord {
   totalAmount: string | null;
   termsAndConditions: string | null;
   createdAt: string;
+  supplierId?: number;
   supplierName: string | null;
   supplierAddress: string | null;
   supplierPhone: string | null;
@@ -37,6 +38,8 @@ export interface LpoRecord {
   requestDepartment: string | null;
   preparedByName: string | null;
   items: LpoItem[];
+  /** When it was corrected, by whom and why. */
+  corrections?: { at: string; by: string | null; reason: string | null }[];
 }
 
 /** The date goods are due: the LPO's own, or else the date the request needs them by. */

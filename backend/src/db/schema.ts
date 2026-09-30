@@ -126,6 +126,8 @@ export const users = pgTable("users", {
   department: text("department"),
   isActive: boolean("is_active").notNull().default(true),
   mustChangePassword: boolean("must_change_password").notNull().default(false),
+  // May correct saved requests and LPOs (migration 016). Administrators always may.
+  canCorrectRecords: boolean("can_correct_records").notNull().default(false),
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });

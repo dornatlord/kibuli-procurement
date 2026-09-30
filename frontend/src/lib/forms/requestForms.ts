@@ -87,6 +87,8 @@ export interface RequestRecord {
   status: string;
   createdAt: string;
   items: RequestLineItem[];
+  /** When it was corrected, by whom and why. */
+  corrections?: { at: string; by: string | null; reason: string | null }[];
   signatures: RequestSignature[];
   decision: CommitteeDecision | null;
   stepDates?: StepDates;

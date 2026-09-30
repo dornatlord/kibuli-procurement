@@ -13,7 +13,16 @@ import {
   auditLogs,
 } from "../db/schema.js";
 import { eq, and, asc, desc, sql, inArray } from "drizzle-orm";
-import { requireAuth, requirePermission } from "../middleware/auth.js";
+import { requireAuth, requirePermission, requireCorrectionRight } from "../middleware/auth.js";
+import {
+  changesBetween,
+  correctionsOf,
+  dateFrom,
+  lineChanges,
+  nothingChanged,
+  readLines,
+  textFrom,
+} from "../lib/corrections.js";
 import { hasPermission, Permission } from "../lib/permissions.js";
 import { logAudit } from "../lib/audit.js";
 import { visibleRequestFilter } from "../lib/requestAccess.js";
@@ -196,9 +205,107 @@ router.get(
     // without sub-programmes, 2212-4 "Civil works" for one with them.
     projectCode: vote ? (budgetLineNumber ? `${vote.code}-${budgetLineNumber}` : vote.code) : null,
     projectTitle: subProg?.name ?? budgetItem?.name ?? null,
+    // When the request was corrected, by whom and why; the audit trail has the details.
+    corrections: await correctionsOf("procurement_request", request.id, "request.corrected"),
   });
   }
 );
+
+/**
+ * Corrects a saved request: its subject, plan reference, delivery place and
+ * date, and its items (totals worked out again). Any year's request can be
+ * corrected, but only by the people allowed to, and every correction goes in
+ * the audit trail with the reason and what changed.
+ */
+router.put("/:id/correct", requireCorrectionRight, async (req, res) => {
+  const id = Number(req.params.id);
+  const [request] = await db.select().from(procurementRequests).where(eq(procurementRequests.id, id));
+  if (!request) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const reason = textFrom(req.body?.reason, 500);
+  if (!reason || reason.length < 3) {
+    res.status(400).json({ error: "Say what was wrong, so the audit trail records why it was corrected." });
+    return;
+  }
+  const dateRequired = dateFrom(req.body?.dateRequired);
+  if (dateRequired === undefined) {
+    res.status(400).json({ error: "The date required isn't a date." });
+    return;
+  }
+  const lines = readLines(req.body?.items);
+  if (typeof lines === "string") {
+    res.status(400).json({ error: lines });
+    return;
+  }
+  const current = await db
+    .select()
+    .from(procurementItems)
+    .where(eq(procurementItems.procurementRequestId, id))
+    .orderBy(asc(procurementItems.itemNo));
+  const known = new Set(current.map((i) => i.id));
+  if (lines.some((l) => l.id && !known.has(l.id))) {
+    res.status(400).json({ error: "An item sent doesn't belong to this request." });
+    return;
+  }
+
+  const fields = {
+    subjectOfProcurement: textFrom(req.body?.subjectOfProcurement),
+    procurementPlanReference: textFrom(req.body?.procurementPlanReference, 200),
+    locationForDelivery: textFrom(req.body?.locationForDelivery, 200),
+    dateRequired,
+  };
+  const changes = changesBetween(
+    {
+      subjectOfProcurement: request.subjectOfProcurement,
+      procurementPlanReference: request.procurementPlanReference,
+      locationForDelivery: request.locationForDelivery,
+      dateRequired: request.dateRequired,
+    },
+    fields
+  );
+  const items = lineChanges(
+    current.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, unitOfMeasure: i.unitOfMeasure, unitPrice: i.estimatedUnitCost })),
+    lines
+  );
+  if (nothingChanged(changes, items)) {
+    res.status(400).json({ error: "Nothing was changed." });
+    return;
+  }
+
+  const total = lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(procurementRequests)
+      .set({ ...fields, estimatedTotalCost: String(total), updatedAt: new Date() })
+      .where(eq(procurementRequests.id, id));
+    const keep = new Set(lines.filter((l) => l.id).map((l) => l.id));
+    const drop = current.filter((i) => !keep.has(i.id)).map((i) => i.id);
+    if (drop.length) await tx.delete(procurementItems).where(inArray(procurementItems.id, drop));
+    for (const [n, l] of lines.entries()) {
+      const values = {
+        itemNo: n + 1,
+        description: l.description,
+        quantity: String(l.quantity),
+        unitOfMeasure: l.unitOfMeasure,
+        estimatedUnitCost: String(l.unitPrice),
+        totalCost: String(l.quantity * l.unitPrice),
+      };
+      if (l.id) await tx.update(procurementItems).set(values).where(eq(procurementItems.id, l.id));
+      else await tx.insert(procurementItems).values({ ...values, procurementRequestId: id, marketPrice: String(l.unitPrice) });
+    }
+  });
+
+  await logAudit(req.session.userId!, "request.corrected", "procurement_request", id, {
+    referenceNumber: request.referenceNumber,
+    reason,
+    changes,
+    items,
+    total: { from: request.estimatedTotalCost, to: String(total) },
+  });
+  res.json({ ok: true });
+});
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
