@@ -435,6 +435,19 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
     approved: "requests.approve.committee",
   };
 
+  // A micro procurement is approved by the Accounting Officer and never goes
+  // to the Contracts Committee; a macro one needs the committee to approve it.
+  const isMicro = request.procurementSize === "micro";
+  if (isMicro && status === "pending_contracts_committee") {
+    res.status(400).json({
+      error: "A micro procurement is approved by the Accounting Officer; it doesn't go to the Contracts Committee.",
+    });
+    return;
+  }
+  if (isMicro && status === "approved" && request.status === "pending_accounting_officer") {
+    statusPermission.approved = "requests.approve.accounting_officer";
+  }
+
   if (status === "rejected") {
     const canReject =
       hasPermission(role, "requests.approve.hod") ||

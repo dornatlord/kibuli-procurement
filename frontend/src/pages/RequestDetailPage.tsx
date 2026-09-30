@@ -148,7 +148,16 @@ export default function RequestDetailPage() {
       </div>
     );
 
-  const actions = (NEXT_STATUS[request.status] || []).filter((a) => can(a.permission));
+  // A micro procurement is the Accounting Officer's to approve; only macro
+  // procurements go on to the Contracts Committee.
+  const steps =
+    request.procurementSize === "micro" && request.status === "pending_accounting_officer"
+      ? [
+          { permission: "requests.approve.accounting_officer", label: "Approve", next: "approved" },
+          { permission: "requests.approve.accounting_officer", label: "Reject", next: "rejected" },
+        ]
+      : NEXT_STATUS[request.status] || [];
+  const actions = steps.filter((a) => can(a.permission));
   const canPrepare = can("requests.prepare.committee");
   const canDecide = can("requests.approve.committee");
   const meetingLine = [formDate(request.stepDates?.committeeMeeting), request.decision?.meetingReference]

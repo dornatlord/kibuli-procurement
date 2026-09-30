@@ -56,8 +56,8 @@ const GUIDES: Topic[] = [
     steps: [
       "The department: **Submit to HoD**.",
       "Head of Department: **Approve → Accounting Officer**, or **Reject**.",
-      "Accounting Officer: **Approve → Contracts Committee**, or **Reject**.",
-      "Contracts Committee: **Approve** or **Reject**. For a macro request, the Procurement and Disposal Unit first prepares **Part II** on the request page: the method and why it was chosen.",
+      "Accounting Officer: for a micro request, **Approve**, and it's approved. For a macro request, **Approve → Contracts Committee**. Or **Reject**.",
+      "Contracts Committee, for macro requests only: **Approve** or **Reject**. The Procurement and Disposal Unit first prepares **Part II** on the request page: the method and why it was chosen.",
       "The request page shows every step with who did it and when. Those dates print on the form by themselves.",
     ],
   },
