@@ -28,6 +28,7 @@ const GUIDES: Topic[] = [
     steps: [
       "**Dashboard** greets you with counts and quick actions.",
       "**New request** starts a TFORM 5 request.",
+      "**Search** finds anything from any year: a reference, a subject, an item, a supplier, an LPO number.",
       "The menu's sections (Procurement, Providers & Contracts, Receiving & Payment, Reference, Reports & Administration) hold the rest. On a small screen, open the menu with the ☰ button at the top left.",
       "Your name at the bottom of the menu opens your **Profile**.",
       "**Help**, this page, is always at the bottom of the menu.",
@@ -176,6 +177,31 @@ const QUESTIONS: Topic[] = [
     title: "How do I find LPO 1 from last year?",
     steps: ["Open **LPOs**, and under **Year** choose last year. Or type 1/2025 (the number, a slash, the year) in **Find**."],
     link: { to: "/purchase-orders", label: "Open LPOs" },
+  },
+  {
+    id: "old-records",
+    title: "How do I find something from an earlier year?",
+    steps: [
+      "Nothing is deleted when a year ends. **Search** in the menu looks through every year at once.",
+      "Lists open on this year. At the top of each list, choose another **Year**, or **All years**.",
+    ],
+    link: { to: "/search", label: "Open Search" },
+  },
+  {
+    id: "new-year-suppliers",
+    title: "How do I start a new year's supplier list?",
+    steps: [
+      "Open **Suppliers** and choose the new year. It offers to carry everyone forward, to choose who to carry, or to start a fresh list.",
+      "Taking a supplier off a year's list never touches its LPOs or contracts.",
+    ],
+  },
+  {
+    id: "new-year-budget",
+    title: "How do I set next year's budget?",
+    steps: [
+      "Open **Budget** and choose next year. Press **Copy** to start from this year's amounts, then change what's different.",
+      "Each year keeps its own amounts, and the reports read each year's own budget.",
+    ],
   },
   {
     id: "delivery-date",

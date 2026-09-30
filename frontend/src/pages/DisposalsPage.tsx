@@ -4,6 +4,9 @@ import { useAuth } from "../lib/auth";
 import PageHeader from "../components/PageHeader";
 import { InboxIcon, PlusIcon } from "../components/icons";
 import { ListSkeleton } from "../components/Loading";
+import YearSelect from "../components/YearSelect";
+import { useYearFilter } from "../lib/useYearFilter";
+import { yearOf } from "../lib/years";
 
 interface Disposal {
   id: number;
@@ -15,6 +18,7 @@ interface Disposal {
   reservePrice: string | null;
   contractPrice: string | null;
   notes: string | null;
+  createdAt?: string | null;
 }
 
 interface Draft {
@@ -62,6 +66,8 @@ export default function DisposalsPage() {
   const [editing, setEditing] = useState<{ id: number | null; draft: Draft } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // A disposal belongs to the year it was awarded, or else the year it was entered.
+  const { year, setYear, years, shown } = useYearFilter(rows, (d) => yearOf(d.awardDate) ?? yearOf(d.createdAt));
 
   const load = () =>
     api
@@ -270,16 +276,35 @@ export default function DisposalsPage() {
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
       )}
 
+      {!loading && rows.length > 0 && (
+        <div className="flex items-end justify-between gap-3">
+          <YearSelect id="disposals-year" value={year} years={years} onChange={setYear} allowAll />
+          <div className="mb-2 text-sm text-gray-400">
+            {shown.length} disposal{shown.length === 1 ? "" : "s"}
+            {year === "all" ? "" : ` in ${year}`}
+          </div>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         {loading ? (
           <ListSkeleton />
-        ) : rows.length === 0 ? (
+        ) : shown.length === 0 ? (
           <div className="flex flex-col items-center px-6 py-16 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-gray-100 text-gray-400">
               <InboxIcon className="h-6 w-6" />
             </span>
-            <p className="mt-3 text-sm font-medium text-gray-900">No disposals recorded yet</p>
-            <p className="mt-1 text-sm text-gray-500">When the school sells or writes off an asset, record it here.</p>
+            {rows.length === 0 ? (
+              <>
+                <p className="mt-3 text-sm font-medium text-gray-900">No disposals recorded yet</p>
+                <p className="mt-1 text-sm text-gray-500">When the school sells or writes off an asset, record it here.</p>
+              </>
+            ) : (
+              <>
+                <p className="mt-3 text-sm font-medium text-gray-900">No disposals in {year}</p>
+                <p className="mt-1 text-sm text-gray-500">Choose another year, or All years.</p>
+              </>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -300,7 +325,7 @@ export default function DisposalsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rows.map((d) => (
+                {shown.map((d) => (
                   <tr key={d.id} className="align-top">
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{d.subject}</div>

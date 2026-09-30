@@ -7,7 +7,7 @@ import BrandMark from "./BrandMark";
 import OfflineNotices from "./OfflineNotices";
 import { useOnline } from "../lib/online";
 import { useInstallPrompt } from "../lib/install";
-import { DownloadIcon, HelpIcon, HomeIcon, LogoutIcon, MenuIcon, PlusIcon, UserIcon, XIcon } from "./icons";
+import { DownloadIcon, HelpIcon, HomeIcon, LogoutIcon, MenuIcon, PlusIcon, SearchIcon, UserIcon, XIcon } from "./icons";
 
 export default function Layout() {
   const { user, logout, can } = useAuth();
@@ -41,6 +41,7 @@ export default function Layout() {
   const navPaths = [
     "/dashboard",
     "/requests/new",
+    "/search",
     ...groups.flatMap((g) => g.items.map((m) => m.to)),
   ];
   const activePath = navPaths
@@ -68,6 +69,7 @@ export default function Layout() {
               active={activePath === "/requests/new"}
             />
           )}
+          <SideLink to="/search" icon={<SearchIcon />} label="Search" active={activePath === "/search"} />
         </div>
 
         {groups.map(({ group, items }) => (

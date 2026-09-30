@@ -10,6 +10,7 @@ import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
 import { CheckCircleIcon, ChevronRightIcon, InboxIcon, PlusIcon, SearchIcon } from "../components/icons";
 import { ListSkeleton } from "../components/Loading";
+import { thisYear, yearChoices } from "../lib/years";
 
 interface Request {
   id: number;
@@ -35,7 +36,8 @@ export default function RequestsListPage() {
   const [query, setQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
-  const [filterYear, setFilterYear] = useState("");
+  // One year at a time, this year to begin with, like every other list.
+  const [filterYear, setFilterYear] = useState<number | "all">(thisYear());
   const [queued, setQueued] = useState<QueuedRequest[]>(() => (user ? queuedRequests(user.id) : []));
   const [sending, setSending] = useState(false);
   const justQueued = (location.state as { queued?: string } | null)?.queued;
@@ -79,10 +81,9 @@ export default function RequestsListPage() {
   }
 
   const q = query.trim().toLowerCase();
-  const filtered = requests.filter((r) => {
+  const matches = (r: Request) => {
     if (filterStatus && r.status !== filterStatus) return false;
     if (filterCategory && r.category !== filterCategory) return false;
-    if (filterYear && String(r.year) !== filterYear) return false;
     if (
       q &&
       !r.referenceNumber.toLowerCase().includes(q) &&
@@ -91,14 +92,17 @@ export default function RequestsListPage() {
       return false;
     }
     return true;
-  });
-  const filtering = !!(q || filterStatus || filterCategory || filterYear);
+  };
+  const filtered = requests.filter((r) => (filterYear === "all" || r.year === filterYear) && matches(r));
+  // Matches from other years, offered rather than hidden.
+  const inOtherYears = filterYear === "all" ? 0 : requests.filter((r) => r.year !== filterYear && matches(r)).length;
+  const filtering = !!(q || filterStatus || filterCategory);
 
   function clearFilters() {
     setQuery("");
     setFilterStatus("");
     setFilterCategory("");
-    setFilterYear("");
+    setFilterYear(thisYear());
   }
 
   return (
@@ -207,15 +211,30 @@ export default function RequestsListPage() {
               <option value="works">Works</option>
               <option value="non_consultancy">Non-consultancy</option>
             </select>
-            <input
-              type="number"
-              placeholder="Year"
+            <select
+              aria-label="Year"
               value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value)}
-              className="input col-span-2 sm:col-span-1 md:w-24"
-            />
+              onChange={(e) => setFilterYear(e.target.value === "all" ? "all" : Number(e.target.value))}
+              className="input col-span-2 sm:col-span-1 md:w-32"
+            >
+              {yearChoices(requests.map((r) => r.year)).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+              <option value="all">All years</option>
+            </select>
           </div>
         </div>
+
+        {!loading && inOtherYears > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50/60 px-4 py-2 text-sm text-gray-600">
+            {inOtherYears} more {filtering ? "matching " : ""}in other years.
+            <button type="button" onClick={() => setFilterYear("all")} className="font-medium text-green-700 hover:underline">
+              Show all years
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <ListSkeleton rows={6} />
@@ -227,11 +246,19 @@ export default function RequestsListPage() {
               <InboxIcon className="h-6 w-6" />
             </span>
             <p className="mt-3 text-sm font-medium text-gray-900">
-              {filtering ? "No requests match these filters" : "No requests yet"}
+              {filtering
+                ? "No requests match these filters"
+                : requests.length > 0
+                ? `No requests in ${filterYear}`
+                : "No requests yet"}
             </p>
             {filtering ? (
               <button type="button" onClick={clearFilters} className="btn btn-secondary btn-sm mt-4">
                 Clear filters
+              </button>
+            ) : requests.length > 0 ? (
+              <button type="button" onClick={() => setFilterYear("all")} className="btn btn-secondary btn-sm mt-4">
+                Show all years
               </button>
             ) : (
               can("requests.create") && (

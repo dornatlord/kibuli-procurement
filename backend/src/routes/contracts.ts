@@ -36,6 +36,7 @@ router.get("/", requirePermission("contracts.view"), async (_req, res) => {
       startDate: contracts.startDate,
       endDate: contracts.endDate,
       signedDate: contracts.signedDate,
+      createdAt: contracts.createdAt,
       supplierName: suppliers.name,
       referenceNumber: procurementRequests.referenceNumber,
     })
@@ -58,6 +59,7 @@ router.get("/:id", requirePermission("contracts.view"), async (req, res) => {
       startDate: contracts.startDate,
       endDate: contracts.endDate,
       signedDate: contracts.signedDate,
+      createdAt: contracts.createdAt,
       documentReference: contracts.documentReference,
       supplierId: contracts.supplierId,
       supplierName: suppliers.name,

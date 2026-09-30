@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useOfficials } from "../lib/officials";
 import { cornerBadge, flowCss, frameClose, frameOpen, openPrint } from "../lib/print";
@@ -185,7 +185,11 @@ export default function TermlyReportPage() {
 
   const officials = useOfficials();
   const [terms, setTerms] = useState<SchoolTerm[] | null>(null);
-  const [year, setYear] = useState(thisYear);
+  // A link (from Search, say) can open a given return: ?year=2026&term=1.
+  const [params] = useSearchParams();
+  const askedYear = Number(params.get("year")) || null;
+  const askedTerm = Number(params.get("term")) || null;
+  const [year, setYear] = useState(() => askedYear ?? thisYear);
   const [term, setTerm] = useState<number | null>(null);
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [parts, setParts] = useState<Parts | null>(null);
@@ -209,7 +213,9 @@ export default function TermlyReportPage() {
       .get<SchoolTerm[]>("/settings/terms")
       .then((ts) => {
         setTerms(ts);
-        setTerm(termFor(ts, new Date().getMonth() + 1)?.term ?? 1);
+        setTerm(
+          ts.some((t) => t.term === askedTerm) ? askedTerm : termFor(ts, new Date().getMonth() + 1)?.term ?? 1
+        );
       })
       .catch((e) => {
         setNotice({ tone: "error", text: e instanceof Error ? e.message : "Could not load the terms" });

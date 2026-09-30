@@ -6,6 +6,9 @@ import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ListSkeleton } from "../components/Loading";
+import YearSelect from "../components/YearSelect";
+import { useYearFilter } from "../lib/useYearFilter";
+import { yearOf } from "../lib/years";
 
 interface InvoiceRow {
   id: number;
@@ -23,17 +26,21 @@ interface InvoiceRow {
 
 export default function InvoicesListPage() {
   const { can } = useAuth();
+  const allowed = can("invoices.view");
   const [rows, setRows] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState<number | null>(null);
-
-  if (!can("invoices.view")) return <Navigate to="/dashboard" replace />;
+  const { year, setYear, years, shown } = useYearFilter(rows, (r) => yearOf(r.invoiceDate));
 
   function load() {
     setLoading(true);
     api.get<InvoiceRow[]>("/invoices").then(setRows).finally(() => setLoading(false));
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (allowed) load();
+  }, [allowed]);
+
+  if (!allowed) return <Navigate to="/dashboard" replace />;
 
   async function act(id: number, path: string, body?: object) {
     setActing(id);
@@ -61,11 +68,23 @@ export default function InvoicesListPage() {
         )}
       </div>
 
+      {!loading && rows.length > 0 && (
+        <div className="flex items-end justify-between gap-3">
+          <YearSelect id="invoices-year" value={year} years={years} onChange={setYear} allowAll />
+          <div className="mb-2 text-sm text-gray-400">
+            {shown.length} invoice{shown.length === 1 ? "" : "s"}
+            {year === "all" ? "" : ` dated ${year}`}
+          </div>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         {loading ? (
           <ListSkeleton />
         ) : rows.length === 0 ? (
           <div className="px-6 py-12 text-center text-sm text-gray-400">No invoices recorded yet.</div>
+        ) : shown.length === 0 ? (
+          <div className="px-6 py-12 text-center text-sm text-gray-400">No invoices in {year}. Choose another year, or All years.</div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
@@ -80,7 +99,7 @@ export default function InvoicesListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((r) => (
+              {shown.map((r) => (
                 <tr key={r.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 font-mono text-xs">{r.invoiceNumber}</td>
                   <td className="px-4 py-2">{r.supplierName || "—"}</td>

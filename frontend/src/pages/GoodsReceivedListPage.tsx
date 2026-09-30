@@ -6,6 +6,9 @@ import { useAuth } from "../lib/auth";
 import { Navigate } from "react-router-dom";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ListSkeleton } from "../components/Loading";
+import YearSelect from "../components/YearSelect";
+import { useYearFilter } from "../lib/useYearFilter";
+import { yearOf } from "../lib/years";
 
 interface GRNRow {
   id: number;
@@ -20,14 +23,17 @@ interface GRNRow {
 
 export default function GoodsReceivedListPage() {
   const { can } = useAuth();
+  const allowed = can("goods_received.view");
   const [rows, setRows] = useState<GRNRow[]>([]);
   const [loading, setLoading] = useState(true);
-
-  if (!can("goods_received.view")) return <Navigate to="/dashboard" replace />;
+  const { year, setYear, years, shown } = useYearFilter(rows, (g) => yearOf(g.receivedDate));
 
   useEffect(() => {
+    if (!allowed) return;
     api.get<GRNRow[]>("/goods-received").then(setRows).finally(() => setLoading(false));
-  }, []);
+  }, [allowed]);
+
+  if (!allowed) return <Navigate to="/dashboard" replace />;
 
   return (
     <div className="space-y-6">
@@ -36,12 +42,26 @@ export default function GoodsReceivedListPage() {
         <p className="text-sm text-gray-500 mt-1">Delivery notes recorded against purchase orders.</p>
       </div>
 
+      {!loading && rows.length > 0 && (
+        <div className="flex items-end justify-between gap-3">
+          <YearSelect id="grn-year" value={year} years={years} onChange={setYear} allowAll />
+          <div className="mb-2 text-sm text-gray-400">
+            {shown.length} deliver{shown.length === 1 ? "y" : "ies"}
+            {year === "all" ? "" : ` received in ${year}`}
+          </div>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         {loading ? (
           <ListSkeleton />
         ) : rows.length === 0 ? (
           <div className="px-6 py-12 text-center text-sm text-gray-400">
             No deliveries recorded yet. Record one from an acknowledged purchase order.
+          </div>
+        ) : shown.length === 0 ? (
+          <div className="px-6 py-12 text-center text-sm text-gray-400">
+            No deliveries in {year}. Choose another year, or All years.
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -57,7 +77,7 @@ export default function GoodsReceivedListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {rows.map((g) => (
+              {shown.map((g) => (
                 <tr key={g.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2 font-mono text-xs">{g.grnNumber}</td>
                   <td className="px-4 py-2 font-mono text-xs text-gray-500">{lpoNumber({ poNumber: g.poNumber, year: g.poYear }) || "—"}</td>

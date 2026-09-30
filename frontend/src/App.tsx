@@ -10,6 +10,7 @@ import ReservePricesPage from "./pages/ReservePricesPage";
 import UsersAdminPage from "./pages/UsersAdminPage";
 import ProfilePage from "./pages/ProfilePage";
 import HelpPage from "./pages/HelpPage";
+import SearchPage from "./pages/SearchPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import SuppliersPage from "./pages/SuppliersPage";
@@ -90,6 +91,7 @@ function AppRoutes() {
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="help" element={<HelpPage />} />
+        <Route path="search" element={<SearchPage />} />
         <Route path="account" element={<Navigate to="/profile" replace />} />
 
         <Route

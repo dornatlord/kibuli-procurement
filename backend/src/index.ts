@@ -24,6 +24,7 @@ import reportsRouter from "./routes/reports.js";
 import settingsRouter from "./routes/settings.js";
 import disposalsRouter from "./routes/disposals.js";
 import termlyReportRouter from "./routes/termlyReport.js";
+import searchRouter from "./routes/search.js";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -128,6 +129,7 @@ app.use("/api/reports", reportsRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/disposals", disposalsRouter);
 app.use("/api/termly-report", termlyReportRouter);
+app.use("/api/search", searchRouter);
 
 // Global error handler — keeps CORS headers on 500s
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
