@@ -74,6 +74,7 @@ const GUIDES: Topic[] = [
       "The **Monthly Report** and **Termly Report** pages have **Print FORM 2** and **Print FORM 27**.",
       "TFORM 5, the call-off order and the LPO first show the names, titles and dates they will print, filled in already. Change any that's wrong (click a box to pick another name in that office), then press **Print**.",
       "Every date on TFORM 5 is the day the request was made. **Date Required** is the delivery date.",
+      "On page 3, the confirmation of the request is signed by the Deputy Head Teacher: the deputy in **Officials** is filled in, and the box offers every deputy.",
       "A name you type there, such as a Head of Department, is kept in **Officials** under its title. Next time, it's offered in the box for that title.",
       "A print window opens. Choose the printer and A4 paper, then press Print. The layout, landscape for FORM 5, is set for you.",
       "On TFORM 5, names, titles and dates print without a line under them; lines are left only where someone signs, or for something left blank to write in by hand. On the LPO, only the dates lose their line. The school badge is on the first page only.",

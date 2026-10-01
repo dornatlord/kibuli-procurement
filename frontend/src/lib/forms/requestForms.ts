@@ -190,6 +190,9 @@ export type TFormFill = {
   meetingOn: string;
 };
 
+/** Who confirms a request on page 3 at Kibuli: always the Deputy Head Teacher. */
+export const CONFIRMED_BY_TITLE = "Deputy Head Teacher";
+
 /** The title for page 3 that fits someone's role in the system. */
 const departmentTitleFor = (role: string | null | undefined) =>
   role === "head_of_dept" ? "Head of Department" : role === "user_dept_member" ? "Member of Department" : "Representative";
@@ -227,8 +230,15 @@ export function tformFill(request: RequestRecord, officials: Officials): TFormFi
     requesterName: sig("user_dept")?.name ?? requester?.name ?? "",
     requesterTitle: departmentTitleFor(requester?.role),
     requestedOn: day,
-    hodName: sig("head_of_dept")?.name ?? hodActed ?? requesterIsHead ?? headsFor(request)[0]?.name ?? "",
-    hodTitle: "Head of Department",
+    // The Deputy Head Teacher confirms every request, so the deputy in Officials signs here.
+    hodName:
+      officials.deputy_head_teacher?.name ??
+      sig("head_of_dept")?.name ??
+      hodActed ??
+      requesterIsHead ??
+      headsFor(request)[0]?.name ??
+      "",
+    hodTitle: officials.deputy_head_teacher?.title || CONFIRMED_BY_TITLE,
     hodOn: day,
     aoName: sig("accounting_officer")?.name ?? aoActed ?? officials.accounting_officer?.name ?? "",
     aoTitle: officials.accounting_officer?.title || "Accounting Officer",

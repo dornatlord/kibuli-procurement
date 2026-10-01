@@ -5,6 +5,7 @@ import { keepNames, namesForTitle, namesIn, useOfficials } from "../lib/official
 import { useAuth } from "../lib/auth";
 import { dayFirst as formDate } from "../lib/print";
 import {
+  CONFIRMED_BY_TITLE,
   DEPARTMENT_TITLES,
   callOffFill,
   headsFor,
@@ -717,8 +718,22 @@ function tformSections(
     {
       title: "Page 3 — (2) confirmation of request",
       fields: [
-        { key: "hodName", label: "Name", options: (v) => [...namesForTitle(officials, v.hodTitle), ...heads] },
-        { key: "hodTitle", label: "Title", options: DEPARTMENT_TITLES },
+        // The Deputy Head Teacher confirms requests: every deputy is offered, then anyone kept under the title chosen.
+        {
+          key: "hodName",
+          label: "Name",
+          options: (v) => [
+            ...namesForTitle(officials, v.hodTitle),
+            ...namesIn(officials, "deputy_head_teacher"),
+            ...heads,
+          ],
+        },
+        {
+          key: "hodTitle",
+          label: "Title",
+          // The deputy's title as written in Officials, however it's spelt there.
+          options: [officials.deputy_head_teacher?.title || CONFIRMED_BY_TITLE, ...DEPARTMENT_TITLES],
+        },
         { key: "hodOn", label: "Date", type: "date" },
       ],
     },
