@@ -1,7 +1,7 @@
 import { KSS_BADGE } from "../badge";
 import { shillingsInWords } from "../words";
 import type { Officials } from "../officials";
-import { cornerBadge, dayFirst, esc, money, openPrint, sheetCss, tableSheets } from "../print";
+import { cornerBadge, dayFirst, esc, kampalaDay, money, openPrint, sheetCss, tableSheets } from "../print";
 
 export interface LpoItem {
   id: number;
@@ -74,15 +74,16 @@ body { font-family: "Times New Roman", Times, serif; font-size: 14px; }
 .fill { font-family: Arial, Helvetica, sans-serif; font-weight: normal; }
 .dots { display: inline-block; min-width: 170px; border-bottom: 2px dotted #000; padding: 0 6px 2px; }
 .line { border-bottom: 2px dotted #000; min-height: 26px; padding: 4px 6px 2px; }
+.text { padding: 0 6px; }
 .to { margin-top: 18px; font-weight: bold; }
 .to-first { display: flex; gap: 8px; align-items: flex-end; }
-.to-first .line { flex: 1; }
+.to-first .line, .to-first .text { flex: 1; }
 .to-rest { margin-left: 44px; }
+.to-rest .text { margin-top: 6px; }
 .delivery { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; font-weight: bold; }
 .delivery .line { min-width: 220px; }
 .lead { font-weight: bold; font-size: 15px; margin-top: 18px; }
-.continued { display: flex; align-items: center; gap: 12px; font-weight: bold; font-size: 15px; }
-.continued img { width: 44px; height: 48px; }
+.continued { font-weight: bold; font-size: 15px; }
 table { width: 100%; border-collapse: collapse; margin-top: 3px; }
 th, td { border: 2px solid #000; padding: 3px 8px; height: 28px; font-family: Arial, Helvetica, sans-serif; font-size: 13px; }
 th { font-size: 16px; }
@@ -92,19 +93,43 @@ th { font-size: 16px; }
 .pto { font-size: 11px; font-weight: bold; font-style: italic; letter-spacing: 1px; }
 .quote { text-align: center; font-weight: bold; font-size: 15px; margin-top: 14px; }
 .words { display: flex; gap: 8px; align-items: flex-end; margin-top: 16px; font-weight: bold; font-size: 15px; }
-.words .line { flex: 1; font-size: 14px; }
+.words > span { white-space: nowrap; }
+.words .line, .words .text { flex: 1; font-size: 14px; }
 .sign { display: flex; justify-content: space-between; margin-top: 22px; font-weight: bold; font-size: 15px; }
 .sign > div { width: 40%; text-align: center; }
 .sign .dots { display: block; min-width: 0; margin: 26px 0 8px; }
 .sign .who { font-family: Arial, Helvetica, sans-serif; font-weight: normal; font-size: 13px; margin-top: 3px; }
 `;
 
-/** The LPO laid out like a page from the school's LPO book, number in red. */
-export function printLpo(po: LpoRecord, officials: Officials) {
-  // The Head Teacher authorises LPOs; some schools name the Accounting Officer instead.
-  const authorises = officials.head_teacher ?? officials.accounting_officer;
+/** What the LPO fills in by itself, checked before printing. The date is YYYY-MM-DD. */
+export type LpoFill = {
+  date: string;
+  authorisedName: string;
+};
+
+/** The LPO's date, and the Head Teacher who authorises it (or else the Accounting Officer). */
+export function lpoFill(po: LpoRecord, officials: Officials): LpoFill {
+  return {
+    date: kampalaDay(po.issueDate) || kampalaDay(po.createdAt),
+    authorisedName: (officials.head_teacher ?? officials.accounting_officer)?.name ?? "",
+  };
+}
+
+/** Written words with nothing under them; left blank, a dotted line to write on. */
+const lineOrText = (value: string | null | undefined, extra = "") =>
+  value && value.trim()
+    ? `<div class="text fill"${extra}>${esc(value)}</div>`
+    : `<div class="line fill"${extra}></div>`;
+
+/**
+ * The LPO laid out like a page from the school's LPO book, number in red and
+ * the badge on its first page. What the system fills in prints without a line
+ * under it; lines are left for signing and for anything written by hand.
+ */
+export function printLpo(po: LpoRecord, fill: LpoFill) {
   const total = po.items.reduce((s, it) => s + Number(it.totalPrice || 0), 0);
-  const date = dayFirst(po.issueDate) || new Date(po.createdAt).toLocaleDateString("en-GB");
+  const date = dayFirst(fill.date);
+  const delivery = dayFirst(deliveryDateOf(po));
 
   const itemRow = (it: LpoItem) => {
     const qty = `${Number(it.quantity).toLocaleString("en-UG")}${it.unitOfMeasure ? ` ${esc(it.unitOfMeasure)}` : ""}`;
@@ -123,26 +148,27 @@ export function printLpo(po: LpoRecord, officials: Officials) {
 <div class="bar-wrap"><span class="bar">LOCAL PURCHASE ORDER</span></div>
 <div class="row">
   <div class="no">No. <span class="red">${esc(po.poNumber)}</span></div>
-  <div>Date: <span class="dots fill">${esc(date)}</span></div>
+  <div>Date: <span class="${date ? "" : "dots "}fill">${esc(date)}</span></div>
 </div>
 <div class="to">
-  <div class="to-first"><span>To:</span><div class="line fill">${esc(po.supplierName)}</div></div>
+  <div class="to-first"><span>To:</span>${lineOrText(po.supplierName)}</div>
   <div class="to-rest">
-    <div class="line fill">${esc(po.supplierAddress)}</div>
-    <div class="line fill"></div>
+    ${lineOrText(po.supplierAddress)}
+    ${po.supplierAddress ? "" : `<div class="line fill"></div>`}
   </div>
 </div>
-<div class="delivery"><span>Delivery date:</span><div class="line fill">${esc(dayFirst(deliveryDateOf(po)))}</div></div>
+<div class="delivery"><span>Delivery date:</span>${lineOrText(delivery)}</div>
 <div class="lead">Please supply / render the following goods / services:</div>`
-      : `<div class="continued"><img src="${KSS_BADGE}" alt="" /><span>LOCAL PURCHASE ORDER No. ${esc(po.poNumber)} (continued)</span></div>`;
+      : `<div class="continued">LOCAL PURCHASE ORDER No. ${esc(po.poNumber)} (continued)</div>`;
 
     const bottom = last
       ? `<div class="quote">Please quote our Order number on your Invoice</div>
-<div class="words"><span>Amount in words :</span><div class="line fill">${esc(shillingsInWords(total))}</div></div>
-<div class="line" style="margin-top:10px;"></div>
+<div class="words"><span>Amount in words :</span>${lineOrText(shillingsInWords(total))}</div>
 <div class="sign">
   <div>Prepared by<span class="dots"></span>Signature &amp; Title</div>
-  <div>Authorised by<span class="dots"></span>Headteacher${authorises ? `<div class="who">${esc(authorises.name)}</div>` : ""}</div>
+  <div>Authorised by<span class="dots"></span>Headteacher${
+    fill.authorisedName.trim() ? `<div class="who">${esc(fill.authorisedName.trim())}</div>` : ""
+  }</div>
 </div>`
       : "";
 
@@ -192,7 +218,7 @@ export interface CompletionDetails {
 export function completionDefaults(po: LpoRecord, officials: Officials): CompletionDetails {
   const service = po.requestSubject || po.items.map((it) => it.description).slice(0, 3).join(", ");
   return {
-    date: new Date().toLocaleDateString("en-CA"),
+    date: kampalaDay(new Date().toISOString()),
     department: po.requestDepartment ?? "",
     service,
     completed: po.items.length
@@ -204,14 +230,21 @@ export function completionDefaults(po: LpoRecord, officials: Officials): Complet
   };
 }
 
-/** Kibuli's Completion Certificate, signed by the contract manager, deputy and head teacher. */
+/**
+ * Kibuli's Completion Certificate, signed by the contract manager, deputy and
+ * head teacher. What is filled in prints without a line under it; the lines
+ * left are for signing, or for writing in what was left blank.
+ */
 export function printCompletionCertificate(po: LpoRecord, details: CompletionDetails) {
   const dotted = (value: string, grow = true) =>
-    `<span class="dotted${grow ? " grow" : ""}">${esc(value)}</span>`;
+    value.trim()
+      ? `<span class="${grow ? "plain grow" : "plain"}">${esc(value.trim())}</span>`
+      : `<span class="dotted${grow ? " grow" : ""}"></span>`;
+  const signedOn = dayFirst(details.date);
   const signer = (n: number, verb: string, name: string, role: string) => `
   <div class="signer">
-    <div class="row"><span class="num">${n})</span><span>${verb} by:</span>${dotted(name)}<span class="side">Date :</span>${dotted("", false)}</div>
-    <div class="row sub"><span class="num"></span><span class="role">${role}</span><span class="spacer"></span><span class="side">Sign :</span>${dotted("", false)}</div>
+    <div class="row"><span class="num">${n})</span><span>${verb} by:</span>${dotted(name)}<span class="side">Date :</span>${dotted(signedOn, false)}</div>
+    <div class="row sub"><span class="num"></span><span class="role">${role}</span><span class="spacer"></span><span class="side">Sign :</span><span class="dotted"></span></div>
   </div>`;
 
   openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Completion Certificate — LPO No. ${esc(lpoNumber(po))}</title>
@@ -226,9 +259,13 @@ h2 { text-align: center; font-size: 14pt; font-weight: bold; margin: 0 0 12mm; }
 .dotted { border-bottom: 1.5px dotted #000; min-height: 6mm; padding: 0 1mm 0.5mm; }
 .dotted.grow { flex: 1; }
 .dotted:not(.grow) { width: 52mm; }
+.plain { padding: 0 1mm; }
+.plain.grow { flex: 1; }
+.plain:not(.grow) { width: 52mm; }
 .side { white-space: nowrap; margin-left: 4mm; }
 .confirm { margin-top: 9mm; }
 .lines .dotted { display: block; width: auto; margin-top: 6mm; min-height: 6mm; }
+.completed { margin-top: 4mm; line-height: 1.6; }
 .satisfaction { margin-top: 8mm; }
 .signer { margin-top: 5mm; }
 .num { width: 8mm; flex: none; }
@@ -247,7 +284,11 @@ h2 { text-align: center; font-size: 14pt; font-weight: bold; margin: 0 0 12mm; }
   <div class="row"><span class="label">Service Provider:</span>${dotted(po.supplierName ?? "")}</div>
 
   <div class="confirm">This is to confirm that the above supplier/ service provider has completed the:</div>
-  <div class="lines">${completedLines(details.completed)}</div>
+  ${
+    details.completed.trim()
+      ? `<div class="completed">${esc(details.completed.trim())}</div>`
+      : `<div class="lines">${completedLines("")}</div>`
+  }
   <div class="satisfaction">To my &nbsp;satisfaction.</div>
 
   ${signer(1, "Submitted", details.submittedBy, "Contract Manager :")}

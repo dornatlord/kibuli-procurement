@@ -1,11 +1,59 @@
 import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
-import { procurementPlanItems } from "../db/schema.js";
-import { eq, asc } from "drizzle-orm";
+import { procurementPlanItems, procurementRequests } from "../db/schema.js";
+import { eq, asc, desc, and, isNotNull } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
+import { thisYear } from "../lib/years.js";
 
 const router = asyncRouter();
+
+/** "KSS/SUPLS/26/032", trimmed; blank becomes none. */
+const referenceFrom = (v: unknown) => {
+  const text = String(v ?? "").trim().replace(/\s+/g, " ").slice(0, 60);
+  return text || null;
+};
+
+/**
+ * The year's plan lines, short: what the New Request form offers for its
+ * Procurement Plan Reference. Whoever raises requests may read these, even
+ * without the plan itself. `lastUsed` gives, for each budget line ("bi:12",
+ * or "sp:5" for a sub-programme with no items), the plan reference its most
+ * recent request this year used, so the next one can start from it.
+ */
+router.get("/lines", requirePermission("procurement_plan.view", "requests.create"), async (req, res) => {
+  const year = Number(req.query.year) || thisYear();
+  const lines = await db
+    .select({
+      id: procurementPlanItems.id,
+      reference: procurementPlanItems.reference,
+      subjectOfProcurement: procurementPlanItems.subjectOfProcurement,
+      procurementCategory: procurementPlanItems.procurementCategory,
+      procurementMethod: procurementPlanItems.procurementMethod,
+      estimatedCost: procurementPlanItems.estimatedCost,
+    })
+    .from(procurementPlanItems)
+    .where(eq(procurementPlanItems.year, year))
+    .orderBy(asc(procurementPlanItems.id));
+
+  const inPlan = new Set(lines.map((l) => l.reference).filter(Boolean));
+  const used = await db
+    .select({
+      budgetItemId: procurementRequests.budgetItemId,
+      subProgrammeId: procurementRequests.subProgrammeId,
+      reference: procurementRequests.procurementPlanReference,
+    })
+    .from(procurementRequests)
+    .where(and(eq(procurementRequests.year, year), isNotNull(procurementRequests.procurementPlanReference)))
+    .orderBy(desc(procurementRequests.createdAt));
+  const lastUsed: Record<string, string> = {};
+  for (const u of used) {
+    const key = u.budgetItemId ? `bi:${u.budgetItemId}` : u.subProgrammeId ? `sp:${u.subProgrammeId}` : null;
+    const reference = u.reference?.trim();
+    if (key && reference && inPlan.has(reference) && !lastUsed[key]) lastUsed[key] = reference;
+  }
+  res.json({ lines, lastUsed });
+});
 
 router.get("/", requirePermission("procurement_plan.view"), async (req, res) => {
   const year = req.query.year ? Number(req.query.year) : new Date().getFullYear();
@@ -40,6 +88,7 @@ router.post("/", requirePermission("procurement_plan.manage"), async (req, res) 
     .insert(procurementPlanItems)
     .values({
       year: body.year,
+      reference: referenceFrom(body.reference),
       subjectOfProcurement: body.subjectOfProcurement,
       currency: body.currency || "UGX",
       estimatedCost: body.estimatedCost ? String(body.estimatedCost) : null,
@@ -106,6 +155,7 @@ router.patch("/:id", requirePermission("procurement_plan.manage"), async (req, r
   for (const f of boolFields) {
     if (body[f] !== undefined) patch[f] = !!body[f];
   }
+  if (body.reference !== undefined) patch.reference = referenceFrom(body.reference);
 
   const [updated] = await db
     .update(procurementPlanItems)

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
-import { useOfficials } from "../lib/officials";
+import { namesIn, useOfficials } from "../lib/officials";
+import Combobox from "../components/Combobox";
 import { cornerBadge, flowCss, frameClose, frameOpen, openPrint } from "../lib/print";
 import { useAuth } from "../lib/auth";
 import PageHeader from "../components/PageHeader";
@@ -468,16 +469,29 @@ export default function TermlyReportPage() {
                     <label className="label" htmlFor={`decl-${key}`}>
                       {label}
                     </label>
-                    <input
-                      id={`decl-${key}`}
-                      className="input"
-                      value={declaration[key]}
-                      disabled={!canPrepare}
-                      onChange={(e) => {
-                        setDeclaration((d) => ({ ...d, [key]: e.target.value }));
-                        setDirty(true);
-                      }}
-                    />
+                    {key === "name" ? (
+                      <Combobox
+                        id="decl-name"
+                        value={declaration.name}
+                        disabled={!canPrepare}
+                        options={namesIn(officials, "accounting_officer", "head_teacher")}
+                        onChange={(v) => {
+                          setDeclaration((d) => ({ ...d, name: v }));
+                          setDirty(true);
+                        }}
+                      />
+                    ) : (
+                      <input
+                        id={`decl-${key}`}
+                        className="input"
+                        value={declaration[key]}
+                        disabled={!canPrepare}
+                        onChange={(e) => {
+                          setDeclaration((d) => ({ ...d, [key]: e.target.value }));
+                          setDirty(true);
+                        }}
+                      />
+                    )}
                   </div>
                 ))}
               </div>
@@ -619,6 +633,10 @@ function MoneyCell({ value, onChange, label }: { value: string; onChange: (v: st
 }
 
 /** FORM 27 laid out as the printed return: header, Parts I–V with totals, declaration. */
+/** A name, title or date as words, with no line under it; left blank, a line to write on. */
+const written = (value: string) =>
+  value.trim() ? `<span class="text">${esc(value.trim())}</span>` : `<span class="line"></span>`;
+
 function form27Html(year: number, term: number, parts: Parts, declaration: Declaration) {
   const table = (def: PartDef) => {
     const rows = parts[def.key];
@@ -667,6 +685,7 @@ tr.total td { font-weight: bold; }
 .declaration { margin-top: 16px; page-break-inside: avoid; }
 .declaration p { margin: 6px 0; }
 .line { display: inline-block; min-width: 240px; border-bottom: 1px solid #000; padding: 0 4px 1px; }
+.text { display: inline-block; min-width: 240px; padding: 0 4px 1px; }
 </style></head><body>
 ${cornerBadge}
 ${frameOpen}
@@ -683,9 +702,9 @@ ${PARTS.map(table).join("\n")}
 <div class="declaration">
   <div style="font-weight:bold;">Declaration</div>
   <p>I hereby certify that the above information is a true and accurate record of the procurement and disposal contracts undertaken by Kibuli Secondary School within the quarter.</p>
-  <p>Name: <span class="line">${esc(declaration.name)}</span> &nbsp;&nbsp; Signature: <span class="line"></span></p>
-  <p>Title: <span class="line">${esc(declaration.title)}</span></p>
-  <p>Date: <span class="line">${esc(declaration.date)}</span></p>
+  <p>Name: ${written(declaration.name)} &nbsp;&nbsp; Signature: <span class="line"></span></p>
+  <p>Title: ${written(declaration.title)}</p>
+  <p>Date: ${written(declaration.date)}</p>
 </div>
 ${frameClose}
 </body></html>`;

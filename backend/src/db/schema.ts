@@ -221,7 +221,10 @@ export const procurementRequests = pgTable("procurement_requests", {
   category: categoryEnum("category").notNull(),
   yearType: yearTypeEnum("year_type").default("calendar").notNull(),
   year: integer("year").notNull(),
+  // The week of the term and the term, as FORM 5 prints them ("Week 5, Term 3").
+  // Older requests have no term; it's worked out from their date.
   weekNumber: integer("week_number").notNull(),
+  term: integer("term"),
   sequenceNumber: integer("sequence_number").notNull(),
   // Code of the budget line this request spends, as used in its reference number.
   supplyCode: text("supply_code"),
@@ -312,6 +315,10 @@ export const contractsCommitteeDecisions = pgTable(
     shortlistedProviders: text("shortlisted_providers"),
     biddingDocumentTeam: text("bidding_document_team"),
     evaluationCommittee: text("evaluation_committee"),
+    // Rows 2–4 ask for the names and the justification separately.
+    shortlistJustification: text("shortlist_justification"),
+    biddingTeamJustification: text("bidding_team_justification"),
+    evaluationJustification: text("evaluation_justification"),
     biddingDocumentCost: numeric("bidding_document_cost", {
       precision: 15,
       scale: 2,
@@ -501,6 +508,8 @@ export const contractAmendments = pgTable("contract_amendments", {
 export const procurementPlanItems = pgTable("procurement_plan_items", {
   id: serial("id").primaryKey(),
   year: integer("year").notNull(),
+  // The school's own reference for the line, e.g. "KSS/SUPLS/26/032".
+  reference: text("reference"),
   subjectOfProcurement: text("subject_of_procurement").notNull(),
   currency: text("currency").default("UGX"),
   estimatedCost: numeric("estimated_cost", { precision: 15, scale: 2 }),

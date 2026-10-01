@@ -8,6 +8,8 @@ import { ListSkeleton } from "../components/Loading";
 interface PlanItem {
   id: number;
   year: number;
+  /** The school's S/No for the line, e.g. KSS/SUPLS/26/003: the plan reference on TFORM 5. */
+  reference: string | null;
   subjectOfProcurement: string;
   estimatedCost: string | null;
   sourceOfFunding: string | null;
@@ -21,6 +23,7 @@ interface PlanItem {
 }
 
 const EMPTY_FORM = {
+  reference: "",
   subjectOfProcurement: "",
   estimatedCost: "",
   sourceOfFunding: "Internally Generated Funds",
@@ -95,6 +98,13 @@ export default function ProcurementPlanPage() {
         <div className="bg-white border border-gray-200 rounded-xl p-5">
           <h2 className="font-semibold text-sm mb-4">New Plan Item — {year}</h2>
           <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Reference (S/No)</label>
+              <input value={form.reference} onChange={(e) => setForm((p) => ({ ...p, reference: e.target.value }))} className="input font-mono" placeholder={`e.g. KSS/SUPLS/${String(year).slice(-2)}/038`} />
+            </div>
+            <div className="text-xs text-gray-500 self-end pb-2">
+              Requests for this line print it as their Procurement Plan Reference.
+            </div>
             <div className="col-span-2">
               <label className="label">Subject of Procurement *</label>
               <input value={form.subjectOfProcurement} onChange={(e) => setForm((p) => ({ ...p, subjectOfProcurement: e.target.value }))} className="input" required />
@@ -114,6 +124,7 @@ export default function ProcurementPlanPage() {
                 <option>Quotations Method</option>
                 <option>Direct Procurement</option>
                 <option>Open Domestic Bidding</option>
+                <option>Restricted Domestic Bidding (RDB)</option>
                 <option>Restricted International Bidding (RIB)</option>
               </select>
             </div>
@@ -131,6 +142,7 @@ export default function ProcurementPlanPage() {
                 <option>Lumpsum Contracts</option>
                 <option>Time-based Contracts</option>
                 <option>Ad Measurement Contracts</option>
+                <option>Framework Contracts</option>
               </select>
             </div>
             <div>
@@ -163,6 +175,7 @@ export default function ProcurementPlanPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                 <tr>
+                  <th className="px-4 py-2 text-left">Reference</th>
                   <th className="px-4 py-2 text-left">Subject</th>
                   <th className="px-4 py-2 text-left">Category</th>
                   <th className="px-4 py-2 text-left">Method</th>
@@ -173,6 +186,7 @@ export default function ProcurementPlanPage() {
               <tbody className="divide-y divide-gray-100">
                 {items.map((it) => (
                   <tr key={it.id}>
+                    <td className="px-4 py-2 whitespace-nowrap font-mono text-xs text-gray-600">{it.reference || "—"}</td>
                     <td className="px-4 py-2">{it.subjectOfProcurement}</td>
                     <td className="px-4 py-2 capitalize text-xs">{it.procurementCategory?.replace("_", " ") || "—"}</td>
                     <td className="px-4 py-2 text-xs">{it.procurementMethod || "—"}</td>

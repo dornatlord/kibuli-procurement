@@ -1,16 +1,24 @@
+import type { ReactNode } from "react";
+import Combobox from "./Combobox";
+
 /**
  * PPDA FORM 5 Part II — the Procurement and Disposal Unit's request to the
  * Contracts Committee — laid out like the paper form: six rows, the PDU's
  * submission on the left and, once the committee sits, its decision and
- * conditions for each row.
+ * conditions for each row. Rows 1 to 4 ask for the answer (the method, or
+ * the names) and its justification separately, as the printed form has a
+ * column for each.
  */
 
 export interface PartTwoSubmission {
   recommendedMethod: string;
   methodJustification: string;
   shortlistedProviders: string;
+  shortlistJustification: string;
   biddingDocumentTeam: string;
+  biddingTeamJustification: string;
   evaluationCommittee: string;
+  evaluationJustification: string;
   biddingDocumentCost: string;
   otherInformation: string;
 }
@@ -24,11 +32,12 @@ export type RowDecisions = Record<string, RowDecision>;
 
 /**
  * Common grounds for the recommended method, from the PPDA Act and regulations
- * and PPDA's guidance on preference and reservation schemes. The first is used
- * until someone picks another; "Other" lets them write their own.
+ * and PPDA's guidance on preference and reservation schemes. The first prints
+ * when none is given.
  */
 export const METHOD_JUSTIFICATIONS = [
   "Support of local companies: reserved for, or giving preference to, national and local providers",
+  "Support of local industries / farms",
   "The estimated value falls within the threshold for this method",
   "Buy Uganda Build Uganda: the goods are made or assembled in Uganda",
   "Urgent need: the time open bidding takes would disrupt the school",
@@ -46,14 +55,45 @@ export const METHOD_JUSTIFICATIONS = [
 
 export const DEFAULT_JUSTIFICATION = METHOD_JUSTIFICATIONS[0];
 
-const OTHER_JUSTIFICATION = "__other__";
+/** Why the shortlisted providers were chosen (row 2). */
+const SELECTION_JUSTIFICATIONS = [
+  "Good previous performance",
+  "Prequalified on the school's list of providers",
+  "Support of local industries / farms",
+  "Competitive prices in recent quotations",
+  "Able to deliver on time; close to the school",
+  "Holds the licences and certificates the work needs",
+  "The only provider of the item",
+  "Framework contract already in place with the provider",
+];
+
+/** Why these people prepare the bidding document (row 3). */
+const TEAM_JUSTIFICATIONS = [
+  "Technical",
+  "Technical knowledge of the requirement",
+  "The user department knows the specifications",
+  "Experience in preparing bidding documents",
+  "Procurement and Disposal Unit staff",
+];
+
+/** Why these people make up the Evaluation Committee (row 4). */
+const EVALUATION_JUSTIFICATIONS = [
+  "Technical",
+  "Technical knowledge of the requirement",
+  "Experience in evaluating bids",
+  "Drawn from the user department, finance and procurement",
+  "No conflict of interest with the bidders",
+];
 
 export const EMPTY_SUBMISSION: PartTwoSubmission = {
   recommendedMethod: "",
-  methodJustification: DEFAULT_JUSTIFICATION,
+  methodJustification: "",
   shortlistedProviders: "",
+  shortlistJustification: "",
   biddingDocumentTeam: "",
+  biddingTeamJustification: "",
   evaluationCommittee: "",
+  evaluationJustification: "",
   biddingDocumentCost: "",
   otherInformation: "",
 };
@@ -71,7 +111,7 @@ const ROWS = [
 const PPDA_METHODS = [
   "Open Domestic Bidding",
   "Open International Bidding",
-  "Restricted Domestic Bidding",
+  "Restricted Domestic Bidding (RDB)",
   "Restricted International Bidding (RIB)",
   "Quotations Method",
   "Request for Proposals",
@@ -88,10 +128,13 @@ export function submissionFrom(
 ): PartTwoSubmission {
   return {
     recommendedMethod: d?.recommendedMethod ?? "",
-    methodJustification: d?.methodJustification || DEFAULT_JUSTIFICATION,
+    methodJustification: d?.methodJustification ?? "",
     shortlistedProviders: d?.shortlistedProviders ?? "",
+    shortlistJustification: d?.shortlistJustification ?? "",
     biddingDocumentTeam: d?.biddingDocumentTeam ?? "",
+    biddingTeamJustification: d?.biddingTeamJustification ?? "",
     evaluationCommittee: d?.evaluationCommittee ?? "",
+    evaluationJustification: d?.evaluationJustification ?? "",
     biddingDocumentCost: d?.biddingDocumentCost ? String(Number(d.biddingDocumentCost)) : "",
     otherInformation: d?.otherInformation ?? "",
   };
@@ -106,6 +149,47 @@ export function rowDecisionsFrom(raw: unknown): RowDecisions {
   }
   return rows;
 }
+
+/** Each of rows 1–4: what the answer is, and where its justification goes. */
+const PAIRS: Record<
+  string,
+  {
+    answer: keyof PartTwoSubmission;
+    answerLabel: string;
+    answerHint: string;
+    justification: keyof PartTwoSubmission;
+    choices: string[];
+  }
+> = {
+  "1": {
+    answer: "recommendedMethod",
+    answerLabel: "Method",
+    answerHint: "e.g. Open Domestic Bidding",
+    justification: "methodJustification",
+    choices: METHOD_JUSTIFICATIONS,
+  },
+  "2": {
+    answer: "shortlistedProviders",
+    answerLabel: "Names of the provider(s)",
+    answerHint: "One provider per line",
+    justification: "shortlistJustification",
+    choices: SELECTION_JUSTIFICATIONS,
+  },
+  "3": {
+    answer: "biddingDocumentTeam",
+    answerLabel: "Names and positions",
+    answerHint: "Name — position, one per line",
+    justification: "biddingTeamJustification",
+    choices: TEAM_JUSTIFICATIONS,
+  },
+  "4": {
+    answer: "evaluationCommittee",
+    answerLabel: "Names and positions",
+    answerHint: "Name — position, one per line",
+    justification: "evaluationJustification",
+    choices: EVALUATION_JUSTIFICATIONS,
+  },
+};
 
 interface Props {
   submission: PartTwoSubmission;
@@ -129,82 +213,104 @@ export default function PartTwoTable({
 }: Props) {
   const set = (patch: Partial<PartTwoSubmission>) => onSubmissionChange?.(patch);
 
+  /** One labelled part of a row: the answer or its justification. */
+  const part = (label: string, body: ReactNode) => (
+    <div>
+      <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{label}</div>
+      {body}
+    </div>
+  );
+
   function submissionView(key: string) {
-    const text: Record<string, string> = {
-      "1": [submission.recommendedMethod, submission.methodJustification].filter(Boolean).join("\n"),
-      "2": submission.shortlistedProviders,
-      "3": submission.biddingDocumentTeam,
-      "4": submission.evaluationCommittee,
-      "5": submission.biddingDocumentCost
-        ? `UGX ${Number(submission.biddingDocumentCost).toLocaleString("en-UG")}`
-        : "",
-      "6": submission.otherInformation,
-    };
-    return <div className="whitespace-pre-line text-gray-800">{text[key] || emptyMark}</div>;
+    const pair = PAIRS[key];
+    if (pair) {
+      const justification =
+        submission[pair.justification] || (key === "1" && submission.recommendedMethod ? DEFAULT_JUSTIFICATION : "");
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {part(pair.answerLabel, <div className="whitespace-pre-line text-gray-800">{submission[pair.answer] || emptyMark}</div>)}
+          {part("Justification", <div className="whitespace-pre-line text-gray-800">{justification || emptyMark}</div>)}
+        </div>
+      );
+    }
+    const text =
+      key === "5"
+        ? submission.biddingDocumentCost
+          ? `UGX ${Number(submission.biddingDocumentCost).toLocaleString("en-UG")}`
+          : ""
+        : submission.otherInformation;
+    return <div className="whitespace-pre-line text-gray-800">{text || emptyMark}</div>;
   }
 
   function submissionInput(key: string) {
-    const area = (field: keyof PartTwoSubmission, placeholder: string, rows = 3) => (
-      <textarea
-        value={submission[field]}
-        onChange={(e) => set({ [field]: e.target.value })}
-        className="input text-xs"
-        rows={rows}
-        placeholder={placeholder}
-      />
-    );
-    switch (key) {
-      case "1": {
-        const listed = METHOD_JUSTIFICATIONS.includes(submission.methodJustification);
-        return (
-          <div className="space-y-1">
-            <input
-              list="ppda-methods"
-              value={submission.recommendedMethod}
-              onChange={(e) => set({ recommendedMethod: e.target.value })}
-              className="input text-xs"
-              placeholder="Method — e.g. Open Domestic Bidding"
-            />
-            <select
-              aria-label="Justification"
-              value={listed ? submission.methodJustification : OTHER_JUSTIFICATION}
-              onChange={(e) =>
-                set({ methodJustification: e.target.value === OTHER_JUSTIFICATION ? "" : e.target.value })
-              }
-              className="input text-xs"
-            >
-              {METHOD_JUSTIFICATIONS.map((j) => (
-                <option key={j} value={j}>
-                  {j}
-                </option>
-              ))}
-              <option value={OTHER_JUSTIFICATION}>Other (type your own)</option>
-            </select>
-            {!listed && area("methodJustification", "Type the justification", 2)}
-          </div>
-        );
-      }
-      case "2":
-        return area("shortlistedProviders", "One provider per line, with why each was chosen");
-      case "3":
-        return area("biddingDocumentTeam", "Name — position, one per line");
-      case "4":
-        return area("evaluationCommittee", "Name — position, one per line, then the justification");
-      case "5":
-        return (
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={submission.biddingDocumentCost}
-            onChange={(e) => set({ biddingDocumentCost: e.target.value })}
+    const pair = PAIRS[key];
+    if (pair) {
+      const answer =
+        key === "1" ? (
+          <Combobox
+            ariaLabel={`Row ${key}: ${pair.answerLabel}`}
+            value={submission.recommendedMethod}
+            onChange={(v) => set({ recommendedMethod: v })}
+            options={PPDA_METHODS}
+            placeholder={pair.answerHint}
+            inputClassName="text-xs"
+          />
+        ) : (
+          <textarea
+            aria-label={`Row ${key}: ${pair.answerLabel}`}
+            value={submission[pair.answer]}
+            onChange={(e) => set({ [pair.answer]: e.target.value })}
             className="input text-xs"
-            placeholder="UGX — leave blank if free"
+            rows={3}
+            placeholder={pair.answerHint}
           />
         );
-      default:
-        return area("otherInformation", "Anything else the committee should know", 2);
+      return (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {part(pair.answerLabel, answer)}
+          {part(
+            "Justification",
+            <>
+              <Combobox
+                ariaLabel={`Row ${key}: justification`}
+                value={submission[pair.justification]}
+                onChange={(v) => set({ [pair.justification]: v })}
+                options={pair.choices}
+                placeholder="Type, or pick from the list"
+                inputClassName="text-xs"
+              />
+              {key === "1" && !submission.methodJustification.trim() && (
+                <p className="mt-1 text-[11px] leading-4 text-gray-500">
+                  Left blank, the form prints: {DEFAULT_JUSTIFICATION}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      );
     }
+    if (key === "5") {
+      return (
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={submission.biddingDocumentCost}
+          onChange={(e) => set({ biddingDocumentCost: e.target.value })}
+          className="input text-xs"
+          placeholder="UGX — leave blank if free"
+        />
+      );
+    }
+    return (
+      <textarea
+        value={submission.otherInformation}
+        onChange={(e) => set({ otherInformation: e.target.value })}
+        className="input text-xs"
+        rows={2}
+        placeholder="Anything else the committee should know"
+      />
+    );
   }
 
   function committeeCells(key: string) {
@@ -220,12 +326,13 @@ export default function PartTwoTable({
     return (
       <>
         <td className="px-2 py-2 align-top">
-          <input
-            list="committee-row-decisions"
+          <Combobox
+            ariaLabel={`Row ${key}: committee decision`}
             value={r.decision}
-            onChange={(e) => onRowDecisionChange(key, { decision: e.target.value })}
-            className="input text-xs"
+            onChange={(v) => onRowDecisionChange(key, { decision: v })}
+            options={ROW_DECISIONS}
             placeholder="Decision"
+            inputClassName="text-xs"
           />
         </td>
         <td className="px-2 py-2 align-top">
@@ -234,7 +341,7 @@ export default function PartTwoTable({
             onChange={(e) => onRowDecisionChange(key, { conditions: e.target.value })}
             className="input text-xs"
             rows={2}
-            placeholder="Conditions / justification"
+            placeholder="Conditions"
           />
         </td>
       </>
@@ -251,7 +358,7 @@ export default function PartTwoTable({
             {showCommittee && (
               <>
                 <th className="px-2 py-2 text-left w-1/5">Decision of the Contracts Committee</th>
-                <th className="px-2 py-2 text-left w-1/4">Conditions / justification for decision</th>
+                <th className="px-2 py-2 text-left w-1/4">Conditions for the decision</th>
               </>
             )}
           </tr>
@@ -261,7 +368,7 @@ export default function PartTwoTable({
             <tr key={row.key}>
               <td className="px-2 py-2 align-top text-xs text-gray-400">{row.key}.</td>
               <td className="px-2 py-2 align-top">
-                <div className="text-xs font-medium text-gray-600 mb-1">
+                <div className="text-xs font-medium text-gray-600 mb-1.5">
                   {row.label}
                   {row.hint && <em className="font-normal"> ({row.hint})</em>}
                 </div>
@@ -272,16 +379,6 @@ export default function PartTwoTable({
           ))}
         </tbody>
       </table>
-      <datalist id="ppda-methods">
-        {PPDA_METHODS.map((m) => (
-          <option key={m} value={m} />
-        ))}
-      </datalist>
-      <datalist id="committee-row-decisions">
-        {ROW_DECISIONS.map((m) => (
-          <option key={m} value={m} />
-        ))}
-      </datalist>
     </div>
   );
 }

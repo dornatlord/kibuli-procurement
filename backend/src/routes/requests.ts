@@ -26,6 +26,8 @@ import {
 import { hasPermission, Permission } from "../lib/permissions.js";
 import { logAudit } from "../lib/audit.js";
 import { visibleRequestFilter } from "../lib/requestAccess.js";
+import { lineNumberOf } from "../lib/budgetLines.js";
+import { getTerms, termAndWeek, wholeNumberIn } from "../lib/terms.js";
 
 const router = asyncRouter();
 
@@ -133,44 +135,38 @@ router.get(
     ? await db.select().from(budgetItems).where(eq(budgetItems.id, request.budgetItemId))
     : [null];
 
-  // The budget line's number as the school's budget numbers it: an item counts
-  // within its sub-programme, or within the vote when the vote has none, and a
-  // sub-programme that is a budget line itself (the 2202 departments) counts
-  // within the vote. TFORM 5 prints it in the project code, e.g. 2212-4 for
-  // Civil works item 4, Water repairs. The numbers come from the seeded budget
-  // and nothing renumbers them, so a form reprinted years later reads the same.
-  let budgetLineNumber: number | null = null;
-  if (budgetItem) {
-    budgetLineNumber = budgetItem.displayOrder;
-  } else if (subProg) {
-    const [itemUnder] = await db
-      .select({ id: budgetItems.id })
-      .from(budgetItems)
-      .where(eq(budgetItems.subProgrammeId, subProg.id))
-      .limit(1);
-    // A sub-programme with items of its own needs one picked to have a number.
-    if (!itemUnder) budgetLineNumber = subProg.displayOrder;
-  }
+  // The budget line's number as the school numbers it, counted straight
+  // through the vote: 2201-1 is Legal fees, 2212-13 the Generator. TFORM 5
+  // prints it in the Project Code and in the Item box.
+  const budgetLineNumber = vote
+    ? await lineNumberOf(vote.id, request.subProgrammeId, request.budgetItemId)
+    : null;
 
   // When each step happened, for the Date lines on the printed form. A
   // signature records it when the requester, head of department or accounting
   // officer acts in person; otherwise the audit trail of status changes does
   // (e.g. when the administrator moved the request on).
   const history = await db
-    .select({ action: auditLogs.action, details: auditLogs.details, createdAt: auditLogs.createdAt })
+    .select({
+      action: auditLogs.action,
+      details: auditLogs.details,
+      createdAt: auditLogs.createdAt,
+      userId: auditLogs.userId,
+    })
     .from(auditLogs)
     .where(and(eq(auditLogs.entityType, "procurement_request"), eq(auditLogs.entityId, request.id)))
     .orderBy(asc(auditLogs.id));
-  const lastMove = (from: string[], to: string[]) => {
-    let at: Date | null = null;
+  const lastStep = (from: string[], to: string[]) => {
+    let step: { at: Date | null; userId: number | null } | null = null;
     for (const h of history) {
       const d = (h.details ?? {}) as { from?: string; to?: string };
       if (h.action === "request.status_changed" && from.includes(d.from ?? "") && to.includes(d.to ?? "")) {
-        at = h.createdAt;
+        step = { at: h.createdAt, userId: h.userId };
       }
     }
-    return at;
+    return step;
   };
+  const lastMove = (from: string[], to: string[]) => lastStep(from, to)?.at ?? null;
   const signedAt = (role: string) => signatures.find((s) => s.role === role)?.signedAt ?? null;
   const committeeMeeting =
     decision?.committeeMeetingDate ??
@@ -190,21 +186,60 @@ router.get(
     secretary: decision?.secretarySignedAt ?? committeeMeeting,
   };
 
+  // Who raised the request and who moved it on at each step, and the heads of
+  // department to choose from. The printed form fills its names from these;
+  // whoever prints it can change them first.
+  const stepUsers = {
+    submitted: lastStep(["draft"], ["pending_hod"])?.userId ?? null,
+    headOfDepartment: lastStep(["pending_hod"], ["pending_accounting_officer"])?.userId ?? null,
+    accountingOfficer:
+      lastStep(["pending_accounting_officer"], ["pending_contracts_committee", "approved"])?.userId ?? null,
+  };
+  const peopleIds = [request.createdBy, ...Object.values(stepUsers)].filter((v): v is number => !!v);
+  const [people, departmentHeads] = await Promise.all([
+    db
+      .select({ id: users.id, name: users.name, role: users.role, department: users.department })
+      .from(users)
+      .where(inArray(users.id, peopleIds)),
+    db
+      .select({ name: users.name, department: users.department })
+      .from(users)
+      .where(and(eq(users.role, "head_of_dept"), eq(users.isActive, true)))
+      .orderBy(asc(users.name)),
+  ]);
+  const person = (id: number | null) => {
+    const p = id ? people.find((x) => x.id === id) : undefined;
+    return p ? { name: p.name, role: p.role, department: p.department } : null;
+  };
+
+  // FORM 5's "Week 5, Term 3". Requests saved before these were asked for
+  // take them from the day they were made.
+  const fromDate = termAndWeek(await getTerms(), request.createdAt ?? new Date());
+
   res.json({
     ...request,
+    weekNumber: request.term ? request.weekNumber : fromDate.week,
+    term: request.term ?? fromDate.term,
     items,
     signatures,
     decision: decision || null,
     stepDates,
+    requestedBy: person(request.createdBy),
+    stepPeople: {
+      submitted: person(stepUsers.submitted),
+      headOfDepartment: person(stepUsers.headOfDepartment),
+      accountingOfficer: person(stepUsers.accountingOfficer),
+    },
+    departmentHeads,
     voteCode: vote?.code || null,
     voteName: vote?.name || null,
     subProgrammeName: subProg ? `${subProg.romanNumeral ? subProg.romanNumeral + " " : ""}${subProg.name}` : null,
     budgetItemName: budgetItem?.name || null,
     budgetLineNumber,
-    // TFORM 5's Project Code and Title: 2208-2 "Games & sports" for a vote
-    // without sub-programmes, 2212-4 "Civil works" for one with them.
+    // TFORM 5's Project Code and Title name the budget line itself: 2201-1
+    // "Legal fees / Disciplinary", not its sub-programme; 2208-3 "Cultural days".
     projectCode: vote ? (budgetLineNumber ? `${vote.code}-${budgetLineNumber}` : vote.code) : null,
-    projectTitle: subProg?.name ?? budgetItem?.name ?? null,
+    projectTitle: budgetItem?.name ?? subProg?.name ?? null,
     // When the request was corrected, by whom and why; the audit trail has the details.
     corrections: await correctionsOf("procurement_request", request.id, "request.corrected"),
   });
@@ -250,11 +285,31 @@ router.put("/:id/correct", requireCorrectionRight, async (req, res) => {
     return;
   }
 
+  // The week and term as the form shows them: saved, or for a request made
+  // before they were asked for, worked out from its date. They change only
+  // when what is sent differs, so an older request isn't marked as corrected
+  // for a week nobody touched.
+  const shown = request.term
+    ? { week: request.weekNumber, term: request.term }
+    : termAndWeek(await getTerms(), request.createdAt ?? new Date());
+  const sent = (k: string) => !!req.body && Object.prototype.hasOwnProperty.call(req.body, k);
+  const weekSent = sent("weekNumber") ? wholeNumberIn(req.body.weekNumber, 1, 53) : shown.week;
+  const termSent = sent("term") ? wholeNumberIn(req.body.term, 1, 3) : shown.term;
+  if (weekSent === null || termSent === null) {
+    res.status(400).json({ error: "The week is a number from 1 to 53, and the term 1, 2 or 3." });
+    return;
+  }
+  const unchanged = weekSent === shown.week && termSent === shown.term;
+  const weekNumber = unchanged ? request.weekNumber : weekSent;
+  const term = unchanged ? request.term : termSent;
+
   const fields = {
     subjectOfProcurement: textFrom(req.body?.subjectOfProcurement),
     procurementPlanReference: textFrom(req.body?.procurementPlanReference, 200),
     locationForDelivery: textFrom(req.body?.locationForDelivery, 200),
     dateRequired,
+    weekNumber,
+    term,
   };
   const changes = changesBetween(
     {
@@ -262,6 +317,8 @@ router.put("/:id/correct", requireCorrectionRight, async (req, res) => {
       procurementPlanReference: request.procurementPlanReference,
       locationForDelivery: request.locationForDelivery,
       dateRequired: request.dateRequired,
+      weekNumber: request.weekNumber,
+      term: request.term,
     },
     fields
   );
@@ -318,7 +375,17 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
   const body = req.body;
   const now = new Date();
   const yearType: "calendar" | "financial" = body.yearType || "calendar";
-  const { year, week } = getWeekNumber(now, yearType);
+  const { year } = getWeekNumber(now, yearType);
+
+  // The week of the term and the term, as typed on the form; this week and
+  // term when they weren't (as from a screen saved before they were asked).
+  const thisWeek = termAndWeek(await getTerms(), now);
+  const week = blankValue(body.weekNumber) ? thisWeek.week : wholeNumberIn(body.weekNumber, 1, 53);
+  const term = blankValue(body.term) ? thisWeek.term : wholeNumberIn(body.term, 1, 3);
+  if (week === null || term === null) {
+    res.status(400).json({ error: "The week is a number from 1 to 53, and the term 1, 2 or 3." });
+    return;
+  }
 
   // A request filled in offline can arrive twice: a send whose reply was lost
   // is sent again. The id the browser gave it finds the copy already saved.
@@ -384,6 +451,7 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
           yearType,
           year,
           weekNumber: week,
+          term,
           sequenceNumber: seq,
           supplyCode,
           budgetCategory: body.budgetCategory,
@@ -603,6 +671,9 @@ function submissionFields(b: Record<string, unknown>) {
   if (has("shortlistedProviders")) f.shortlistedProviders = textOrNull(b.shortlistedProviders);
   if (has("biddingDocumentTeam")) f.biddingDocumentTeam = textOrNull(b.biddingDocumentTeam);
   if (has("evaluationCommittee")) f.evaluationCommittee = textOrNull(b.evaluationCommittee);
+  if (has("shortlistJustification")) f.shortlistJustification = textOrNull(b.shortlistJustification);
+  if (has("biddingTeamJustification")) f.biddingTeamJustification = textOrNull(b.biddingTeamJustification);
+  if (has("evaluationJustification")) f.evaluationJustification = textOrNull(b.evaluationJustification);
   if (has("biddingDocumentCost")) f.biddingDocumentCost = amountOrNull(b.biddingDocumentCost);
   if (has("otherInformation")) f.otherInformation = textOrNull(b.otherInformation);
   return f;

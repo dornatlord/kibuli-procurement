@@ -59,3 +59,38 @@ export function termRange(year: number, t: SchoolTerm) {
     end: t.endMonth === 12 ? `${year + 1}-01-01` : `${year}-${pad(t.endMonth + 1)}-01`,
   };
 }
+
+/** A moment's date in Kampala (the server runs on UTC). */
+function kampalaDate(at: Date) {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala" })
+    .format(at)
+    .split("-")
+    .map(Number);
+  return { year, month, day };
+}
+
+/**
+ * The term and the week of the term a date falls in, as FORM 5 prints them:
+ * "Week 5, Term 3". The term is the one whose months hold the date; in a
+ * holiday month, the term that has just ended. Week 1 is the school week
+ * (Monday to Sunday) holding the 1st of the term's first month. The person
+ * raising a request can change both before saving.
+ */
+export function termAndWeek(terms: SchoolTerm[], at: Date): { term: number; week: number } {
+  const { year, month, day } = kampalaDate(at);
+  const t =
+    terms.find((x) => month >= x.startMonth && month <= x.endMonth) ??
+    [...terms].reverse().find((x) => x.startMonth <= month) ??
+    terms[0];
+  const start = Date.UTC(year, t.startMonth - 1, 1);
+  const days = Math.round((Date.UTC(year, month - 1, day) - start) / 86400000);
+  const mondayOffset = (new Date(start).getUTCDay() + 6) % 7;
+  return { term: t.term, week: days < 0 ? 1 : Math.floor((days + mondayOffset) / 7) + 1 };
+}
+
+/** A week or term typed on the form, if it is a sensible one. */
+export function wholeNumberIn(value: unknown, low: number, high: number): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= low && n <= high ? n : null;
+}

@@ -1,14 +1,23 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { useOfficials } from "../lib/officials";
+import { namesIn, useOfficials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon, XIcon } from "../components/icons";
 import { shillingsInWords } from "../lib/words";
 import { dayFirst, money } from "../lib/print";
-import { completionDefaults, deliveryDateOf, lpoNumber, printCompletionCertificate, printLpo } from "../lib/forms/lpoForms";
-import type { CompletionDetails, LpoRecord } from "../lib/forms/lpoForms";
+import {
+  completionDefaults,
+  deliveryDateOf,
+  lpoFill,
+  lpoNumber,
+  printCompletionCertificate,
+  printLpo,
+} from "../lib/forms/lpoForms";
+import type { CompletionDetails, LpoFill, LpoRecord } from "../lib/forms/lpoForms";
+import Combobox from "../components/Combobox";
+import PrintCheck from "../components/PrintCheck";
 import CorrectionPanel, { CorrectionHistory, toEditLines } from "../components/CorrectionPanel";
 
 interface SupplierChoice {
@@ -94,6 +103,8 @@ export default function PurchaseOrderDetailPage() {
   const [acting, setActing] = useState(false);
   const [error, setError] = useState("");
   const [certificate, setCertificate] = useState<CompletionDetails | null>(null);
+  // Checking the date and the authorising name before the LPO prints.
+  const [checkingLpo, setCheckingLpo] = useState(false);
   // Correcting the saved LPO (administrators and those given the right).
   const [fixSupplier, setFixSupplier] = useState<SupplierChoice | null>(null);
   const [corrected, setCorrected] = useState(false);
@@ -139,6 +150,8 @@ export default function PurchaseOrderDetailPage() {
     );
 
   const actions = NEXT[po.status] || [];
+  // Every official's name, after those of the office asked for.
+  const everyOfficial = namesIn(officials, ...Object.keys(officials));
   const awaitingApproval = po.procurementRequestId !== null && po.requestStatus !== "approved";
   const total = po.items.reduce((s, it) => s + Number(it.totalPrice || 0), 0);
 
@@ -189,7 +202,7 @@ export default function PurchaseOrderDetailPage() {
               <PrinterIcon className="h-4 w-4" />
               Completion certificate
             </button>
-            <button type="button" onClick={() => printLpo(po, officials)} className="btn btn-secondary">
+            <button type="button" onClick={() => setCheckingLpo(true)} className="btn btn-secondary">
               <PrinterIcon className="h-4 w-4" />
               Print LPO
             </button>
@@ -208,6 +221,29 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </div>
       </div>
+
+      {checkingLpo && (
+        <PrintCheck<LpoFill>
+          key={`lpo-${Object.keys(officials).length}`}
+          title={`Check LPO No. ${lpoNumber(po)} before printing`}
+          sections={[
+            {
+              title: "The LPO",
+              fields: [
+                { key: "date", label: "Date", type: "date" },
+                {
+                  key: "authorisedName",
+                  label: "Authorised by (Headteacher)",
+                  options: namesIn(officials, "head_teacher", "accounting_officer"),
+                },
+              ],
+            },
+          ]}
+          initial={lpoFill(po, officials)}
+          onPrint={(fill) => printLpo(po, fill)}
+          onClose={() => setCheckingLpo(false)}
+        />
+      )}
 
       {fixSupplier && (
         <CorrectionPanel
@@ -299,35 +335,30 @@ export default function PurchaseOrderDetailPage() {
               />
             </CertificateField>
             <CertificateField label="Submitted by (Contract Manager)">
-              <input
-                className="input"
-                list="official-names"
+              <Combobox
+                ariaLabel="Submitted by (Contract Manager)"
                 value={certificate.submittedBy}
-                onChange={(e) => setCertificate((c) => c && { ...c, submittedBy: e.target.value })}
+                onChange={(v) => setCertificate((c) => c && { ...c, submittedBy: v })}
+                options={[...namesIn(officials, "contract_manager"), ...everyOfficial]}
               />
             </CertificateField>
             <CertificateField label="Verified by (Deputy Headteacher)">
-              <input
-                className="input"
-                list="official-names"
+              <Combobox
+                ariaLabel="Verified by (Deputy Headteacher)"
                 value={certificate.verifiedBy}
-                onChange={(e) => setCertificate((c) => c && { ...c, verifiedBy: e.target.value })}
+                onChange={(v) => setCertificate((c) => c && { ...c, verifiedBy: v })}
+                options={[...namesIn(officials, "deputy_head_teacher"), ...everyOfficial]}
               />
             </CertificateField>
             <CertificateField label="Approved by (Headteacher)">
-              <input
-                className="input"
-                list="official-names"
+              <Combobox
+                ariaLabel="Approved by (Headteacher)"
                 value={certificate.approvedBy}
-                onChange={(e) => setCertificate((c) => c && { ...c, approvedBy: e.target.value })}
+                onChange={(v) => setCertificate((c) => c && { ...c, approvedBy: v })}
+                options={[...namesIn(officials, "head_teacher", "accounting_officer"), ...everyOfficial]}
               />
             </CertificateField>
           </div>
-          <datalist id="official-names">
-            {Array.from(new Set(Object.values(officials).map((o) => o.name))).map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
           <div className="flex gap-2">
             <button type="submit" className="btn btn-primary">
               <PrinterIcon className="h-4 w-4" />

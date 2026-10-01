@@ -65,6 +65,11 @@ export const OFFICIAL_ROLES: OfficialRole[] = [
 export interface Official {
   name: string;
   title: string;
+  /**
+   * Others who hold the same office, such as a second deputy. The forms fill
+   * in `name` and offer these to pick from instead.
+   */
+  others: string[];
 }
 
 export type Officials = Record<string, Official>;
@@ -78,10 +83,12 @@ export interface CustomOfficial {
   usedFor: string;
   name: string;
   title: string;
+  others: string[];
 }
 
 export const OFFICIALS_KEY = "officials";
 const MAX_CUSTOM = 40;
+const MAX_OTHERS = 10;
 const BUILT_IN_KEYS = new Set(OFFICIAL_ROLES.map((r) => r.key));
 
 const text = (value: unknown, max: number) =>
@@ -90,15 +97,33 @@ const text = (value: unknown, max: number) =>
     .replace(/\s+/g, " ")
     .slice(0, max);
 
-/** Keeps only the offices above, trimmed and length-capped. */
+/** The other names in an office: trimmed, without blanks or repeats of each other or the first name. */
+function cleanOthers(raw: unknown, first: string): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set([first.toLowerCase()]);
+  const out: string[] = [];
+  for (const v of raw) {
+    const name = text(v, 120);
+    if (!name || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    out.push(name);
+    if (out.length === MAX_OTHERS) break;
+  }
+  return out;
+}
+
+/**
+ * Keeps only the offices above, trimmed and length-capped. An office with
+ * other names but no first one takes the first of the others.
+ */
 export function cleanOfficials(raw: unknown): Officials {
   const src = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const officials: Officials = {};
   for (const role of OFFICIAL_ROLES) {
     const value = (src[role.key] ?? {}) as Record<string, unknown>;
-    const name = text(value.name, 120);
+    const [name = "", ...others] = [text(value.name, 120), ...cleanOthers(value.others, "")].filter(Boolean);
     const title = text(value.title, 120) || role.defaultTitle;
-    if (name) officials[role.key] = { name, title };
+    if (name) officials[role.key] = { name, title, others: cleanOthers(others, name) };
   }
   return officials;
 }
@@ -125,12 +150,14 @@ export function cleanCustom(raw: unknown): CustomOfficial[] {
     let key = base;
     for (let n = 2; used.has(key) || BUILT_IN_KEYS.has(key); n++) key = `${base}-${n}`;
     used.add(key);
+    const [name = "", ...others] = [text(e.name, 120), ...cleanOthers(e.others, "")].filter(Boolean);
     out.push({
       key,
       label,
       usedFor: text(e.usedFor, 160),
-      name: text(e.name, 120),
+      name,
       title: text(e.title, 120) || label,
+      others: cleanOthers(others, name),
     });
   }
   return out;
@@ -151,6 +178,7 @@ export function listOfficials(offices: Officials, custom: CustomOfficial[]) {
       custom: false,
       name: offices[role.key]?.name ?? "",
       title: offices[role.key]?.title || role.defaultTitle,
+      others: offices[role.key]?.others ?? [],
     })),
     ...custom.map((c) => ({
       key: c.key,
@@ -160,6 +188,7 @@ export function listOfficials(offices: Officials, custom: CustomOfficial[]) {
       custom: true,
       name: c.name,
       title: c.title,
+      others: c.others,
     })),
   ];
 }

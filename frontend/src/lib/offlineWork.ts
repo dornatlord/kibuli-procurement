@@ -39,7 +39,7 @@ export async function saveForOffline(can: Can): Promise<boolean> {
 
   await loadAll([
     ...(can("requests.view.own", "requests.view.department", "requests.view.all") ? ["/requests"] : []),
-    ...(can("requests.create") ? ["/lookup/votes"] : []),
+    ...(can("requests.create") ? ["/lookup/votes", "/procurement-plan/lines"] : []),
     ...(can("reserve_prices.view") ? ["/reserve-prices"] : []),
     ...(can("requests.create", "reserve_prices.manage") ? ["/baskets"] : []),
     ...(can("purchase_orders.view") ? ["/purchase-orders"] : []),

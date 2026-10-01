@@ -47,8 +47,11 @@ export default function OfficialsPage() {
     try {
       const builtIn = rows.filter((o) => !o.custom);
       const added = rows.filter((o) => o.custom);
+      const others = (o: Official) => (o.others ?? []).map((n) => n.trim()).filter(Boolean);
       const result = await api.put<Official[]>("/settings/officials", {
-        officials: Object.fromEntries(builtIn.map((o) => [o.key, { name: o.name, title: o.title }])),
+        officials: Object.fromEntries(
+          builtIn.map((o) => [o.key, { name: o.name, title: o.title, others: others(o) }])
+        ),
         custom: added.map((o) => ({
           // New offices get their key from the server.
           key: o.key.startsWith("custom-") ? o.key : undefined,
@@ -56,6 +59,7 @@ export default function OfficialsPage() {
           usedFor: o.usedFor,
           name: o.name,
           title: o.title,
+          others: others(o),
         })),
       });
       setOfficials(result);
@@ -81,6 +85,7 @@ export default function OfficialsPage() {
       usedFor: adding.usedFor.trim(),
       name: adding.name.trim(),
       title: label,
+      others: [],
       custom: true,
     };
     if (await save([...officials, next], `Added ${label}`)) setAdding(null);
@@ -229,6 +234,45 @@ export default function OfficialsPage() {
                       placeholder="e.g. Ssemakadde Ibrahim"
                       onChange={(e) => update(o.key, { name: e.target.value })}
                     />
+                    {(o.others ?? []).map((other, i) => (
+                      <div key={i} className="mt-2 flex items-center gap-2">
+                        <input
+                          aria-label={`${o.label}: name ${i + 2}`}
+                          className="input"
+                          value={other}
+                          disabled={!canEdit}
+                          placeholder="Another person in this office"
+                          onChange={(e) =>
+                            update(o.key, { others: o.others.map((x, j) => (j === i ? e.target.value : x)) })
+                          }
+                        />
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => update(o.key, { others: o.others.filter((_, j) => j !== i) })}
+                            className="btn btn-ghost btn-sm shrink-0 text-gray-500"
+                            aria-label={`Remove name ${i + 2} from ${o.label}`}
+                          >
+                            <XIcon className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => update(o.key, { others: [...(o.others ?? []), ""] })}
+                        className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:text-green-800"
+                      >
+                        <PlusIcon className="h-3.5 w-3.5" />
+                        Add another name
+                      </button>
+                    )}
+                    {(o.others?.length ?? 0) > 0 && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        The first name is filled in on the forms; the others are offered to pick from before printing.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="label" htmlFor={`${o.key}-title`}>
@@ -250,7 +294,8 @@ export default function OfficialsPage() {
             <div className="space-y-3 p-5">
               <p className="text-sm text-gray-500">
                 The member of the user department and their head of department aren't here: those names come from the
-                request itself, so each form shows whoever raised and confirmed it.
+                request itself, so each form shows whoever raised and confirmed it. Every name can still be changed
+                before a form is printed.
               </p>
               {error && (
                 <p className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</p>

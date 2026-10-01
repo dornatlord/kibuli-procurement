@@ -10,10 +10,17 @@ import type { PartTwoSubmission } from "../components/PartTwoForm";
 import { basketLineKey, lineIds } from "../lib/baskets";
 import type { BasketDetail, BasketSummary } from "../lib/baskets";
 import { ArrowRightIcon, DocumentIcon, DocumentsIcon } from "../components/icons";
+import Combobox from "../components/Combobox";
+import { planOptions, suggestPlanReference } from "../lib/planLines";
+import type { PlanLines } from "../lib/planLines";
+import { termAndWeek } from "../lib/terms";
+import type { SchoolTerm } from "../lib/terms";
 
 interface Vote { id: number; code: string; name: string; }
-interface SubProgramme { id: number; romanNumeral: string | null; name: string; priceCategories: string[] | null; supplyCode: string | null; }
-interface BudgetItem { id: number; name: string; budgetedAmount: string | null; priceCategories: string[] | null; supplyCode: string | null; }
+/** `lineNumber` is the line's number in its vote (2202-5), for a sub-programme with no items of its own. */
+interface SubProgramme { id: number; romanNumeral: string | null; name: string; priceCategories: string[] | null; supplyCode: string | null; lineNumber?: number | null; }
+/** `lineNumber` counts straight through the vote: 2201-5 is its fifth line. */
+interface BudgetItem { id: number; name: string; budgetedAmount: string | null; priceCategories: string[] | null; supplyCode: string | null; lineNumber?: number | null; }
 interface SavedItem { id: number; description: string; unitOfMeasure: string | null; lastUnitCost: string | null; }
 interface ReservePriceItem { id: number; category: string; itemName: string; unitOfMeasure: string | null; currentPrice: string | null; maximumPrice: string | null; }
 
@@ -108,6 +115,12 @@ export default function NewRequestPage() {
   const [budgetCategory, setBudgetCategory] = useState("recurrent");
   const [subject, setSubject] = useState("");
   const [planRef, setPlanRef] = useState("");
+  // Typed or picked by the user; until then it follows the budget line and subject.
+  const [planRefTyped, setPlanRefTyped] = useState(false);
+  const [planLines, setPlanLines] = useState<PlanLines | null>(null);
+  // FORM 5's "Week 5, Term 3": this week and term, which the user can change.
+  const [weekNumber, setWeekNumber] = useState("");
+  const [term, setTerm] = useState("");
   const [location, setLocation] = useState("Kibuli Secondary School");
   const [dateRequired, setDateRequired] = useState("");
   const [isMultiyear, setIsMultiyear] = useState(false);
@@ -163,6 +176,27 @@ export default function NewRequestPage() {
   const now = new Date();
   const { year } = yearType === "financial" ? getFinancialWeek(now) : getCalendarWeek(now);
 
+  // The plan line this request belongs to, filled in from the school's
+  // procurement plan as the budget line and subject are chosen, until the
+  // user types or picks one themselves.
+  const suggestedPlanRef = useMemo(
+    () => suggestPlanReference(planLines, { lineKey, lineName, subject, category }),
+    [planLines, lineKey, lineName, subject, category]
+  );
+  useEffect(() => {
+    if (!planRefTyped) setPlanRef(suggestedPlanRef ?? "");
+  }, [suggestedPlanRef, planRefTyped]);
+  const planChoices = useMemo(() => planOptions(planLines?.lines ?? []), [planLines]);
+
+  // TFORM 5's Project Code: the vote, and the line's number counted through it.
+  const selectedVote = votes.find((v) => v.id === voteId) ?? null;
+  const lineNumber = budgetItemId
+    ? selectedBudgetItem?.lineNumber ?? null
+    : lineKey
+    ? selectedSubProgramme?.lineNumber ?? null
+    : null;
+  const projectCode = selectedVote && lineNumber ? `${selectedVote.code}-${lineNumber}` : null;
+
   // Offline, lookups come from the copies saved on this computer; if there are
   // none yet, say so rather than leave the dropdowns silently empty.
   const showLoadError = (err: unknown) =>
@@ -174,6 +208,21 @@ export default function NewRequestPage() {
 
   useEffect(() => {
     api.get<BasketSummary[]>("/baskets").then(setBaskets).catch(() => setBaskets([]));
+  }, []);
+
+  useEffect(() => {
+    api.get<PlanLines>("/procurement-plan/lines").then(setPlanLines).catch(() => setPlanLines(null));
+    api
+      .get<SchoolTerm[]>("/settings/terms")
+      .then((terms) => {
+        const now = termAndWeek(terms, new Date());
+        if (!now) return;
+        setWeekNumber((w) => w || String(now.week));
+        setTerm((t) => t || String(now.term));
+      })
+      .catch(() => {
+        // Left blank, the server fills in this week and term.
+      });
   }, []);
 
   useEffect(() => {
@@ -459,6 +508,8 @@ export default function NewRequestPage() {
         procurementSize,
         subjectOfProcurement: subject,
         procurementPlanReference: planRef,
+        weekNumber: weekNumber || null,
+        term: term || null,
         locationForDelivery: location,
         dateRequired: dateRequired || null,
         estimatedTotalCost: itemsTotal ? String(itemsTotal) : null,
@@ -610,6 +661,42 @@ export default function NewRequestPage() {
             />
           </div>
 
+          <div className="col-span-2 grid grid-cols-2 gap-4 rounded-lg border border-gray-300 p-3">
+            <div>
+              <label className="label" htmlFor="request-week">Week *</label>
+              <input
+                id="request-week"
+                type="number"
+                min="1"
+                max="53"
+                step="1"
+                value={weekNumber}
+                onChange={(e) => setWeekNumber(e.target.value)}
+                className="input"
+                required
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="request-term">Term *</label>
+              <select
+                id="request-term"
+                value={term}
+                onChange={(e) => setTerm(e.target.value)}
+                className="input"
+                required
+              >
+                <option value="">— Select term —</option>
+                <option value="1">Term 1</option>
+                <option value="2">Term 2</option>
+                <option value="3">Term 3</option>
+              </select>
+            </div>
+            <p className="col-span-2 -mt-1 text-xs text-gray-500">
+              Printed in a box beside the Procurement Reference Number. Filled in with this week of the term; change it
+              if needed.
+            </p>
+          </div>
+
           <div>
             <label className="label">Category *</label>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className="input" required>
@@ -701,8 +788,24 @@ export default function NewRequestPage() {
             <input value={subject} onChange={(e) => setSubject(e.target.value)} className="input" required />
           </div>
           <div>
-            <label className="label">Procurement Plan Reference</label>
-            <input value={planRef} onChange={(e) => setPlanRef(e.target.value)} className="input" />
+            <label className="label" htmlFor="request-plan-ref">Procurement Plan Reference</label>
+            <Combobox
+              id="request-plan-ref"
+              value={planRef}
+              onChange={(v) => {
+                setPlanRef(v);
+                setPlanRefTyped(true);
+              }}
+              options={planChoices}
+              placeholder={planChoices.length ? "Type, or pick from the plan" : "e.g. KSS/SUPLS/26/003"}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              {!planRefTyped && planRef
+                ? "Filled in from the procurement plan. Pick another line if this isn't the right one."
+                : planChoices.length
+                ? "Pick the line of the procurement plan this request is for."
+                : "The reference of this purchase in the procurement plan."}
+            </p>
           </div>
           <div>
             <label className="label">Location for Delivery</label>
@@ -785,7 +888,9 @@ export default function NewRequestPage() {
                 <option value="">— Select Sub-Programme —</option>
                 {subProgrammes.map((sp) => (
                   <option key={sp.id} value={sp.id}>
-                    {sp.romanNumeral ? `${sp.romanNumeral} ` : ""}{sp.name}
+                    {sp.lineNumber && selectedVote
+                      ? `${selectedVote.code}-${sp.lineNumber} ${sp.name}`
+                      : `${sp.romanNumeral ? `${sp.romanNumeral} ` : ""}${sp.name}`}
                     {sp.supplyCode ? ` — code ${sp.supplyCode}` : ""}
                   </option>
                 ))}
@@ -811,11 +916,19 @@ export default function NewRequestPage() {
                 <option value="">— Select Budget Item —</option>
                 {budgetItems.map((bi) => (
                   <option key={bi.id} value={bi.id}>
+                    {bi.lineNumber && selectedVote ? `${selectedVote.code}-${bi.lineNumber} ` : ""}
                     {bi.name}
                     {bi.supplyCode ? ` — code ${bi.supplyCode}` : ""}
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {projectCode && (
+            <div>
+              <label className="label">Project Code on the form</label>
+              <input value={`${projectCode} — ${lineName ?? ""}`} readOnly className="input bg-gray-50" />
             </div>
           )}
 

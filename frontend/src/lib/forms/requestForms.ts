@@ -2,7 +2,7 @@ import { KSS_BADGE } from "../badge";
 import { shillingsInWords } from "../words";
 import type { Officials } from "../officials";
 import { DEFAULT_JUSTIFICATION } from "../../components/PartTwoForm";
-import { cornerBadge, dayFirst, esc, money, openPrint, sheetCss, tableSheets } from "../print";
+import { cornerBadge, dayFirst, esc, kampalaDay, money, openPrint, sheetCss, tableSheets } from "../print";
 
 export interface RequestLineItem {
   id: number;
@@ -31,8 +31,11 @@ export interface CommitteeDecision {
   recommendedMethod: string | null;
   methodJustification: string | null;
   shortlistedProviders: string | null;
+  shortlistJustification?: string | null;
   biddingDocumentTeam: string | null;
+  biddingTeamJustification?: string | null;
   evaluationCommittee: string | null;
+  evaluationJustification?: string | null;
   biddingDocumentCost: string | null;
   otherInformation: string | null;
   /** The committee's decision and conditions for each Part II row, keyed "1"–"6". */
@@ -52,6 +55,13 @@ export interface StepDates {
   secretary: string | null;
 }
 
+/** Someone who raised or moved on a request. */
+export interface RequestPerson {
+  name: string;
+  role: string;
+  department: string | null;
+}
+
 export interface RequestRecord {
   id: number;
   referenceNumber: string;
@@ -60,7 +70,11 @@ export interface RequestRecord {
   category: string;
   yearType: string;
   year: number;
+  /** The week of the term and the term, as FORM 5 prints them: "Week 5, Term 3". */
   weekNumber: number;
+  term?: number | null;
+  /** The procurement's running number: the 4th procurement is 4. */
+  sequenceNumber?: number;
   budgetCategory: string;
   procurementSize: string;
   subjectOfProcurement: string;
@@ -79,9 +93,9 @@ export interface RequestRecord {
   voteName?: string | null;
   subProgrammeName?: string | null;
   budgetItemName?: string | null;
-  /** The budget line's number within its sub-programme (or vote): the 4 in 2212-4. */
+  /** The budget line's number, counted straight through its vote: the 13 in 2212-13. */
   budgetLineNumber?: number | null;
-  /** TFORM 5's Project Code and Title, e.g. 2212-4 and "Civil works". */
+  /** TFORM 5's Project Code and Title, e.g. 2212-13 and "Generator". */
   projectCode?: string | null;
   projectTitle?: string | null;
   status: string;
@@ -92,6 +106,15 @@ export interface RequestRecord {
   signatures: RequestSignature[];
   decision: CommitteeDecision | null;
   stepDates?: StepDates;
+  /** Who raised it, and who moved it on at each step. */
+  requestedBy?: RequestPerson | null;
+  stepPeople?: {
+    submitted: RequestPerson | null;
+    headOfDepartment: RequestPerson | null;
+    accountingOfficer: RequestPerson | null;
+  };
+  /** The heads of department, to choose from for the confirmation on page 3. */
+  departmentHeads?: { name: string; department: string | null }[];
 }
 
 const CATEGORY_NAMES: Record<string, string> = {
@@ -107,9 +130,18 @@ const quantity = (v: string | null | undefined) =>
 /** Typed text keeps its line breaks on the form. */
 const escLines = (s: string | null | undefined) => esc(s).replace(/\n/g, "<br/>");
 
-/** A signature line: the label, then a ruled line carrying whatever the system knows. */
-const line = (label: string, value = "") =>
-  `<div class="line"><span class="line-label">${label}</span><span class="line-value">${esc(value)}</span></div>`;
+/** A line to sign on, or to write on by hand: always ruled. */
+const ruled = (label: string) =>
+  `<div class="line"><span class="line-label">${label}</span><span class="line-value"></span></div>`;
+
+/**
+ * A name, title or date: printed as plain words when the system has it, with
+ * no line under it. Left empty, it is ruled to be written in by hand.
+ */
+const filled = (label: string, value: string | null | undefined) =>
+  value && value.trim()
+    ? `<div class="line"><span class="line-label">${label}</span><span class="line-text">${esc(value.trim())}</span></div>`
+    : ruled(label);
 
 /** KSS/SUPLS/26/029/00246 → procurement reference KSS/SUPLS/26/029 and call-off order 246. */
 export function splitReference(referenceNumber: string) {
@@ -123,6 +155,91 @@ export function splitReference(referenceNumber: string) {
 }
 
 // ── TFORM 5 ──────────────────────────────────────────────────────────────
+
+/** The titles a member of the user department signs page 3 under. */
+export const DEPARTMENT_TITLES = [
+  "Head of Department",
+  "Assistant Head of Department",
+  "Member of Department",
+  "Representative",
+];
+
+/**
+ * The names, titles and dates TFORM 5 fills in by itself. They are shown
+ * before printing, so a wrong one can be changed; dates are YYYY-MM-DD.
+ */
+export type TFormFill = {
+  planReference: string;
+  requesterName: string;
+  requesterTitle: string;
+  requestedOn: string;
+  hodName: string;
+  hodTitle: string;
+  hodOn: string;
+  aoName: string;
+  aoTitle: string;
+  aoOn: string;
+  pduName: string;
+  pduTitle: string;
+  pduOn: string;
+  chairName: string;
+  chairOn: string;
+  secretaryName: string;
+  secretaryOn: string;
+};
+
+/** The title for page 3 that fits someone's role in the system. */
+const departmentTitleFor = (role: string | null | undefined) =>
+  role === "head_of_dept" ? "Head of Department" : role === "user_dept_member" ? "Member of Department" : "Representative";
+
+/** Heads of department, those of the requester's department first. */
+export function headsFor(request: RequestRecord) {
+  const dept = request.requestedBy?.department?.trim().toLowerCase();
+  const heads = request.departmentHeads ?? [];
+  return [
+    ...heads.filter((h) => dept && h.department?.trim().toLowerCase() === dept),
+    ...heads.filter((h) => !dept || h.department?.trim().toLowerCase() !== dept),
+  ];
+}
+
+/**
+ * What TFORM 5 fills in when nobody changes it. Names come from whoever did
+ * each step, or else from Officials; each date is the day its step happened,
+ * or the day the request was made for a step still to come.
+ */
+export function tformFill(request: RequestRecord, officials: Officials): TFormFill {
+  const sig = (role: string) => request.signatures.find((s) => s.role === role);
+  const steps = request.stepDates;
+  const people = request.stepPeople;
+  const requestedOn = kampalaDay(steps?.requested ?? sig("user_dept")?.signedAt ?? request.createdAt);
+  const on = (v: string | null | undefined) => kampalaDay(v) || requestedOn;
+
+  const requester = request.requestedBy;
+  const hodActed = people?.headOfDepartment?.role === "head_of_dept" ? people.headOfDepartment.name : null;
+  const aoActed = people?.accountingOfficer?.role === "accounting_officer" ? people.accountingOfficer.name : null;
+  // A head of department raising a request confirms it too.
+  const requesterIsHead = requester?.role === "head_of_dept" ? requester.name : null;
+
+  return {
+    planReference: request.procurementPlanReference ?? "",
+    requesterName: sig("user_dept")?.name ?? requester?.name ?? "",
+    requesterTitle: departmentTitleFor(requester?.role),
+    requestedOn,
+    hodName: sig("head_of_dept")?.name ?? hodActed ?? requesterIsHead ?? headsFor(request)[0]?.name ?? "",
+    hodTitle: "Head of Department",
+    hodOn: on(steps?.headOfDepartment),
+    aoName: sig("accounting_officer")?.name ?? aoActed ?? officials.accounting_officer?.name ?? "",
+    aoTitle: officials.accounting_officer?.title || "Accounting Officer",
+    aoOn: on(steps?.accountingOfficer),
+    pduName: officials.pdu_head?.name ?? "",
+    pduTitle: officials.pdu_head?.title || "Head, Procurement and Disposal Unit",
+    pduOn: on(steps?.submittedToCommittee ?? request.decision?.submissionDate),
+    chairName: officials.committee_chairperson?.name ?? "",
+    chairOn: on(steps?.chairperson),
+    secretaryName: officials.committee_secretary?.name ?? "",
+    secretaryOn: on(steps?.secretary),
+  };
+}
 
 /** Item rows on the first items page (the form's own fifteen), and on each page after it. */
 const ITEMS_FIRST_PAGE = 15;
@@ -148,6 +265,10 @@ table { width: 100%; border-collapse: collapse; }
 .regulation { font-style: italic; font-size: 11pt; }
 .act { margin-top: 3mm; }
 .title { font-weight: bold; font-size: 13pt; margin-top: 1.5mm; }
+.ref-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 5mm; }
+.week-term { justify-self: start; display: inline-flex; align-items: baseline; gap: 2mm; border: 1px solid #000; padding: 0.6mm 3mm; font-weight: normal; white-space: nowrap; }
+.week-term b { min-width: 7mm; text-align: center; }
+.week-term .gap { width: 4mm; }
 .items td { height: 6.8mm; padding-top: 0.8mm; padding-bottom: 0.8mm; }
 .items th { font-size: 11pt; }
 .items .section { text-align: center; font-weight: bold; }
@@ -161,41 +282,27 @@ table { width: 100%; border-collapse: collapse; }
 .line { display: flex; align-items: flex-end; gap: 2mm; margin-top: 4.5mm; }
 .line-label { white-space: nowrap; }
 .line-value { flex: 1; border-bottom: 1px solid #000; min-height: 6.5mm; padding: 0 1mm 0.5mm; }
+.line-text { flex: 1; padding: 0 1mm; }
 .funds-note { font-style: italic; margin: 7mm 0 1.5mm; }
 .part2-title { text-align: center; font-weight: bold; font-size: 13pt; margin: 0 18mm 5mm; }
 .part2 .high td { height: 22mm; }
 .part2 .low td { height: 10mm; }
-.answer { margin-top: 1.5mm; }
 .declaration { margin-top: 7mm; }
 .declaration-title { font-weight: bold; }
 `;
 
-/** PPDA FORM 5 as the school prints it: landscape A4, 12 point, one part per page. */
-export function printTForm(request: RequestRecord, officials: Officials) {
-  const held = (key: string) => officials[key];
-  const sigOf = (role: string) => request.signatures.find((s) => s.role === role);
+/**
+ * PPDA FORM 5 as the school prints it: landscape A4, 12 point, one part per
+ * page, the badge on the first page only. `fill` holds the names, titles and
+ * dates, as checked before printing.
+ */
+export function printTForm(request: RequestRecord, fill: TFormFill) {
   const isMacro = request.procurementSize === "macro";
   const total = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
 
-  const userSig = sigOf("user_dept");
-  const hodSig = sigOf("head_of_dept");
-  const aoSig = sigOf("accounting_officer");
-
-  // Every Date line fills itself from when that step happened. A step that
-  // hasn't happened yet stays blank.
-  const steps = request.stepDates;
-  const dateOf = {
-    requested: dayFirst(steps?.requested ?? userSig?.signedAt),
-    headOfDepartment: dayFirst(steps?.headOfDepartment ?? hodSig?.signedAt),
-    accountingOfficer: dayFirst(steps?.accountingOfficer ?? aoSig?.signedAt),
-    submittedToCommittee: dayFirst(steps?.submittedToCommittee ?? request.decision?.submissionDate),
-    committeeMeeting: dayFirst(steps?.committeeMeeting ?? request.decision?.committeeMeetingDate),
-    chairperson: dayFirst(steps?.chairperson),
-    secretary: dayFirst(steps?.secretary),
-  };
-
-  const refParts = request.referenceNumber.split("/");
-  const seqNo = refParts[refParts.length - 1] || "";
+  // The procurement's own number: the 18th procurement is 18.
+  const lastPart = request.referenceNumber.split("/").pop() ?? "";
+  const sequence = request.sequenceNumber ?? (/^\d+$/.test(lastPart) ? Number(lastPart) : lastPart);
 
   // ── Page 1: Part I heading, reference, budget, multiyear
   const yearCells = request.isMultiyear
@@ -216,7 +323,13 @@ export function printTForm(request: RequestRecord, officials: Officials) {
   </tr></table>
 
   <table class="grid">
-    <tr><th colspan="4">Procurement Reference Number</th></tr>
+    <tr><th colspan="4"><div class="ref-head">
+      <span></span>
+      <span>Procurement Reference Number</span>
+      <span class="week-term">Week <b>${esc(request.weekNumber ?? "")}</b><span class="gap"></span>Term <b>${esc(
+        request.term ?? ""
+      )}</b></span>
+    </div></th></tr>
     <tr>
       <td class="c" style="width:30%">Code of Procuring and Disposing Entity</td>
       <td class="c" style="width:30%">Supplies/Works/Non-consultancy services</td>
@@ -227,7 +340,7 @@ export function printTForm(request: RequestRecord, officials: Officials) {
       <td class="c">Kibuli Secondary School</td>
       <td class="c">${esc(CATEGORY_NAMES[request.category] ?? request.category)}</td>
       <td class="c">${esc(String(request.year))}</td>
-      <td class="c">${esc(request.supplyCode ? `${request.supplyCode}/${seqNo}` : seqNo)}</td>
+      <td class="c">${esc(sequence)}</td>
     </tr>
   </table>
 
@@ -271,7 +384,7 @@ export function printTForm(request: RequestRecord, officials: Officials) {
   const particulars = `<table class="grid">
     <tr><td colspan="2" class="b">Particulars of Procurement</td></tr>
     <tr><td style="width:35%">Subject of Procurement</td><td>${esc(request.subjectOfProcurement)}</td></tr>
-    <tr><td>Procurement Plan Reference</td><td>${esc(request.procurementPlanReference)}</td></tr>
+    <tr><td>Procurement Plan Reference</td><td>${esc(fill.planReference)}</td></tr>
     <tr><td>Location for Delivery</td><td>${esc(request.locationForDelivery)}</td></tr>
     <tr><td>Date Required</td><td>${esc(dayFirst(request.dateRequired))}</td></tr>
   </table>`;
@@ -290,7 +403,6 @@ export function printTForm(request: RequestRecord, officials: Officials) {
     most: { first: ITEMS_FIRST_PAGE, rest: ITEMS_LATER_PAGES },
     sheet: (rows, { first, last }) => `
 <div class="sheet">
-  ${cornerBadge}
   ${first ? particulars : `<div class="continued">Details Relating to the Procurement (continued)</div>`}
   <table class="grid items" style="margin-top:${first ? "4mm" : "0"}">
     ${first ? `<tr><td colspan="6" class="section">Details Relating to the Procurement</td></tr>` : ""}
@@ -307,21 +419,20 @@ export function printTForm(request: RequestRecord, officials: Officials) {
   });
 
   // ── Page 3: requester, head of department, funds, Accounting Officer
-  const signer = (sig: RequestSignature | undefined, date: string) =>
-    `${line("Signature:")}${line("Name:", sig?.name ?? "")}${line("Title:", sig?.title ?? "")}${line("Date:", date)}`;
+  const signer = (name: string, title: string, date: string) =>
+    `${ruled("Signature:")}${filled("Name:", name)}${filled("Title:", title)}${filled("Date:", dayFirst(date))}`;
   const page3 = `
 <div class="sheet">
-  ${cornerBadge}
   <div class="pair">
     <div>
       <div class="block-title">(1)&nbsp; Request for Procurement</div>
       <div class="block-sub">(Member of user department)</div>
-      ${signer(userSig, dateOf.requested)}
+      ${signer(fill.requesterName, fill.requesterTitle, fill.requestedOn)}
     </div>
     <div>
       <div class="block-title">(2)&nbsp; Confirmation of Request</div>
       <div class="block-sub">(Head of user department)</div>
-      ${signer(hodSig, dateOf.headOfDepartment)}
+      ${signer(fill.hodName, fill.hodTitle, fill.hodOn)}
     </div>
   </div>
 
@@ -337,7 +448,7 @@ export function printTForm(request: RequestRecord, officials: Officials) {
     <tr class="tall">
       <td></td>
       <td>${esc(request.voteName)}</td>
-      <td>${esc(request.subProgrammeName)}</td>
+      <td>${esc(request.projectTitle ?? request.subProgrammeName)}</td>
       <td class="c">${esc(request.budgetLineNumber)}</td>
       <td class="r">${money(request.balanceRemainingManual)}</td>
     </tr>
@@ -348,12 +459,12 @@ export function printTForm(request: RequestRecord, officials: Officials) {
     <div class="block-sub">(Accounting Officer)</div>
     <div class="pair">
       <div>
-        ${line("Signature:")}
-        ${line("Title:", aoSig ? aoSig.title || "Accounting Officer" : held("accounting_officer")?.title ?? "")}
+        ${ruled("Signature:")}
+        ${filled("Title:", fill.aoTitle)}
       </div>
       <div>
-        ${line("Name:", aoSig ? aoSig.name : held("accounting_officer")?.name ?? "")}
-        ${line("Date:", dateOf.accountingOfficer)}
+        ${filled("Name:", fill.aoName)}
+        ${filled("Date:", dayFirst(fill.aoOn))}
       </div>
     </div>
   </div>
@@ -363,71 +474,76 @@ export function printTForm(request: RequestRecord, officials: Officials) {
   let macroPages = "";
   if (isMacro) {
     const part2 = request.decision;
-    const meetingDateRef = [dateOf.committeeMeeting, part2?.meetingReference].filter(Boolean).join(" / ");
+    const meetingDateRef = [dayFirst(request.stepDates?.committeeMeeting ?? part2?.committeeMeetingDate), part2?.meetingReference]
+      .filter(Boolean)
+      .join(" / ");
     const rows = [
       {
         key: "1",
         size: "high",
         label: "Recommended method of procurement and justification",
-        answer: [part2?.recommendedMethod, part2?.methodJustification || DEFAULT_JUSTIFICATION]
-          .filter(Boolean)
-          .map(escLines)
-          .join("<br/>"),
+        answer: part2?.recommendedMethod,
+        justification: part2?.methodJustification || DEFAULT_JUSTIFICATION,
       },
       {
         key: "2",
         size: "high",
         label: "Names of shortlisted provider (s) and justification for selection",
-        answer: escLines(part2?.shortlistedProviders),
+        answer: part2?.shortlistedProviders,
+        justification: part2?.shortlistJustification,
       },
       {
         key: "3",
         size: "high",
         label: "Bidding document. Persons involved in preparation of proposal document <em>(Names and positions)</em>",
-        answer: escLines(part2?.biddingDocumentTeam),
+        answer: part2?.biddingDocumentTeam,
+        justification: part2?.biddingTeamJustification,
       },
       {
         key: "4",
         size: "high",
         label:
           "Names of persons recommended to constitute the Evaluation Committee and the justification <em>(Names and positions)</em>",
-        answer: escLines(part2?.evaluationCommittee),
+        answer: part2?.evaluationCommittee,
+        justification: part2?.evaluationJustification,
       },
       {
         key: "5",
         size: "low",
         label: "Cost of the bidding document, if any",
         answer: part2?.biddingDocumentCost ? `UGX ${money(part2.biddingDocumentCost)}` : "",
+        justification: "",
       },
-      { key: "6", size: "low", label: "Any other information", answer: escLines(part2?.otherInformation) },
+      { key: "6", size: "low", label: "Any other information", answer: part2?.otherInformation, justification: "" },
     ]
       .map((r) => {
         const decided = part2?.rowDecisions?.[r.key];
+        // The submission's justification, then any conditions the committee set.
+        const lastColumn = [r.justification, decided?.conditions].filter(Boolean).map(escLines).join("<br/>");
         return `<tr class="${r.size}">
       <td>${r.key}.</td>
-      <td>${r.label}${r.answer ? `<div class="answer">${r.answer}</div>` : ""}</td>
+      <td>${r.label}</td>
+      <td>${escLines(r.answer)}</td>
       <td>${escLines(decided?.decision)}</td>
-      <td>${escLines(decided?.conditions)}</td>
+      <td>${lastColumn}</td>
     </tr>`;
       })
       .join("");
 
     macroPages = `
 <div class="sheet">
-  ${cornerBadge}
   <div class="part2-title">PART II: REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE FOR APPROVAL OF PROCUREMENT METHOD</div>
   <table class="grid part2">
     <tr>
-      <th style="width:9%"></th>
-      <th style="width:44%">Submission by the Procurement<br/>and Disposal Unit</th>
-      <th style="width:23%">Decision of the<br/>Contracts Committee</th>
-      <th style="width:24%">Conditions/<br/>Justification for Decision</th>
+      <th style="width:6%"></th>
+      <th colspan="2" style="width:54%">Submission by the Procurement<br/>and Disposal Unit</th>
+      <th style="width:18%">Decision of the<br/>Contracts Committee</th>
+      <th style="width:22%">Conditions/<br/>Justification for Decision</th>
     </tr>
     <tr>
       <td></td>
-      <td class="b c">Date of Submission to Contracts Committee:${
-        dateOf.submittedToCommittee ? ` <span style="font-weight:normal">${esc(dateOf.submittedToCommittee)}</span>` : ""
-      }</td>
+      <td class="b" style="width:33%">Date of Submission to Contracts Committee:</td>
+      <td style="width:21%">${esc(dayFirst(fill.pduOn))}</td>
       <td class="b">Date/Reference of Contracts Committee Meeting:${
         meetingDateRef ? ` <span style="font-weight:normal">${esc(meetingDateRef)}</span>` : ""
       }</td>
@@ -438,7 +554,6 @@ export function printTForm(request: RequestRecord, officials: Officials) {
 </div>
 
 <div class="sheet">
-  ${cornerBadge}
   <div><em><strong>Documents attached:</strong></em></div>
   <div style="margin:1.5mm 0 0 8mm">Bidding Document</div>
 
@@ -446,8 +561,8 @@ export function printTForm(request: RequestRecord, officials: Officials) {
     <div class="declaration-title">Declaration by Procurement and Disposal Unit</div>
     <div>The information contained in this form and the attached documents is complete, true and accurate and in accordance with the Public Procurement and Disposal of Public Assets Act, 2003.</div>
     <div class="pair">
-      <div>${line("Signature:")}${line("Position:", held("pdu_head")?.title ?? "")}</div>
-      <div>${line("Name:", held("pdu_head")?.name ?? "")}${line("Date:", dateOf.submittedToCommittee)}</div>
+      <div>${ruled("Signature:")}${filled("Position:", fill.pduTitle)}</div>
+      <div>${filled("Name:", fill.pduName)}${filled("Date:", dayFirst(fill.pduOn))}</div>
     </div>
   </div>
 
@@ -455,12 +570,12 @@ export function printTForm(request: RequestRecord, officials: Officials) {
     <div class="declaration-title">Declaration by Contracts Committee</div>
     <div>The information contained in this form is a true and accurate record of the decision of the Contracts Committee meeting held on the above date.</div>
     <div class="pair">
-      <div>${line("Signature:")}<div class="line"><span class="line-label">Position:</span><span class="b">&nbsp;Chairperson Contracts Committee</span></div></div>
-      <div>${line("Name:", held("committee_chairperson")?.name ?? "")}${line("Date:", dateOf.chairperson)}</div>
+      <div>${ruled("Signature:")}<div class="line"><span class="line-label">Position:</span><span class="b">&nbsp;Chairperson Contracts Committee</span></div></div>
+      <div>${filled("Name:", fill.chairName)}${filled("Date:", dayFirst(fill.chairOn))}</div>
     </div>
     <div class="pair" style="margin-top:4mm">
-      <div>${line("Signature:")}<div class="line"><span class="line-label">Position:</span><span class="b">&nbsp;Secretary Contracts Committee</span></div></div>
-      <div>${line("Name:", held("committee_secretary")?.name ?? "")}${line("Date:", dateOf.secretary)}</div>
+      <div>${ruled("Signature:")}<div class="line"><span class="line-label">Position:</span><span class="b">&nbsp;Secretary Contracts Committee</span></div></div>
+      <div>${filled("Name:", fill.secretaryName)}${filled("Date:", dayFirst(fill.secretaryOn))}</div>
     </div>
   </div>
 </div>`;
@@ -519,10 +634,10 @@ export function printPriceSchedule(request: RequestRecord) {
     most: { first: SCHEDULE_FIRST_PAGE, rest: SCHEDULE_LATER_PAGES },
     sheet: (rows, { first, last }) => `
 <div class="sheet">
-  ${cornerBadge}
   ${
     first
-      ? `<h1>List of Supplies and Price Schedule</h1>
+      ? `${cornerBadge}
+  <h1>List of Supplies and Price Schedule</h1>
   <div class="refs">
     <div>Procurement Reference No:<span class="v">${esc(procurementRef)}</span></div>
     <div>Call-Off Order Reference No:<span class="v">${esc(callOff)}</span></div>
@@ -561,19 +676,31 @@ function sentenceWords(amount: number) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-export interface CallOffDetails {
-  /** The supplier on the request's LPO, if there is one. */
-  provider: string | null;
-  /** The LPO's issue date, or today. */
-  date: string | null;
+/** What the call-off order fills in, checked before printing. The date is YYYY-MM-DD. */
+export type CallOffFill = {
+  provider: string;
+  date: string;
+  authorisedName: string;
+  authorisedPosition: string;
+};
+
+/** The call-off order's starting values: the LPO's supplier and date, and the Accounting Officer. */
+export function callOffFill(
+  officials: Officials,
+  lpo: { supplierName: string | null; issueDate: string | null } | null
+): CallOffFill {
+  return {
+    provider: lpo?.supplierName ?? "",
+    date: kampalaDay(lpo?.issueDate) || kampalaDay(new Date().toISOString()),
+    authorisedName: officials.accounting_officer?.name ?? "",
+    authorisedPosition: officials.accounting_officer?.title || "Accounting Officer",
+  };
 }
 
 /** The Call-Off Order that goes out with the price schedule under a framework contract. */
-export function printCallOffOrder(request: RequestRecord, officials: Officials, details: CallOffDetails) {
+export function printCallOffOrder(request: RequestRecord, fill: CallOffFill) {
   const { procurementRef, callOff } = splitReference(request.referenceNumber);
   const total = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
-  const officer = officials.accounting_officer;
-  const date = dayFirst(details.date) || new Date().toLocaleDateString("en-GB");
 
   openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Call-Off Order — ${esc(request.referenceNumber)}</title>
 <style>
@@ -600,8 +727,8 @@ p { margin: 0 0 3.5mm; text-align: justify; }
     <tr><td>Procurement Reference No:</td><td>${esc(procurementRef)}</td></tr>
     <tr><td>Call-Off Order Reference No:</td><td>${esc(callOff)}</td></tr>
     <tr><td>Procuring and Disposing Entity:</td><td>KIBULI SECONDARY SCHOOL</td></tr>
-    <tr><td>Provider:</td><td>${esc((details.provider ?? "").toUpperCase())}</td></tr>
-    <tr><td>Date of Call-Off Order:</td><td>${esc(date)}</td></tr>
+    <tr><td>Provider:</td><td>${esc(fill.provider.toUpperCase())}</td></tr>
+    <tr><td>Date of Call-Off Order:</td><td>${esc(dayFirst(fill.date))}</td></tr>
   </table>
   <p>The Procuring and Disposing Entity indicated above issues this call-off order under the framework contract referenced above.</p>
   <p>This call-off order is subject to the terms and conditions of the framework contract referenced above. In the event of a conflict, between this call-off order and the contract, the contract shall prevail.</p>
@@ -611,8 +738,8 @@ p { margin: 0 0 3.5mm; text-align: justify; }
   <table class="auth">
     <tr><th colspan="2">Authorised by:</th></tr>
     <tr class="sign"><td>Signature:</td><td></td></tr>
-    <tr><td>Name:</td><td>${esc((officer?.name ?? "").toUpperCase())}</td></tr>
-    <tr><td>Position:</td><td>${esc(officer?.title ?? "Accounting Officer")}</td></tr>
+    <tr><td>Name:</td><td>${esc(fill.authorisedName.toUpperCase())}</td></tr>
+    <tr><td>Position:</td><td>${esc(fill.authorisedPosition)}</td></tr>
   </table>
 </div>
 </body></html>`);

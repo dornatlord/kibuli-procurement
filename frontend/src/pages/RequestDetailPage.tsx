@@ -1,11 +1,23 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { useOfficials } from "../lib/officials";
+import { namesIn, useOfficials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import { dayFirst as formDate } from "../lib/print";
-import { printCallOffOrder, printPriceSchedule, printTForm } from "../lib/forms/requestForms";
-import type { RequestRecord as Request } from "../lib/forms/requestForms";
+import {
+  DEPARTMENT_TITLES,
+  callOffFill,
+  headsFor,
+  printCallOffOrder,
+  printPriceSchedule,
+  printTForm,
+  tformFill,
+} from "../lib/forms/requestForms";
+import type { CallOffFill, RequestRecord, TFormFill } from "../lib/forms/requestForms";
+import { planOptions, suggestPlanReference } from "../lib/planLines";
+import type { PlanLines } from "../lib/planLines";
+import PrintCheck from "../components/PrintCheck";
+import type { CheckSection } from "../components/PrintCheck";
 import StatusBadge from "../components/StatusBadge";
 import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
 import PartTwoTable, { rowDecisionsFrom, submissionFrom } from "../components/PartTwoForm";
@@ -20,6 +32,9 @@ interface PartTwoDraft {
   decision: string;
   decisionJustification: string;
 }
+
+/** The request as this page reads it: the printed record, and the budget line it spends. */
+type Request = RequestRecord & { budgetItemId?: number | null; subProgrammeId?: number | null };
 
 /** The LPO raised from this request, for the call-off order's provider and date. */
 interface LinkedLpo {
@@ -67,6 +82,9 @@ export default function RequestDetailPage() {
   const [partTwoEdit, setPartTwoEdit] = useState<PartTwoDraft | null>(null);
   const [partTwoSaving, setPartTwoSaving] = useState(false);
   const [partTwoError, setPartTwoError] = useState("");
+  // Checking the names, titles and dates a form will print, before printing it.
+  const [checking, setChecking] = useState<"tform" | "calloff" | null>(null);
+  const [plan, setPlan] = useState<PlanLines | null>(null);
 
   function load() {
     setLoading(true);
@@ -86,6 +104,15 @@ export default function RequestDetailPage() {
       .then((rows) => setLinkedLpo(rows.find((r) => r.status !== "cancelled") ?? null))
       .catch(() => setLinkedLpo(null));
   }, [id]);
+
+  /** Opens the check before printing TFORM 5, with the year's plan lines to offer for page 2. */
+  async function checkTForm() {
+    if (!plan && request) {
+      const lines = await api.get<PlanLines>(`/procurement-plan/lines?year=${request.year}`).catch(() => null);
+      setPlan(lines);
+    }
+    setChecking("tform");
+  }
 
   async function transition(next: string) {
     setActing(true);
@@ -201,20 +228,11 @@ export default function RequestDetailPage() {
                   <PrinterIcon className="h-4 w-4" />
                   Price schedule
                 </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    printCallOffOrder(request, officials, {
-                      provider: linkedLpo?.supplierName ?? null,
-                      date: linkedLpo?.issueDate ?? null,
-                    })
-                  }
-                  className="btn btn-secondary"
-                >
+                <button type="button" onClick={() => setChecking("calloff")} className="btn btn-secondary">
                   <PrinterIcon className="h-4 w-4" />
                   Call-off order
                 </button>
-                <button type="button" onClick={() => printTForm(request, officials)} className="btn btn-secondary">
+                <button type="button" onClick={checkTForm} className="btn btn-secondary">
                   <PrinterIcon className="h-4 w-4" />
                   Print TFORM 5
                 </button>
@@ -242,6 +260,61 @@ export default function RequestDetailPage() {
         </div>
       </div>
 
+      {checking === "tform" && (
+        <PrintCheck<TFormFill>
+          key={`tform-${Object.keys(officials).length}`}
+          title="Check TFORM 5 before printing"
+          sections={tformSections(request, officials, plan)}
+          initial={{
+            ...tformFill(request, officials),
+            planReference:
+              request.procurementPlanReference ||
+              suggestPlanReference(plan, {
+                lineKey: request.budgetItemId
+                  ? `bi:${request.budgetItemId}`
+                  : request.subProgrammeId
+                  ? `sp:${request.subProgrammeId}`
+                  : null,
+                lineName: request.projectTitle ?? null,
+                subject: request.subjectOfProcurement ?? "",
+                category: request.category,
+              }) ||
+              "",
+          }}
+          onPrint={(fill) => printTForm(request, fill)}
+          onClose={() => setChecking(null)}
+        />
+      )}
+      {checking === "calloff" && (
+        <PrintCheck<CallOffFill>
+          key={`calloff-${Object.keys(officials).length}`}
+          title="Check the call-off order before printing"
+          sections={[
+            {
+              title: "Call-off order",
+              fields: [
+                { key: "provider", label: "Provider", options: linkedLpo?.supplierName ? [linkedLpo.supplierName] : [] },
+                { key: "date", label: "Date of call-off order", type: "date" },
+              ],
+            },
+            {
+              title: "Authorised by",
+              fields: [
+                { key: "authorisedName", label: "Name", options: namesIn(officials, "accounting_officer", "head_teacher") },
+                {
+                  key: "authorisedPosition",
+                  label: "Position",
+                  options: [officials.accounting_officer?.title ?? "", "Accounting Officer", "Head Teacher"],
+                },
+              ],
+            },
+          ]}
+          initial={callOffFill(officials, linkedLpo)}
+          onPrint={(fill) => printCallOffOrder(request, fill)}
+          onClose={() => setChecking(null)}
+        />
+      )}
+
       {correcting && (
         <CorrectionPanel
           title={`Correct ${request.referenceNumber}`}
@@ -250,12 +323,16 @@ export default function RequestDetailPage() {
             { key: "procurementPlanReference", label: "Procurement plan reference" },
             { key: "locationForDelivery", label: "Location for delivery" },
             { key: "dateRequired", label: "Date required (delivery date)", type: "date" },
+            { key: "weekNumber", label: "Week (of the term)" },
+            { key: "term", label: "Term" },
           ]}
           initial={{
             subjectOfProcurement: request.subjectOfProcurement ?? "",
             procurementPlanReference: request.procurementPlanReference ?? "",
             locationForDelivery: request.locationForDelivery ?? "",
             dateRequired: request.dateRequired ? request.dateRequired.slice(0, 10) : "",
+            weekNumber: request.weekNumber ? String(request.weekNumber) : "",
+            term: request.term ? String(request.term) : "",
           }}
           lines={toEditLines(
             request.items.map((it) => ({
@@ -315,6 +392,12 @@ export default function RequestDetailPage() {
           <span className="capitalize">{request.procurementSize}</span>
         </Field>
         <Field label="Supply code">{request.supplyCode || "—"}</Field>
+        <Field label="Week and term">
+          {request.weekNumber && request.term ? `Week ${request.weekNumber}, Term ${request.term}` : "—"}
+        </Field>
+        <Field label="Project code">
+          {request.projectCode ? `${request.projectCode}${request.projectTitle ? ` · ${request.projectTitle}` : ""}` : "—"}
+        </Field>
         <Field label="Location">{request.locationForDelivery || "—"}</Field>
         <Field label="Date required (delivery)">{formDate(request.dateRequired) || "—"}</Field>
         <Field label="Plan reference">{request.procurementPlanReference || "—"}</Field>
@@ -578,6 +661,86 @@ export default function RequestDetailPage() {
       <CorrectionHistory corrections={request.corrections} />
     </div>
   );
+}
+
+/** What the check before printing TFORM 5 asks about, page by page, with the choices for each. */
+function tformSections(
+  request: Request,
+  officials: ReturnType<typeof useOfficials>,
+  plan: PlanLines | null
+): CheckSection[] {
+  const people = [request.requestedBy, request.stepPeople?.submitted]
+    .filter((p): p is NonNullable<typeof p> => !!p)
+    .map((p) => p.name);
+  const heads = headsFor(request).map((h) => ({ value: h.name, hint: h.department ?? undefined }));
+  const sections: CheckSection[] = [
+    {
+      title: "Page 2 — procurement plan",
+      fields: [
+        {
+          key: "planReference",
+          label: "Procurement plan reference",
+          options: planOptions(plan?.lines ?? []),
+          wide: true,
+        },
+      ],
+    },
+    {
+      title: "Page 3 — (1) request for procurement",
+      fields: [
+        { key: "requesterName", label: "Name", options: people },
+        { key: "requesterTitle", label: "Title", options: DEPARTMENT_TITLES },
+        { key: "requestedOn", label: "Date", type: "date" },
+      ],
+    },
+    {
+      title: "Page 3 — (2) confirmation of request",
+      fields: [
+        { key: "hodName", label: "Name", options: heads },
+        { key: "hodTitle", label: "Title", options: DEPARTMENT_TITLES },
+        { key: "hodOn", label: "Date", type: "date" },
+      ],
+    },
+    {
+      title: "Page 3 — (3) Accounting Officer",
+      fields: [
+        { key: "aoName", label: "Name", options: namesIn(officials, "accounting_officer", "head_teacher") },
+        {
+          key: "aoTitle",
+          label: "Title",
+          options: [officials.accounting_officer?.title ?? "", "Accounting Officer", "Head Teacher"],
+        },
+        { key: "aoOn", label: "Date", type: "date" },
+      ],
+    },
+  ];
+  if (request.procurementSize === "macro") {
+    sections.push(
+      {
+        title: "Page 5 — Procurement and Disposal Unit",
+        fields: [
+          { key: "pduName", label: "Name", options: namesIn(officials, "pdu_head") },
+          { key: "pduTitle", label: "Position", options: [officials.pdu_head?.title ?? ""] },
+          { key: "pduOn", label: "Date (also the date of submission on page 4)", type: "date" },
+        ],
+      },
+      {
+        title: "Page 5 — Contracts Committee chairperson",
+        fields: [
+          { key: "chairName", label: "Name", options: namesIn(officials, "committee_chairperson") },
+          { key: "chairOn", label: "Date", type: "date" },
+        ],
+      },
+      {
+        title: "Page 5 — Contracts Committee secretary",
+        fields: [
+          { key: "secretaryName", label: "Name", options: namesIn(officials, "committee_secretary") },
+          { key: "secretaryOn", label: "Date", type: "date" },
+        ],
+      }
+    );
+  }
+  return sections;
 }
 
 function SectionHeader({ title, action }: { title: string; action?: React.ReactNode }) {

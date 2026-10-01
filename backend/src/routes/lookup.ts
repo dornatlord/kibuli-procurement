@@ -4,17 +4,26 @@ import { votes, subProgrammes, budgetItems, budgetAmounts } from "../db/schema.j
 import { and, eq, asc, getTableColumns, type SQL } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { thisYear } from "../lib/years.js";
+import { linesOfVote, numberLines } from "../lib/budgetLines.js";
 
 const router = asyncRouter();
 
-/** Budget lines with this year's amount as `budgetedAmount`, where one is set. */
-const itemsWithThisYearsAmount = (where: SQL) =>
-  db
+/**
+ * Budget lines with this year's amount as `budgetedAmount`, where one is set,
+ * and `lineNumber`, the line's number in its vote (2201-5 is line 5 of 2201).
+ */
+async function itemsWithThisYearsAmount(where: SQL) {
+  const rows = await db
     .select({ ...getTableColumns(budgetItems), budgetedAmount: budgetAmounts.amount })
     .from(budgetItems)
     .leftJoin(budgetAmounts, and(eq(budgetAmounts.budgetItemId, budgetItems.id), eq(budgetAmounts.year, thisYear())))
     .where(where)
-    .orderBy(asc(budgetItems.displayOrder));
+    .orderBy(asc(budgetItems.displayOrder), asc(budgetItems.id));
+  if (rows.length === 0) return [];
+  const numbers = new Map<number, number>();
+  for (const l of await linesOfVote(rows[0].voteId)) if (l.kind === "bi") numbers.set(l.item.id, l.number);
+  return rows.map((r) => ({ ...r, lineNumber: numbers.get(r.id) ?? null }));
+}
 
 router.get("/votes", requireAuth, async (_req, res) => {
   const rows = await db.select().from(votes).orderBy(asc(votes.displayOrder));
@@ -22,12 +31,16 @@ router.get("/votes", requireAuth, async (_req, res) => {
 });
 
 router.get("/votes/:voteId/sub-programmes", requireAuth, async (req, res) => {
+  const voteId = Number(req.params.voteId);
   const rows = await db
     .select()
     .from(subProgrammes)
-    .where(eq(subProgrammes.voteId, Number(req.params.voteId)))
-    .orderBy(asc(subProgrammes.displayOrder));
-  res.json(rows);
+    .where(eq(subProgrammes.voteId, voteId))
+    .orderBy(asc(subProgrammes.displayOrder), asc(subProgrammes.id));
+  // A sub-programme with no items of its own is a line itself, with a number.
+  const numbers = new Map<number, number>();
+  for (const l of await linesOfVote(voteId)) if (l.kind === "sp") numbers.set(l.sub.id, l.number);
+  res.json(rows.map((r) => ({ ...r, lineNumber: numbers.get(r.id) ?? null })));
 });
 
 router.get("/sub-programmes/:subId/items", requireAuth, async (req, res) => {
@@ -49,6 +62,8 @@ interface BudgetLine {
   subProgrammeName: string | null;
   priceCategories: string[];
   supplyCode: string | null;
+  /** The line's number in its vote, counted straight through it (2201-5). */
+  number: number;
 }
 
 /**
@@ -59,39 +74,30 @@ interface BudgetLine {
 router.get("/budget-lines", requireAuth, async (_req, res) => {
   const [allVotes, allSubs, allItems] = await Promise.all([
     db.select().from(votes).orderBy(asc(votes.displayOrder)),
-    db.select().from(subProgrammes).orderBy(asc(subProgrammes.displayOrder)),
-    db.select().from(budgetItems).orderBy(asc(budgetItems.displayOrder)),
+    db.select().from(subProgrammes),
+    db.select().from(budgetItems),
   ]);
 
   const lines: BudgetLine[] = [];
   for (const v of allVotes) {
-    const line = (
-      kind: "bi" | "sp",
-      id: number,
-      name: string,
-      subProgrammeName: string | null,
-      priceCategories: string[] | null,
-      supplyCode: string | null
-    ): BudgetLine => ({
-      key: `${kind}:${id}`,
-      kind,
-      id,
-      name,
-      voteCode: v.code,
-      voteName: v.name,
-      subProgrammeName,
-      priceCategories: priceCategories ?? [],
-      supplyCode,
-    });
-
-    const voteItems = allItems.filter((i) => i.voteId === v.id);
-    for (const s of allSubs.filter((s) => s.voteId === v.id)) {
-      const own = voteItems.filter((i) => i.subProgrammeId === s.id);
-      if (own.length === 0) lines.push(line("sp", s.id, s.name, null, s.priceCategories, s.supplyCode));
-      for (const i of own) lines.push(line("bi", i.id, i.name, s.name, i.priceCategories, i.supplyCode));
-    }
-    for (const i of voteItems.filter((i) => !i.subProgrammeId)) {
-      lines.push(line("bi", i.id, i.name, null, i.priceCategories, i.supplyCode));
+    const numbered = numberLines(
+      allSubs.filter((s) => s.voteId === v.id),
+      allItems.filter((i) => i.voteId === v.id)
+    );
+    for (const l of numbered) {
+      const own = l.kind === "sp" ? l.sub : l.item;
+      lines.push({
+        key: `${l.kind}:${own.id}`,
+        kind: l.kind,
+        id: own.id,
+        name: own.name,
+        voteCode: v.code,
+        voteName: v.name,
+        subProgrammeName: l.kind === "bi" ? l.sub?.name ?? null : null,
+        priceCategories: own.priceCategories ?? [],
+        supplyCode: own.supplyCode,
+        number: l.number,
+      });
     }
   }
   res.json(lines);

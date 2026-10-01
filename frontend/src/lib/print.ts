@@ -18,6 +18,15 @@ export function dayFirst(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("en-GB");
 }
 
+/** The day in Kampala, as YYYY-MM-DD, for a timestamp; a plain date passes through. */
+export function kampalaDay(value: string | null | undefined): string {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala" }).format(at);
+}
+
 /** "4075000" → "4,075,000"; blank stays blank. */
 export function money(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "";
