@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { namesIn, useOfficials } from "../lib/officials";
+import { keepNames, namesForTitle, namesIn, useOfficials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import { dayFirst as formDate } from "../lib/print";
 import {
@@ -281,7 +281,23 @@ export default function RequestDetailPage() {
               }) ||
               "",
           }}
-          onPrint={(fill) => printTForm(request, fill)}
+          onPrint={(fill, start) => {
+            printTForm(request, fill);
+            // Names typed or changed here are kept under their title, to be offered next time.
+            const changed = (name: keyof TFormFill, title?: keyof TFormFill) =>
+              fill[name].trim() !== start[name].trim() || (!!title && fill[title].trim() !== start[title].trim());
+            keepNames([
+              changed("requesterName", "requesterTitle") && { title: fill.requesterTitle, name: fill.requesterName },
+              changed("hodName", "hodTitle") && { title: fill.hodTitle, name: fill.hodName },
+              changed("aoName", "aoTitle") && { title: fill.aoTitle, name: fill.aoName },
+              request.procurementSize === "macro" &&
+                changed("pduName", "pduTitle") && { title: fill.pduTitle, name: fill.pduName },
+              request.procurementSize === "macro" &&
+                changed("chairName") && { office: "committee_chairperson", name: fill.chairName },
+              request.procurementSize === "macro" &&
+                changed("secretaryName") && { office: "committee_secretary", name: fill.secretaryName },
+            ]);
+          }}
           onClose={() => setChecking(null)}
         />
       )}
@@ -300,7 +316,14 @@ export default function RequestDetailPage() {
             {
               title: "Authorised by",
               fields: [
-                { key: "authorisedName", label: "Name", options: namesIn(officials, "accounting_officer", "head_teacher") },
+                {
+                  key: "authorisedName",
+                  label: "Name",
+                  options: (v) => [
+                    ...namesForTitle(officials, v.authorisedPosition),
+                    ...namesIn(officials, "accounting_officer", "head_teacher"),
+                  ],
+                },
                 {
                   key: "authorisedPosition",
                   label: "Position",
@@ -310,7 +333,12 @@ export default function RequestDetailPage() {
             },
           ]}
           initial={callOffFill(officials, linkedLpo)}
-          onPrint={(fill) => printCallOffOrder(request, fill)}
+          onPrint={(fill, start) => {
+            printCallOffOrder(request, fill);
+            if (fill.authorisedName.trim() !== start.authorisedName.trim() || fill.authorisedPosition !== start.authorisedPosition) {
+              keepNames([{ title: fill.authorisedPosition, name: fill.authorisedName }]);
+            }
+          }}
           onClose={() => setChecking(null)}
         />
       )}
@@ -688,7 +716,8 @@ function tformSections(
     {
       title: "Page 3 — (1) request for procurement",
       fields: [
-        { key: "requesterName", label: "Name", options: people },
+        // The names kept under the title chosen beside it come first.
+        { key: "requesterName", label: "Name", options: (v) => [...namesForTitle(officials, v.requesterTitle), ...people] },
         { key: "requesterTitle", label: "Title", options: DEPARTMENT_TITLES },
         { key: "requestedOn", label: "Date", type: "date" },
       ],
@@ -696,7 +725,7 @@ function tformSections(
     {
       title: "Page 3 — (2) confirmation of request",
       fields: [
-        { key: "hodName", label: "Name", options: heads },
+        { key: "hodName", label: "Name", options: (v) => [...namesForTitle(officials, v.hodTitle), ...heads] },
         { key: "hodTitle", label: "Title", options: DEPARTMENT_TITLES },
         { key: "hodOn", label: "Date", type: "date" },
       ],
@@ -704,7 +733,14 @@ function tformSections(
     {
       title: "Page 3 — (3) Accounting Officer",
       fields: [
-        { key: "aoName", label: "Name", options: namesIn(officials, "accounting_officer", "head_teacher") },
+        {
+          key: "aoName",
+          label: "Name",
+          options: (v) => [
+            ...namesForTitle(officials, v.aoTitle),
+            ...namesIn(officials, "accounting_officer", "head_teacher"),
+          ],
+        },
         {
           key: "aoTitle",
           label: "Title",
@@ -719,10 +755,18 @@ function tformSections(
       {
         title: "Page 5 — Procurement and Disposal Unit",
         fields: [
-          { key: "pduName", label: "Name", options: namesIn(officials, "pdu_head") },
+          {
+            key: "pduName",
+            label: "Name",
+            options: (v) => [...namesForTitle(officials, v.pduTitle), ...namesIn(officials, "pdu_head")],
+          },
           { key: "pduTitle", label: "Position", options: [officials.pdu_head?.title ?? ""] },
           { key: "pduOn", label: "Date (also the date of submission on page 4)", type: "date" },
         ],
+      },
+      {
+        title: "Page 4 — Contracts Committee meeting",
+        fields: [{ key: "meetingOn", label: "Date of the meeting", type: "date" }],
       },
       {
         title: "Page 5 — Contracts Committee chairperson",

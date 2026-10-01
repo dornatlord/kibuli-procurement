@@ -134,7 +134,7 @@ export default function CorrectionPanel({
             <thead className="text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="py-2 pr-2">Description</th>
-                <th className="w-24 px-2 py-2">Quantity</th>
+                <th className="w-28 px-2 py-2">Quantity</th>
                 <th className="w-28 px-2 py-2">Unit</th>
                 <th className="w-36 px-2 py-2">{priceLabel}</th>
                 <th className="w-32 px-2 py-2 text-right">Total</th>

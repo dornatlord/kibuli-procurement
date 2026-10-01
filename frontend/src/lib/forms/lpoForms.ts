@@ -77,9 +77,8 @@ body { font-family: "Times New Roman", Times, serif; font-size: 14px; }
 .text { padding: 0 6px; }
 .to { margin-top: 18px; font-weight: bold; }
 .to-first { display: flex; gap: 8px; align-items: flex-end; }
-.to-first .line, .to-first .text { flex: 1; }
+.to-first .line { flex: 1; }
 .to-rest { margin-left: 44px; }
-.to-rest .text { margin-top: 6px; }
 .delivery { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; font-weight: bold; }
 .delivery .line { min-width: 220px; }
 .lead { font-weight: bold; font-size: 15px; margin-top: 18px; }
@@ -94,7 +93,7 @@ th { font-size: 16px; }
 .quote { text-align: center; font-weight: bold; font-size: 15px; margin-top: 14px; }
 .words { display: flex; gap: 8px; align-items: flex-end; margin-top: 16px; font-weight: bold; font-size: 15px; }
 .words > span { white-space: nowrap; }
-.words .line, .words .text { flex: 1; font-size: 14px; }
+.words .line { flex: 1; font-size: 14px; }
 .sign { display: flex; justify-content: space-between; margin-top: 22px; font-weight: bold; font-size: 15px; }
 .sign > div { width: 40%; text-align: center; }
 .sign .dots { display: block; min-width: 0; margin: 26px 0 8px; }
@@ -115,25 +114,23 @@ export function lpoFill(po: LpoRecord, officials: Officials): LpoFill {
   };
 }
 
-/** Written words with nothing under them; left blank, a dotted line to write on. */
-const lineOrText = (value: string | null | undefined, extra = "") =>
-  value && value.trim()
-    ? `<div class="text fill"${extra}>${esc(value)}</div>`
-    : `<div class="line fill"${extra}></div>`;
+/** A date with nothing under it; left blank, a dotted line to write it on. */
+const dateOrLine = (value: string) => (value ? `<div class="text fill">${esc(value)}</div>` : `<div class="line fill"></div>`);
 
 /**
  * The LPO laid out like a page from the school's LPO book, number in red and
- * the badge on its first page. What the system fills in prints without a line
- * under it; lines are left for signing and for anything written by hand.
+ * the badge on its first page. The dates print without the book's dotted
+ * line under them; everything else keeps its line, as in the book.
  */
 export function printLpo(po: LpoRecord, fill: LpoFill) {
   const total = po.items.reduce((s, it) => s + Number(it.totalPrice || 0), 0);
   const date = dayFirst(fill.date);
   const delivery = dayFirst(deliveryDateOf(po));
 
-  const itemRow = (it: LpoItem) => {
+  // Items are numbered down the left, carrying on over a continued page.
+  const itemRow = (it: LpoItem, index: number) => {
     const qty = `${Number(it.quantity).toLocaleString("en-UG")}${it.unitOfMeasure ? ` ${esc(it.unitOfMeasure)}` : ""}`;
-    return `<tr><td class="c">${qty}</td><td>${esc(it.description)}</td><td class="r">${money(it.unitPrice)}</td><td class="r">${money(it.totalPrice)}</td></tr>`;
+    return `<tr><td class="c">${index + 1}</td><td class="c">${qty}</td><td>${esc(it.description)}</td><td class="r">${money(it.unitPrice)}</td><td class="r">${money(it.totalPrice)}</td></tr>`;
   };
 
   const sheet = (rows: string, { first, last }: { first: boolean; last: boolean }) => {
@@ -151,19 +148,20 @@ export function printLpo(po: LpoRecord, fill: LpoFill) {
   <div>Date: <span class="${date ? "" : "dots "}fill">${esc(date)}</span></div>
 </div>
 <div class="to">
-  <div class="to-first"><span>To:</span>${lineOrText(po.supplierName)}</div>
+  <div class="to-first"><span>To:</span><div class="line fill">${esc(po.supplierName)}</div></div>
   <div class="to-rest">
-    ${lineOrText(po.supplierAddress)}
-    ${po.supplierAddress ? "" : `<div class="line fill"></div>`}
+    <div class="line fill">${esc(po.supplierAddress)}</div>
+    <div class="line fill"></div>
   </div>
 </div>
-<div class="delivery"><span>Delivery date:</span>${lineOrText(delivery)}</div>
+<div class="delivery"><span>Delivery date:</span>${dateOrLine(delivery)}</div>
 <div class="lead">Please supply / render the following goods / services:</div>`
       : `<div class="continued">LOCAL PURCHASE ORDER No. ${esc(po.poNumber)} (continued)</div>`;
 
     const bottom = last
       ? `<div class="quote">Please quote our Order number on your Invoice</div>
-<div class="words"><span>Amount in words :</span>${lineOrText(shillingsInWords(total))}</div>
+<div class="words"><span>Amount in words :</span><div class="line fill">${esc(shillingsInWords(total))}</div></div>
+<div class="line" style="margin-top:10px;"></div>
 <div class="sign">
   <div>Prepared by<span class="dots"></span>Signature &amp; Title</div>
   <div>Authorised by<span class="dots"></span>Headteacher${
@@ -175,10 +173,10 @@ export function printLpo(po: LpoRecord, fill: LpoFill) {
     return `<div class="sheet">
 ${top}
 <table>
-  <thead><tr><th style="width:17%">Quantity</th><th>Description</th><th style="width:17%">Unit Price</th><th style="width:21%">Amount</th></tr></thead>
+  <thead><tr><th style="width:7%">No.</th><th style="width:15%">Quantity</th><th>Description</th><th style="width:17%">Unit Price</th><th style="width:21%">Amount</th></tr></thead>
   <tbody>
     ${rows}
-    <tr><td></td><td colspan="2" class="total">TOTAL</td><td class="r">${
+    <tr><td colspan="2"></td><td colspan="2" class="total">TOTAL</td><td class="r">${
       last ? `<strong>${money(total)}</strong>` : `<span class="pto">P.T.O</span>`
     }</td></tr>
   </tbody>
@@ -192,7 +190,7 @@ ${bottom}
     paper: "portrait",
     items: po.items,
     row: itemRow,
-    blankRow: "<tr><td></td><td></td><td></td><td></td></tr>",
+    blankRow: "<tr><td></td><td></td><td></td><td></td><td></td></tr>",
     sheet,
     most: { first: LPO_FIRST_PAGE, rest: LPO_LATER_PAGES },
   });
@@ -232,19 +230,19 @@ export function completionDefaults(po: LpoRecord, officials: Officials): Complet
 
 /**
  * Kibuli's Completion Certificate, signed by the contract manager, deputy and
- * head teacher. What is filled in prints without a line under it; the lines
- * left are for signing, or for writing in what was left blank.
+ * head teacher. As on TFORM 5, the dates and the signers' names print without
+ * a line under them, and the lines left are for signing; the other details
+ * keep their dotted lines, as on the LPO.
  */
 export function printCompletionCertificate(po: LpoRecord, details: CompletionDetails) {
-  const dotted = (value: string, grow = true) =>
-    value.trim()
-      ? `<span class="${grow ? "plain grow" : "plain"}">${esc(value.trim())}</span>`
-      : `<span class="dotted${grow ? " grow" : ""}"></span>`;
+  const dotted = (value: string, grow = true) => `<span class="dotted${grow ? " grow" : ""}">${esc(value)}</span>`;
+  const plain = (value: string, grow = true) =>
+    value.trim() ? `<span class="${grow ? "plain grow" : "plain"}">${esc(value.trim())}</span>` : dotted("", grow);
   const signedOn = dayFirst(details.date);
   const signer = (n: number, verb: string, name: string, role: string) => `
   <div class="signer">
-    <div class="row"><span class="num">${n})</span><span>${verb} by:</span>${dotted(name)}<span class="side">Date :</span>${dotted(signedOn, false)}</div>
-    <div class="row sub"><span class="num"></span><span class="role">${role}</span><span class="spacer"></span><span class="side">Sign :</span><span class="dotted"></span></div>
+    <div class="row"><span class="num">${n})</span><span>${verb} by:</span>${plain(name)}<span class="side">Date :</span>${plain(signedOn, false)}</div>
+    <div class="row sub"><span class="num"></span><span class="role">${role}</span><span class="spacer"></span><span class="side">Sign :</span>${dotted("", false)}</div>
   </div>`;
 
   openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Completion Certificate — LPO No. ${esc(lpoNumber(po))}</title>
@@ -265,7 +263,6 @@ h2 { text-align: center; font-size: 14pt; font-weight: bold; margin: 0 0 12mm; }
 .side { white-space: nowrap; margin-left: 4mm; }
 .confirm { margin-top: 9mm; }
 .lines .dotted { display: block; width: auto; margin-top: 6mm; min-height: 6mm; }
-.completed { margin-top: 4mm; line-height: 1.6; }
 .satisfaction { margin-top: 8mm; }
 .signer { margin-top: 5mm; }
 .num { width: 8mm; flex: none; }
@@ -277,18 +274,14 @@ h2 { text-align: center; font-size: 14pt; font-weight: bold; margin: 0 0 12mm; }
   <h1>KIBULI SECONDARY SCHOOL</h1>
   <h2>COMPLETION CERTIFICATE</h2>
 
-  <div class="row"><span class="label">Date:</span>${dotted(dayFirst(details.date), false)}<span class="label side">Order No:</span>${dotted(lpoNumber(po))}</div>
+  <div class="row"><span class="label">Date:</span>${plain(dayFirst(details.date), false)}<span class="label side">Order No:</span>${dotted(lpoNumber(po))}</div>
   <div class="row"><span class="label">Department :</span>${dotted(details.department)}</div>
   <div class="row"><span class="label">Service :</span>${dotted(details.service)}</div>
   <div class="row"><span class="label">Procurement Ref NO:</span>${dotted(po.referenceNumber ?? "")}</div>
   <div class="row"><span class="label">Service Provider:</span>${dotted(po.supplierName ?? "")}</div>
 
   <div class="confirm">This is to confirm that the above supplier/ service provider has completed the:</div>
-  ${
-    details.completed.trim()
-      ? `<div class="completed">${esc(details.completed.trim())}</div>`
-      : `<div class="lines">${completedLines("")}</div>`
-  }
+  <div class="lines">${completedLines(details.completed)}</div>
   <div class="satisfaction">To my &nbsp;satisfaction.</div>
 
   ${signer(1, "Submitted", details.submittedBy, "Contract Manager :")}

@@ -387,7 +387,7 @@ export default function NewPurchaseOrderPage() {
             <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-3 py-2.5">Description</th>
-                <th className="w-24 px-3 py-2.5">Quantity</th>
+                <th className="w-28 px-3 py-2.5">Quantity</th>
                 <th className="w-28 px-3 py-2.5">Unit</th>
                 <th className="w-36 px-3 py-2.5 text-right">Unit price</th>
                 <th className="w-36 px-3 py-2.5 text-right">Amount</th>

@@ -144,6 +144,10 @@ export default function Combobox({
           setActive(-1);
         }}
         onFocus={() => setOpen(true)}
+        // Moving on to another box closes the list; picking from it doesn't take the cursor away.
+        onBlur={(e) => {
+          if (!wrapRef.current?.contains(e.relatedTarget as Node | null)) setOpen(false);
+        }}
         onClick={() => setOpen(true)}
         onKeyDown={onKeyDown}
         placeholder={placeholder}

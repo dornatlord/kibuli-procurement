@@ -186,6 +186,8 @@ export type TFormFill = {
   chairOn: string;
   secretaryName: string;
   secretaryOn: string;
+  /** Page 4's date of the Contracts Committee meeting. */
+  meetingOn: string;
 };
 
 /** The title for page 3 that fits someone's role in the system. */
@@ -204,15 +206,14 @@ export function headsFor(request: RequestRecord) {
 
 /**
  * What TFORM 5 fills in when nobody changes it. Names come from whoever did
- * each step, or else from Officials; each date is the day its step happened,
- * or the day the request was made for a step still to come.
+ * each step, or else from Officials. Every date is the day the request was
+ * made, as the school fills the form in; Date Required, the delivery date,
+ * is the only other date on it.
  */
 export function tformFill(request: RequestRecord, officials: Officials): TFormFill {
   const sig = (role: string) => request.signatures.find((s) => s.role === role);
-  const steps = request.stepDates;
   const people = request.stepPeople;
-  const requestedOn = kampalaDay(steps?.requested ?? sig("user_dept")?.signedAt ?? request.createdAt);
-  const on = (v: string | null | undefined) => kampalaDay(v) || requestedOn;
+  const day = kampalaDay(request.createdAt);
 
   const requester = request.requestedBy;
   const hodActed = people?.headOfDepartment?.role === "head_of_dept" ? people.headOfDepartment.name : null;
@@ -224,20 +225,21 @@ export function tformFill(request: RequestRecord, officials: Officials): TFormFi
     planReference: request.procurementPlanReference ?? "",
     requesterName: sig("user_dept")?.name ?? requester?.name ?? "",
     requesterTitle: departmentTitleFor(requester?.role),
-    requestedOn,
+    requestedOn: day,
     hodName: sig("head_of_dept")?.name ?? hodActed ?? requesterIsHead ?? headsFor(request)[0]?.name ?? "",
     hodTitle: "Head of Department",
-    hodOn: on(steps?.headOfDepartment),
+    hodOn: day,
     aoName: sig("accounting_officer")?.name ?? aoActed ?? officials.accounting_officer?.name ?? "",
     aoTitle: officials.accounting_officer?.title || "Accounting Officer",
-    aoOn: on(steps?.accountingOfficer),
+    aoOn: day,
     pduName: officials.pdu_head?.name ?? "",
     pduTitle: officials.pdu_head?.title || "Head, Procurement and Disposal Unit",
-    pduOn: on(steps?.submittedToCommittee ?? request.decision?.submissionDate),
+    pduOn: day,
     chairName: officials.committee_chairperson?.name ?? "",
-    chairOn: on(steps?.chairperson),
+    chairOn: day,
     secretaryName: officials.committee_secretary?.name ?? "",
-    secretaryOn: on(steps?.secretary),
+    secretaryOn: day,
+    meetingOn: day,
   };
 }
 
@@ -474,9 +476,7 @@ export function printTForm(request: RequestRecord, fill: TFormFill) {
   let macroPages = "";
   if (isMacro) {
     const part2 = request.decision;
-    const meetingDateRef = [dayFirst(request.stepDates?.committeeMeeting ?? part2?.committeeMeetingDate), part2?.meetingReference]
-      .filter(Boolean)
-      .join(" / ");
+    const meetingDateRef = [dayFirst(fill.meetingOn), part2?.meetingReference].filter(Boolean).join(" / ");
     const rows = [
       {
         key: "1",

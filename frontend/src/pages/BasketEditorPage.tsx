@@ -268,7 +268,7 @@ export default function BasketEditorPage() {
                       <th className="px-2 py-2 text-left w-8">#</th>
                       <th className="px-2 py-2 text-left">Item</th>
                       <th className="px-2 py-2 text-left w-28">Unit</th>
-                      <th className="px-2 py-2 text-right w-24">Usual qty</th>
+                      <th className="px-2 py-2 text-right w-28">Usual qty</th>
                       <th className="px-2 py-2 text-right w-32">Unit price</th>
                       <th className="px-2 py-2 text-right w-32">Value</th>
                       <th className="px-2 py-2 w-8"></th>

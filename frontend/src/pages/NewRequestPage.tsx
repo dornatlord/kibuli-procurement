@@ -971,7 +971,7 @@ export default function NewRequestPage() {
               <tr>
                 <th className="px-2 py-2 text-left w-8">#</th>
                 <th className="px-2 py-2 text-left">Description</th>
-                <th className="px-2 py-2 text-left w-20">Qty</th>
+                <th className="px-2 py-2 text-left w-28">Qty</th>
                 <th className="px-2 py-2 text-left w-24">Unit</th>
                 <th className="px-2 py-2 text-right w-32">Unit Cost</th>
                 <th className="px-2 py-2 text-right w-32">Estimated Cost</th>

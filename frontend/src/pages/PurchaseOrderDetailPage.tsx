@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { namesIn, useOfficials } from "../lib/officials";
+import { keepNames, namesIn, useOfficials } from "../lib/officials";
 import { useAuth } from "../lib/auth";
 import Badge, { STATUS_TONES, statusLabel } from "../components/Badge";
 import { ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon, XIcon } from "../components/icons";
@@ -159,6 +159,14 @@ export default function PurchaseOrderDetailPage() {
     e.preventDefault();
     if (!po || !certificate) return;
     printCompletionCertificate(po, certificate);
+    // Names typed in for the signers are kept under their office, to be offered next time.
+    const start = completionDefaults(po, officials);
+    const typed = (k: "submittedBy" | "verifiedBy" | "approvedBy") => certificate[k].trim() !== start[k].trim();
+    keepNames([
+      typed("submittedBy") && { office: "contract_manager", name: certificate.submittedBy },
+      typed("verifiedBy") && { office: "deputy_head_teacher", name: certificate.verifiedBy },
+      typed("approvedBy") && { office: "head_teacher", name: certificate.approvedBy },
+    ]);
     setCertificate(null);
   }
 
@@ -240,7 +248,12 @@ export default function PurchaseOrderDetailPage() {
             },
           ]}
           initial={lpoFill(po, officials)}
-          onPrint={(fill) => printLpo(po, fill)}
+          onPrint={(fill, start) => {
+            printLpo(po, fill);
+            if (fill.authorisedName.trim() !== start.authorisedName.trim()) {
+              keepNames([{ office: "head_teacher", name: fill.authorisedName }]);
+            }
+          }}
           onClose={() => setCheckingLpo(false)}
         />
       )}
@@ -416,6 +429,7 @@ export default function PurchaseOrderDetailPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50/80 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
               <tr>
+                <th className="w-12 px-5 py-3">No.</th>
                 <th className="px-5 py-3 text-right">Quantity</th>
                 <th className="px-5 py-3">Description</th>
                 <th className="px-5 py-3 text-right">Unit price</th>
@@ -423,8 +437,9 @@ export default function PurchaseOrderDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {po.items.map((it) => (
+              {po.items.map((it, i) => (
                 <tr key={it.id}>
+                  <td className="px-5 py-3 text-gray-400">{i + 1}</td>
                   <td className="whitespace-nowrap px-5 py-3 text-right tabular-nums">
                     {Number(it.quantity).toLocaleString("en-UG")} {it.unitOfMeasure}
                   </td>
@@ -438,7 +453,7 @@ export default function PurchaseOrderDetailPage() {
             </tbody>
             <tfoot className="border-t border-gray-200 bg-gray-50/60">
               <tr>
-                <td colSpan={3} className="px-5 py-3 text-right text-sm font-medium text-gray-500">
+                <td colSpan={4} className="px-5 py-3 text-right text-sm font-medium text-gray-500">
                   Total (UGX)
                 </td>
                 <td className="px-5 py-3 text-right font-semibold tabular-nums text-gray-900">{money(total)}</td>

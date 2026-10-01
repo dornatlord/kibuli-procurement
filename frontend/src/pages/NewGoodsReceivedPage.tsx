@@ -132,8 +132,8 @@ export default function NewGoodsReceivedPage() {
               <tr>
                 <th className="px-2 py-2 text-left">Description</th>
                 <th className="px-2 py-2 text-right w-20">Ordered</th>
-                <th className="px-2 py-2 text-right w-24">Received</th>
-                <th className="px-2 py-2 text-right w-24">Accepted</th>
+                <th className="px-2 py-2 text-right w-28">Received</th>
+                <th className="px-2 py-2 text-right w-28">Accepted</th>
                 <th className="px-2 py-2 text-left w-28">Condition</th>
                 <th className="px-2 py-2 text-left">Remarks</th>
               </tr>

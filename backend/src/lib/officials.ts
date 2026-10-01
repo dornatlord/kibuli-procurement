@@ -88,7 +88,9 @@ export interface CustomOfficial {
 
 export const OFFICIALS_KEY = "officials";
 const MAX_CUSTOM = 40;
-const MAX_OTHERS = 10;
+// Names typed on forms are kept too (every member of a department, say), so
+// an office can hold a good many.
+const MAX_OTHERS = 60;
 const BUILT_IN_KEYS = new Set(OFFICIAL_ROLES.map((r) => r.key));
 
 const text = (value: unknown, max: number) =>
@@ -161,6 +163,71 @@ export function cleanCustom(raw: unknown): CustomOfficial[] {
     });
   }
   return out;
+}
+
+/** "DEPUTY HEAD TEACHER" and "Deputy Head Teacher" are the same office. */
+const officeOf = (title: string) => title.toLowerCase().replace(/[^a-z]/g, "");
+
+/** A name filled in on a form, and the office it was filled in for. */
+export interface NameToKeep {
+  /** The office's key, when the form knows it (the LPO's head teacher). */
+  office?: unknown;
+  /** Otherwise the title it was filled in under, e.g. "Head of Department". */
+  title?: unknown;
+  name?: unknown;
+}
+
+/**
+ * Keeps names filled in on printed forms under the office they were filled
+ * in for, so they are offered next time: the office with that key, or whose
+ * name or printed title matches the title, or else a new office under that
+ * title. A name the office already has is left alone. Changes `offices` and
+ * returns the offices the school added, with what was kept ("Ssali Taufiq,
+ * HEAD OF DEPARTMENT").
+ */
+export function keepNames(offices: Officials, custom: CustomOfficial[], entries: NameToKeep[]) {
+  const kept: string[] = [];
+  let added = [...custom];
+  const addTo = (holder: { name: string; others: string[] }, name: string) => {
+    const known = [holder.name, ...holder.others].some((n) => n.toLowerCase() === name.toLowerCase());
+    if (known || (holder.name && holder.others.length >= MAX_OTHERS)) return false;
+    if (holder.name) holder.others.push(name);
+    else holder.name = name;
+    return true;
+  };
+  for (const e of entries) {
+    const name = text(e.name, 120);
+    const key = typeof e.office === "string" ? e.office : "";
+    const title = text(e.title, 60);
+    const wanted = officeOf(title);
+    if (!name || (!key && !wanted)) continue;
+
+    const role = OFFICIAL_ROLES.find((r) =>
+      key ? r.key === key : officeOf(r.label) === wanted || officeOf(offices[r.key]?.title || r.defaultTitle) === wanted
+    );
+    if (role) {
+      const office = offices[role.key] ?? (offices[role.key] = { name: "", title: role.defaultTitle, others: [] });
+      if (addTo(office, name)) kept.push(`${name}, ${role.label}`);
+      continue;
+    }
+    const mine = added.find((c) => (key ? c.key === key : officeOf(c.label) === wanted || officeOf(c.title) === wanted));
+    if (mine) {
+      if (addTo(mine, name)) kept.push(`${name}, ${mine.label}`);
+    } else if (!key && added.length < MAX_CUSTOM) {
+      added.push({
+        key: "",
+        label: title.toUpperCase(),
+        usedFor: "Kept from a printed form, to pick from next time",
+        name,
+        title,
+        others: [],
+      });
+      kept.push(`${name}, ${title.toUpperCase()}`);
+    }
+  }
+  // Gives the new offices their keys, the same way as the Officials page.
+  added = cleanCustom(added);
+  return { custom: added, kept };
 }
 
 /** Everything saved under Officials: the offices on the forms, and those the school added. */

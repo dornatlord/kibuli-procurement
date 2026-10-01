@@ -6,8 +6,11 @@ export interface CheckField {
   key: string;
   label: string;
   type?: "text" | "date";
-  /** Choices to pick from; the box still takes whatever is typed. */
-  options?: (string | ComboOption)[];
+  /**
+   * Choices to pick from; the box still takes whatever is typed. A function
+   * gets the values as they stand, so a name's choices can follow its title.
+   */
+  options?: (string | ComboOption)[] | ((values: Record<string, string>) => (string | ComboOption)[]);
   /** Takes the whole row, for something long like a plan reference. */
   wide?: boolean;
 }
@@ -20,8 +23,8 @@ export interface CheckSection {
 /**
  * The names, titles and dates a form is about to print, already filled in
  * and open to change: a name that isn't the right one can be typed over or
- * picked from the others in that office. Nothing here is saved; it only
- * shapes this printout.
+ * picked from the others in that office. The changes shape this printout;
+ * `onPrint` gets the starting values too, to tell what was changed.
  */
 export default function PrintCheck<T extends Record<string, string>>({
   title,
@@ -33,7 +36,7 @@ export default function PrintCheck<T extends Record<string, string>>({
   title: string;
   sections: CheckSection[];
   initial: T;
-  onPrint: (values: T) => void;
+  onPrint: (values: T, start: T) => void;
   onClose: () => void;
 }) {
   const [values, setValues] = useState<T>(initial);
@@ -41,7 +44,7 @@ export default function PrintCheck<T extends Record<string, string>>({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    onPrint(values);
+    onPrint(values, initial);
   }
 
   return (
@@ -86,7 +89,7 @@ export default function PrintCheck<T extends Record<string, string>>({
                       id={`check-${f.key}`}
                       value={values[f.key] ?? ""}
                       onChange={(v) => set(f.key, v)}
-                      options={f.options ?? []}
+                      options={typeof f.options === "function" ? f.options(values) : f.options ?? []}
                     />
                   )}
                 </div>
