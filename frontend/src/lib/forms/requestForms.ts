@@ -254,12 +254,15 @@ export function tformFill(request: RequestRecord, officials: Officials): TFormFi
   };
 }
 
-/** Item rows on the first items page (the form's own fifteen), and on each page after it. */
+/**
+ * Item rows on the first items page (the form's own fifteen), and on each
+ * page after it, which on a portrait sheet has room for more.
+ */
 const ITEMS_FIRST_PAGE = 15;
-const ITEMS_LATER_PAGES = 22;
+const ITEMS_LATER_PAGES = { landscape: 22, portrait: 30 };
 
-const TFORM_CSS = `
-${sheetCss("landscape")}
+const tformCss = (paper: "landscape" | "portrait") => `
+${sheetCss(paper)}
 body { font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.25; }
 table { width: 100%; border-collapse: collapse; }
 .grid td, .grid th { border: 1px solid #000; padding: 1.3mm 2mm; vertical-align: top; text-align: left; font-size: 12pt; }
@@ -305,12 +308,15 @@ table { width: 100%; border-collapse: collapse; }
 `;
 
 /**
- * PPDA FORM 5 as the school prints it: landscape A4, 12 point, one part per
- * page, the badge on the first page only. `fill` holds the names, titles and
- * dates, as checked before printing.
+ * PPDA FORM 5 as the school prints it: 12 point, one part per page, the badge
+ * on the first page only; a macro procurement on landscape A4, a micro one on
+ * portrait. `fill` holds the names, titles and dates, as checked before
+ * printing.
  */
 export function printTForm(request: RequestRecord, fill: TFormFill) {
   const isMacro = request.procurementSize === "macro";
+  const paper = isMacro ? "landscape" : "portrait";
+  const css = tformCss(paper);
   const total = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
 
   // The procurement's own number: the 18th procurement is 18.
@@ -402,8 +408,8 @@ export function printTForm(request: RequestRecord, fill: TFormFill) {
     <tr><td>Date Required</td><td>${esc(dayFirst(request.dateRequired))}</td></tr>
   </table>`;
   const page2 = tableSheets({
-    css: TFORM_CSS,
-    paper: "landscape",
+    css,
+    paper,
     items: request.items,
     row: (it, i) =>
       `<tr><td class="c">${i + 1}</td><td>${esc(it.description)}</td><td class="c">${esc(
@@ -413,7 +419,7 @@ export function printTForm(request: RequestRecord, fill: TFormFill) {
       )}</td></tr>`,
     // The first page keeps the form's fifteen ruled rows even when fewer are used.
     blankRow: "<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>",
-    most: { first: ITEMS_FIRST_PAGE, rest: ITEMS_LATER_PAGES },
+    most: { first: ITEMS_FIRST_PAGE, rest: ITEMS_LATER_PAGES[paper] },
     sheet: (rows, { first, last }) => `
 <div class="sheet">
   ${first ? particulars : `<div class="continued">Details Relating to the Procurement (continued)</div>`}
@@ -593,7 +599,7 @@ export function printTForm(request: RequestRecord, fill: TFormFill) {
   }
 
   openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>FORM 5 — ${esc(request.referenceNumber)}</title>
-<style>${TFORM_CSS}</style></head><body>${page1}${page2}${page3}${macroPages}</body></html>`);
+<style>${css}</style></head><body>${page1}${page2}${page3}${macroPages}</body></html>`);
 }
 
 // ── List of Supplies and Price Schedule ────────────────────────────────────

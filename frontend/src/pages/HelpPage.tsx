@@ -76,7 +76,7 @@ const GUIDES: Topic[] = [
       "Every date on TFORM 5 is the day the request was made. **Date Required** is the delivery date.",
       "On page 3, the confirmation of the request is signed by the Deputy Head Teacher: the deputy in **Officials** is filled in, and the box offers every deputy.",
       "A name you type there, such as a Head of Department, is kept in **Officials** under its title. Next time, it's offered in the box for that title.",
-      "A print window opens. Choose the printer and A4 paper, then press Print. The layout, landscape for FORM 5, is set for you.",
+      "A print window opens. Choose the printer and A4 paper, then press Print. The layout is set for you: FORM 5 prints landscape for a macro procurement and portrait for a micro one.",
       "On TFORM 5, names, titles and dates print without a line under them; lines are left only where someone signs, or for something left blank to write in by hand. On the LPO, only the dates lose their line. The school badge is on the first page only.",
     ],
     tip: "If nothing opens when you press a print button, the browser blocked it: click the blocked pop-up sign at the right of the address bar and choose to always allow pop-ups for this site.",

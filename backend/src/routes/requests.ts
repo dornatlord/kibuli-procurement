@@ -47,12 +47,20 @@ function getWeekNumber(date: Date, yearType: "calendar" | "financial"): { year: 
   return { year, week };
 }
 
+/**
+ * The first running number of a year, where it isn't 1. The school had
+ * numbered 2026's procurements on paper up to 599 before it started using
+ * the system, so 2026 carries on from 600; every later year starts at 1.
+ * Micro and macro requests share the one count.
+ */
+const FIRST_NUMBER: Record<number, number> = { 2026: 600 };
+
 async function nextSequence(year: number, yearType: "calendar" | "financial"): Promise<number> {
   const [row] = await db
     .select({ maxSeq: sql<number>`COALESCE(MAX(sequence_number), 0)` })
     .from(procurementRequests)
     .where(and(eq(procurementRequests.year, year), eq(procurementRequests.yearType, yearType)));
-  return (row?.maxSeq ?? 0) + 1;
+  return Math.max(Number(row?.maxSeq ?? 0), (FIRST_NUMBER[year] ?? 1) - 1) + 1;
 }
 
 /** The school's own short forms, as written on its contracts. */
