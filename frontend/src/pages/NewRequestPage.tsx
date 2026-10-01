@@ -788,7 +788,7 @@ export default function NewRequestPage() {
             <input value={subject} onChange={(e) => setSubject(e.target.value)} className="input" required />
           </div>
           <div>
-            <label className="label" htmlFor="request-plan-ref">Procurement Plan Reference</label>
+            <label className="label" htmlFor="request-plan-ref">Procurement Plan Line</label>
             <Combobox
               id="request-plan-ref"
               value={planRef}
@@ -801,10 +801,9 @@ export default function NewRequestPage() {
             />
             <p className="mt-1 text-xs text-gray-500">
               {!planRefTyped && planRef
-                ? "Filled in from the procurement plan. Pick another line if this isn't the right one."
-                : planChoices.length
-                ? "Pick the line of the procurement plan this request is for."
-                : "The reference of this purchase in the procurement plan."}
+                ? "Filled in from the procurement plan. Pick another line if this isn't the right one. "
+                : "Optional: the line of the school's procurement plan. "}
+              TFORM 5 prints this request's own reference number as its Procurement Plan Reference.
             </p>
           </div>
           <div>

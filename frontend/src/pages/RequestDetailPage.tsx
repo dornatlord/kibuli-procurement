@@ -14,7 +14,7 @@ import {
   tformFill,
 } from "../lib/forms/requestForms";
 import type { CallOffFill, RequestRecord, TFormFill } from "../lib/forms/requestForms";
-import { planOptions, suggestPlanReference } from "../lib/planLines";
+import { planOptions } from "../lib/planLines";
 import type { PlanLines } from "../lib/planLines";
 import PrintCheck from "../components/PrintCheck";
 import type { CheckSection } from "../components/PrintCheck";
@@ -265,22 +265,7 @@ export default function RequestDetailPage() {
           key={`tform-${Object.keys(officials).length}`}
           title="Check TFORM 5 before printing"
           sections={tformSections(request, officials, plan)}
-          initial={{
-            ...tformFill(request, officials),
-            planReference:
-              request.procurementPlanReference ||
-              suggestPlanReference(plan, {
-                lineKey: request.budgetItemId
-                  ? `bi:${request.budgetItemId}`
-                  : request.subProgrammeId
-                  ? `sp:${request.subProgrammeId}`
-                  : null,
-                lineName: request.projectTitle ?? null,
-                subject: request.subjectOfProcurement ?? "",
-                category: request.category,
-              }) ||
-              "",
-          }}
+          initial={tformFill(request, officials)}
           onPrint={(fill, start) => {
             printTForm(request, fill);
             // Names typed or changed here are kept under their title, to be offered next time.
@@ -708,7 +693,14 @@ function tformSections(
         {
           key: "planReference",
           label: "Procurement plan reference",
-          options: planOptions(plan?.lines ?? []),
+          // The request's own reference number first, then the plan line it was raised against.
+          options: [
+            { value: request.referenceNumber, hint: "This request's reference number" },
+            ...(request.procurementPlanReference
+              ? [{ value: request.procurementPlanReference, hint: "The plan line chosen on the request" }]
+              : []),
+            ...planOptions(plan?.lines ?? []),
+          ],
           wide: true,
         },
       ],

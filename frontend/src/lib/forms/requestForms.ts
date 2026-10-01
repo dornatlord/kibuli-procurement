@@ -222,7 +222,8 @@ export function tformFill(request: RequestRecord, officials: Officials): TFormFi
   const requesterIsHead = requester?.role === "head_of_dept" ? requester.name : null;
 
   return {
-    planReference: request.procurementPlanReference ?? "",
+    // The school's rule: the box carries the request's own reference number.
+    planReference: request.referenceNumber,
     requesterName: sig("user_dept")?.name ?? requester?.name ?? "",
     requesterTitle: departmentTitleFor(requester?.role),
     requestedOn: day,

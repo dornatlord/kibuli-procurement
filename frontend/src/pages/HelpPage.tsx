@@ -44,7 +44,7 @@ const GUIDES: Topic[] = [
       "**Week** and **Term** are filled in with this week of the term. Change them if they're wrong: they print in a box beside the Procurement Reference Number.",
       "Fill in the subject, the budget line (vote, sub-programme and item) and the **Date required**. That date is printed as the delivery date on the LPO.",
       "The items are numbered straight through their vote, whatever their roman numeral: 2201-1 is Legal fees, 2212-13 the Generator. That number and the item's name print as the Project Code and Title.",
-      "**Procurement Plan Reference** fills itself from the school's procurement plan once the budget line is chosen. If it picked the wrong line, or none, click the box and pick from the plan, or type the reference.",
+      "TFORM 5's **Procurement Plan Reference** box carries the request's own reference number, given when it's saved. **Procurement Plan Line** on the form is optional: it fills itself from the school's plan when it can, and you can pick another line.",
       "Choosing the budget line opens the price list. Tick the items you need and press **Confirm**: each arrives with its unit and price, so you only type the quantity.",
       "Something not in the price list? Use **Pick from price list** to search all of it, or type it into an empty row.",
       "Press **Save Request**. It's saved as a draft with its reference number.",
