@@ -114,12 +114,16 @@ export default function NewRequestPage() {
   const [category, setCategory] = useState("supplies");
   const [budgetCategory, setBudgetCategory] = useState("recurrent");
   const [subject, setSubject] = useState("");
+  // Subjects of earlier requests, the latest first, offered in the subject box.
+  const [pastSubjects, setPastSubjects] = useState<string[]>([]);
   const [planRef, setPlanRef] = useState("");
   // Typed or picked by the user; until then it follows the budget line and subject.
   const [planRefTyped, setPlanRefTyped] = useState(false);
   const [planLines, setPlanLines] = useState<PlanLines | null>(null);
-  // FORM 5's "Week 5, Term 3": this week and term, which the user can change.
+  // FORM 5's "Week 5, Term 3". The week is always typed (a week filled in for
+  // the user went unnoticed when wrong); the term starts as this one.
   const [weekNumber, setWeekNumber] = useState("");
+  const weekRef = useRef<HTMLInputElement>(null);
   const [term, setTerm] = useState("");
   const [location, setLocation] = useState("Kibuli Secondary School");
   const [dateRequired, setDateRequired] = useState("");
@@ -212,16 +216,15 @@ export default function NewRequestPage() {
 
   useEffect(() => {
     api.get<PlanLines>("/procurement-plan/lines").then(setPlanLines).catch(() => setPlanLines(null));
+    api.get<string[]>("/requests/subjects").then(setPastSubjects).catch(() => setPastSubjects([]));
     api
       .get<SchoolTerm[]>("/settings/terms")
       .then((terms) => {
         const now = termAndWeek(terms, new Date());
-        if (!now) return;
-        setWeekNumber((w) => w || String(now.week));
-        setTerm((t) => t || String(now.term));
+        if (now) setTerm((t) => t || String(now.term));
       })
       .catch(() => {
-        // Left blank, the server fills in this week and term.
+        // Left blank, the server fills in this term.
       });
   }, []);
 
@@ -499,6 +502,12 @@ export default function NewRequestPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    // The browser asks for it too; this covers one that lets a blank box through.
+    if (!weekNumber.trim()) {
+      setError("Type the week of the term before saving: it's one of the must-fill boxes.");
+      weekRef.current?.focus();
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -666,6 +675,7 @@ export default function NewRequestPage() {
               <label className="label" htmlFor="request-week">Week *</label>
               <input
                 id="request-week"
+                ref={weekRef}
                 type="number"
                 min="1"
                 max="53"
@@ -673,6 +683,7 @@ export default function NewRequestPage() {
                 value={weekNumber}
                 onChange={(e) => setWeekNumber(e.target.value)}
                 className="input"
+                placeholder="Type the week of the term"
                 required
               />
             </div>
@@ -692,8 +703,8 @@ export default function NewRequestPage() {
               </select>
             </div>
             <p className="col-span-2 -mt-1 text-xs text-gray-500">
-              Printed in a box beside the Procurement Reference Number. Filled in with this week of the term; change it
-              if needed.
+              Printed in a box beside the Procurement Reference Number. The week must be typed in before the request can
+              be saved; the term starts as this one.
             </p>
           </div>
 
@@ -784,8 +795,15 @@ export default function NewRequestPage() {
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">PART II — PROCUREMENT DETAILS</div>
         <div className="p-4 grid grid-cols-2 gap-4">
           <div className="col-span-2">
-            <label className="label">Subject of Procurement *</label>
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} className="input" required />
+            <label className="label" htmlFor="request-subject">Subject of Procurement *</label>
+            <Combobox
+              id="request-subject"
+              value={subject}
+              onChange={setSubject}
+              options={pastSubjects}
+              placeholder={pastSubjects.length ? "Type, or pick an earlier subject" : undefined}
+              required
+            />
           </div>
           <div>
             <label className="label" htmlFor="request-plan-ref">Procurement Plan Line</label>
@@ -1037,6 +1055,7 @@ export default function NewRequestPage() {
                   </td>
                   <td className="px-2 py-2">
                     <input
+                      autoCapitalize="off"
                       value={item.unitOfMeasure}
                       onChange={(e) => updateItem(item.key, { unitOfMeasure: e.target.value })}
                       className="input text-xs"

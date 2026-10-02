@@ -87,6 +87,8 @@ export interface CustomOfficial {
 }
 
 export const OFFICIALS_KEY = "officials";
+/** What an office made from a name typed while printing is responsible for. */
+export const KEPT_USED_FOR = "Kept from a printed form, to pick from next time";
 const MAX_CUSTOM = 40;
 // Names typed on forms are kept too (every member of a department, say), so
 // an office can hold a good many.
@@ -217,7 +219,7 @@ export function keepNames(offices: Officials, custom: CustomOfficial[], entries:
       added.push({
         key: "",
         label: title.toUpperCase(),
-        usedFor: "Kept from a printed form, to pick from next time",
+        usedFor: KEPT_USED_FOR,
         name,
         title,
         others: [],
@@ -230,6 +232,58 @@ export function keepNames(offices: Officials, custom: CustomOfficial[], entries:
   return { custom: added, kept };
 }
 
+/**
+ * The names a form's name box may take off its list: an office's other names,
+ * and every name of an office that only exists because names were typed while
+ * printing. The name an office holder is entered under on the Officials page
+ * stays; it's changed there.
+ */
+function removableNames(holder: { name: string; others: string[] }, fromForms: boolean): string[] {
+  return fromForms ? [holder.name, ...holder.others].filter(Boolean) : holder.others;
+}
+
+/**
+ * Takes a name off the lists the forms offer, for someone who appeared once
+ * and won't sign again: from the office with that key, or from every office
+ * whose name or printed title matches the title. Only removable names go (see
+ * removableNames); an office made from typed names goes too once it's empty.
+ * Changes `offices` and returns the offices the school added, with what was
+ * taken off ("Ssali Taufiq, HEAD OF DEPARTMENT").
+ */
+export function forgetName(offices: Officials, custom: CustomOfficial[], entry: NameToKeep) {
+  const name = text(entry.name, 120);
+  const key = typeof entry.office === "string" ? entry.office : "";
+  const wanted = officeOf(text(entry.title, 60));
+  const removed: string[] = [];
+  if (!name || (!key && !wanted)) return { custom, removed };
+
+  const same = (n: string) => n.toLowerCase() === name.toLowerCase();
+  const matches = (k: string, label: string, title: string) =>
+    key ? k === key : officeOf(label) === wanted || officeOf(title) === wanted;
+
+  for (const role of OFFICIAL_ROLES) {
+    const office = offices[role.key];
+    if (!office || !matches(role.key, role.label, office.title || role.defaultTitle)) continue;
+    const others = office.others.filter((n) => !same(n));
+    if (others.length < office.others.length) removed.push(`${name}, ${role.label}`);
+    office.others = others;
+  }
+
+  const left: CustomOfficial[] = [];
+  for (const c of custom) {
+    const fromForms = c.usedFor === KEPT_USED_FOR;
+    if (!matches(c.key, c.label, c.title) || !removableNames(c, fromForms).some(same)) {
+      left.push(c);
+      continue;
+    }
+    const [first = "", ...others] = [c.name, ...c.others].filter((n) => !(same(n) && (n !== c.name || fromForms)));
+    removed.push(`${name}, ${c.label}`);
+    if (fromForms && !first) continue;
+    left.push({ ...c, name: first, others });
+  }
+  return { custom: left, removed };
+}
+
 /** Everything saved under Officials: the offices on the forms, and those the school added. */
 export async function loadOfficials(): Promise<{ offices: Officials; custom: CustomOfficial[] }> {
   const [row] = await db.select().from(appSettings).where(eq(appSettings.key, OFFICIALS_KEY));
@@ -237,7 +291,10 @@ export async function loadOfficials(): Promise<{ offices: Officials; custom: Cus
   return { offices: cleanOfficials(value), custom: cleanCustom(value._custom) };
 }
 
-/** Each office with whoever holds it, ready for the Officials page and the forms. */
+/**
+ * Each office with whoever holds it, ready for the Officials page and the
+ * forms. `removable` is the names a form's name box may take off its list.
+ */
 export function listOfficials(offices: Officials, custom: CustomOfficial[]) {
   return [
     ...OFFICIAL_ROLES.map((role) => ({
@@ -246,6 +303,7 @@ export function listOfficials(offices: Officials, custom: CustomOfficial[]) {
       name: offices[role.key]?.name ?? "",
       title: offices[role.key]?.title || role.defaultTitle,
       others: offices[role.key]?.others ?? [],
+      removable: offices[role.key]?.others ?? [],
     })),
     ...custom.map((c) => ({
       key: c.key,
@@ -256,6 +314,7 @@ export function listOfficials(offices: Officials, custom: CustomOfficial[]) {
       name: c.name,
       title: c.title,
       others: c.others,
+      removable: removableNames(c, c.usedFor === KEPT_USED_FOR),
     })),
   ];
 }

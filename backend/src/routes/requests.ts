@@ -101,6 +101,32 @@ router.get(
   }
 );
 
+/**
+ * The subjects of earlier requests, to pick from when raising a new one: the
+ * latest first, and a subject used more than once ("Students meals") only
+ * once, where it was last used. Only requests this person may see count.
+ */
+router.get("/subjects", requirePermission("requests.create"), async (req, res) => {
+  const filter = await visibleRequestFilter(req.session);
+  const base = db
+    .select({ subject: procurementRequests.subjectOfProcurement })
+    .from(procurementRequests);
+  const rows = await (filter ? base.where(filter) : base)
+    .orderBy(desc(procurementRequests.createdAt), desc(procurementRequests.id))
+    .limit(2000);
+  const seen = new Set<string>();
+  const subjects: string[] = [];
+  for (const { subject } of rows) {
+    const shown = (subject ?? "").trim().replace(/\s+/g, " ");
+    const same = shown.toLowerCase();
+    if (!shown || seen.has(same)) continue;
+    seen.add(same);
+    subjects.push(shown);
+    if (subjects.length === 200) break;
+  }
+  res.json(subjects);
+});
+
 router.get(
   "/:id",
   requirePermission(
@@ -385,10 +411,14 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
   const yearType: "calendar" | "financial" = body.yearType || "calendar";
   const { year } = getWeekNumber(now, yearType);
 
-  // The week of the term and the term, as typed on the form; this week and
-  // term when they weren't (as from a screen saved before they were asked).
+  // The week of the term is typed on the form, never guessed: a wrong week
+  // filled in for the user went unnoticed. The term, when left out, is this one.
+  if (blankValue(body.weekNumber)) {
+    res.status(400).json({ error: "Type the week of the term: it's a number from 1 to 53." });
+    return;
+  }
   const thisWeek = termAndWeek(await getTerms(), now);
-  const week = blankValue(body.weekNumber) ? thisWeek.week : wholeNumberIn(body.weekNumber, 1, 53);
+  const week = wholeNumberIn(body.weekNumber, 1, 53);
   const term = blankValue(body.term) ? thisWeek.term : wholeNumberIn(body.term, 1, 3);
   if (week === null || term === null) {
     res.status(400).json({ error: "The week is a number from 1 to 53, and the term 1, 2 or 3." });

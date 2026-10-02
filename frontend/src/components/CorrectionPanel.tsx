@@ -168,6 +168,7 @@ export default function CorrectionPanel({
                   <td className="px-2 py-1">
                     <input
                       aria-label={`Item ${i + 1} unit`}
+                      autoCapitalize="off"
                       value={l.unitOfMeasure}
                       onChange={(e) => setLine(l.key, { unitOfMeasure: e.target.value })}
                       className="input"

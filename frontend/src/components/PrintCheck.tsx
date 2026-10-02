@@ -11,6 +11,11 @@ export interface CheckField {
    * gets the values as they stand, so a name's choices can follow its title.
    */
   options?: (string | ComboOption)[] | ((values: Record<string, string>) => (string | ComboOption)[]);
+  /**
+   * Takes a choice marked `removable` off the list for good (a name that was
+   * kept once and won't sign again), given the values as they stand.
+   */
+  onRemove?: (value: string, values: Record<string, string>) => void;
   /** Takes the whole row, for something long like a plan reference. */
   wide?: boolean;
 }
@@ -90,6 +95,7 @@ export default function PrintCheck<T extends Record<string, string>>({
                       value={values[f.key] ?? ""}
                       onChange={(v) => set(f.key, v)}
                       options={typeof f.options === "function" ? f.options(values) : f.options ?? []}
+                      onRemove={f.onRemove ? (o) => f.onRemove!(o.value, values) : undefined}
                     />
                   )}
                 </div>

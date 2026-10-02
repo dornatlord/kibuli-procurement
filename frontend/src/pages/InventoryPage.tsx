@@ -125,7 +125,7 @@ export default function InventoryPage() {
             </div>
             <div>
               <label className="label">Unit of Measure</label>
-              <input value={form.unitOfMeasure} onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))} className="input" placeholder="pcs, sets…" />
+              <input autoCapitalize="off" value={form.unitOfMeasure} onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))} className="input" placeholder="pcs, sets…" />
             </div>
             <div>
               <label className="label">Unit Value (UGX)</label>

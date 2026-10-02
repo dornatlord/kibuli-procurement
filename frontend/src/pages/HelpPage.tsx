@@ -32,6 +32,8 @@ const GUIDES: Topic[] = [
       "The menu's sections (Procurement, Providers & Contracts, Receiving & Payment, Reference, Reports & Administration) hold the rest. On a small screen, open the menu with the ☰ button at the top left.",
       "Your name at the bottom of the menu opens your **Profile**.",
       "**Help**, this page, is always at the bottom of the menu.",
+      "The first letter you type in a box comes out as a capital, with or without Caps Lock.",
+      "When the system is updated, a red notice across the top says so. Save what you're doing, then press **Update now**.",
     ],
     tip: "In Edge or Chrome, **Install the app** in the menu puts the system on your computer like any other program.",
   },
@@ -41,8 +43,8 @@ const GUIDES: Topic[] = [
     steps: [
       "Click **New request** in the menu.",
       "Choose **Micro Procurement** (below UGX 1,000,000) or **Macro Procurement** (UGX 1,000,000 and above).",
-      "**Week** and **Term** are filled in with this week of the term. Change them if they're wrong: they print in a box beside the Procurement Reference Number.",
-      "Fill in the subject, the budget line (vote, sub-programme and item) and the **Date required**. That date is printed as the delivery date on the LPO.",
+      "Type the **Week** of the term: the request can't be saved without it. **Term** starts as this term; change it if it's wrong. Both print in a box beside the Procurement Reference Number.",
+      "Fill in the subject: click its box to pick the subject of an earlier request (the latest first), or type a new one. Then the budget line (vote, sub-programme and item) and the **Date required**. That date is printed as the delivery date on the LPO.",
       "The items are numbered straight through their vote, whatever their roman numeral: 2201-1 is Legal fees, 2212-13 the Generator. That number and the item's name print as the Project Code and Title.",
       "TFORM 5's **Procurement Plan Reference** box carries the request's own reference number, given when it's saved. **Procurement Plan Line** on the form is optional: it fills itself from the school's plan when it can, and you can pick another line.",
       "Choosing the budget line opens the price list. Tick the items you need and press **Confirm**: each arrives with its unit and price, so you only type the quantity.",
@@ -61,7 +63,7 @@ const GUIDES: Topic[] = [
       "The department: **Submit to HoD**.",
       "Head of Department: **Approve → Accounting Officer**, or **Reject**.",
       "Accounting Officer: for a micro request, **Approve**, and it's approved. For a macro request, **Approve → Contracts Committee**. Or **Reject**.",
-      "Contracts Committee, for macro requests only: **Approve** or **Reject**. The Procurement and Disposal Unit first prepares **Part II** on the request page: for each row, the method or the names, and separately, the justification. Click a justification box to type, or pick from the list that drops down.",
+      "Contracts Committee, for macro requests only: **Approve** or **Reject**. The Procurement and Disposal Unit first prepares **Part II** on the request page: for each row, the method or the names, and separately, the justification. Click a justification box to type, or pick from the list that drops down. Each shortlisted provider has a box of its own that suggests the school's suppliers as you type; **+ Add another provider** adds the next.",
       "The request page shows every step with who did it and when.",
     ],
   },
@@ -75,7 +77,7 @@ const GUIDES: Topic[] = [
       "TFORM 5, the call-off order and the LPO first show the names, titles and dates they will print, filled in already. Change any that's wrong (click a box to pick another name in that office), then press **Print**.",
       "Every date on TFORM 5 is the day the request was made. **Date Required** is the delivery date.",
       "On page 3, the confirmation of the request is signed by the Deputy Head Teacher: the deputy in **Officials** is filled in, and the box offers every deputy.",
-      "A name you type there, such as a Head of Department, is kept in **Officials** under its title. Next time, it's offered in the box for that title.",
+      "A name you type there, such as a Head of Department, is kept in **Officials** under its title. Next time, it's offered in the box for that title. Someone who signed once and won't again? Click the **×** beside their name in the list and confirm, and they're taken off it.",
       "A print window opens. Choose the printer and A4 paper, then press Print. The layout is set for you: FORM 5 prints landscape for a macro procurement and portrait for a micro one.",
       "On TFORM 5, names, titles and dates print without a line under them; lines are left only where someone signs, or for something left blank to write in by hand. On the LPO, only the dates lose their line. The school badge is on the first page only.",
     ],
@@ -237,6 +239,22 @@ const QUESTIONS: Topic[] = [
     title: "The item I need isn't in the price list.",
     steps: [
       "Type it into an empty row with its unit and price. The price list itself is kept under **Reserve Prices** by those allowed to change it.",
+    ],
+  },
+  {
+    id: "update",
+    title: "A red notice at the top says there's a new update.",
+    steps: [
+      "The system has been improved since you opened it. Save anything you're in the middle of, then press **Update now** to load the new version.",
+      "Your saved work is kept: updating only reloads the page.",
+    ],
+  },
+  {
+    id: "remove-name",
+    title: "A name I don't need keeps appearing when I print.",
+    steps: [
+      "Names typed while printing are kept, to be offered next time. To take one off, click its box, then the **×** at the end of the name in the list, and confirm.",
+      "The office holders entered under **Officials** don't have an ×: an administrator changes those there.",
     ],
   },
   {

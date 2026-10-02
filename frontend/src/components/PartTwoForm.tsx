@@ -1,5 +1,7 @@
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Combobox from "./Combobox";
+import { XIcon } from "./icons";
+import { supplierChoices, useSupplierNames } from "../lib/suppliers";
 
 /**
  * PPDA FORM 5 Part II — the Procurement and Disposal Unit's request to the
@@ -171,7 +173,7 @@ const PAIRS: Record<
   "2": {
     answer: "shortlistedProviders",
     answerLabel: "Names of the provider(s)",
-    answerHint: "One provider per line",
+    answerHint: "Type or pick a supplier",
     justification: "shortlistJustification",
     choices: SELECTION_JUSTIFICATIONS,
   },
@@ -203,6 +205,80 @@ interface Props {
 }
 
 const emptyMark = <span className="text-gray-400">—</span>;
+
+const linesOf = (value: string) => (value ? value.split("\n") : [""]);
+const joined = (lines: string[]) =>
+  lines
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join("\n");
+
+/**
+ * Row 2's shortlisted providers, a box for each that suggests the school's
+ * suppliers as you type, this year's list first. They're kept one name per
+ * line, as they print.
+ */
+function ProviderLines({
+  value,
+  onChange,
+  ariaLabel,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  placeholder: string;
+}) {
+  const suppliers = useSupplierNames();
+  const choices = useMemo(() => supplierChoices(suppliers), [suppliers]);
+  // The boxes as shown, an empty one included while it's being filled in.
+  const [lines, setLines] = useState(() => linesOf(value));
+  // A saved Part II loading in replaces what's shown.
+  useEffect(() => {
+    setLines((now) => (joined(now) === joined(linesOf(value)) ? now : linesOf(value)));
+  }, [value]);
+
+  const change = (next: string[]) => {
+    setLines(next.length ? next : [""]);
+    onChange(joined(next));
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {lines.map((line, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <Combobox
+            ariaLabel={`${ariaLabel} ${i + 1}`}
+            value={line}
+            onChange={(v) => change(lines.map((l, j) => (j === i ? v : l)))}
+            options={choices}
+            placeholder={placeholder}
+            className="min-w-0 flex-1"
+            inputClassName="text-xs"
+          />
+          {(lines.length > 1 || line) && (
+            <button
+              type="button"
+              aria-label={`Take provider ${i + 1} off the shortlist`}
+              title="Take off the shortlist"
+              onClick={() => change(lines.filter((_, j) => j !== i))}
+              className="shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            >
+              <XIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => setLines([...lines, ""])}
+        className="text-xs font-medium text-green-700 hover:text-green-800"
+      >
+        + Add another provider
+      </button>
+    </div>
+  );
+}
 
 export default function PartTwoTable({
   submission,
@@ -254,6 +330,13 @@ export default function PartTwoTable({
             options={PPDA_METHODS}
             placeholder={pair.answerHint}
             inputClassName="text-xs"
+          />
+        ) : key === "2" ? (
+          <ProviderLines
+            ariaLabel={`Row ${key}: provider`}
+            value={submission.shortlistedProviders}
+            onChange={(v) => set({ shortlistedProviders: v })}
+            placeholder={pair.answerHint}
           />
         ) : (
           <textarea

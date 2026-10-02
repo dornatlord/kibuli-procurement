@@ -4,7 +4,15 @@ import { appSettings } from "../db/schema.js";
 import { requireAuth, requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { TERMS_KEY, getTerms, validateTerms } from "../lib/terms.js";
-import { OFFICIALS_KEY, cleanCustom, cleanOfficials, keepNames, listOfficials, loadOfficials } from "../lib/officials.js";
+import {
+  OFFICIALS_KEY,
+  cleanCustom,
+  cleanOfficials,
+  forgetName,
+  keepNames,
+  listOfficials,
+  loadOfficials,
+} from "../lib/officials.js";
 import { eq } from "drizzle-orm";
 
 const router = asyncRouter();
@@ -83,6 +91,35 @@ router.post("/officials/remember", requirePermission("requests.print", "purchase
   });
   if (saved.kept.length) {
     await logAudit(req.session.userId!, "settings.officials_names_kept", "setting", null, { kept: saved.kept });
+  }
+  res.json(listOfficials(saved.offices, saved.custom));
+});
+
+/**
+ * Takes a name off the lists a form's name box offers (the × beside it), for
+ * someone who signed once and won't again. The same people who add names by
+ * printing can take them off; the office holders entered on the Officials
+ * page stay.
+ */
+router.post("/officials/forget", requirePermission("requests.print", "purchase_orders.create"), async (req, res) => {
+  const entry = { office: req.body?.office, title: req.body?.title, name: req.body?.name };
+  const now = new Date();
+  const saved = await db.transaction(async (tx) => {
+    const [row] = await tx.select().from(appSettings).where(eq(appSettings.key, OFFICIALS_KEY)).for("update");
+    const value = row?.value && typeof row.value === "object" ? (row.value as Record<string, unknown>) : {};
+    const offices = cleanOfficials(value);
+    const { custom, removed } = forgetName(offices, cleanCustom(value._custom), entry);
+    if (removed.length) {
+      const next = { ...offices, _custom: custom };
+      await tx
+        .update(appSettings)
+        .set({ value: next, updatedBy: req.session.userId!, updatedAt: now })
+        .where(eq(appSettings.key, OFFICIALS_KEY));
+    }
+    return { offices, custom, removed };
+  });
+  if (saved.removed.length) {
+    await logAudit(req.session.userId!, "settings.officials_name_removed", "setting", null, { removed: saved.removed });
   }
   res.json(listOfficials(saved.offices, saved.custom));
 });

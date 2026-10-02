@@ -300,7 +300,7 @@ export default function SuppliersPage() {
               </div>
               <div>
                 <label className="label">Email</label>
-                <input value={editing.email ?? ""} onChange={(e) => setEditing({ ...editing, email: e.target.value })} className="input" />
+                <input type="email" value={editing.email ?? ""} onChange={(e) => setEditing({ ...editing, email: e.target.value })} className="input" />
               </div>
               <div>
                 <label className="label">TIN Number</label>

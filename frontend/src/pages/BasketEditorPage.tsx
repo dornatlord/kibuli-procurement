@@ -304,6 +304,7 @@ export default function BasketEditorPage() {
                               <span className="text-xs text-gray-600">{r.unitOfMeasure || "—"}</span>
                             ) : (
                               <input
+                                autoCapitalize="off"
                                 value={r.unitOfMeasure}
                                 onChange={(e) => update(r.key, { unitOfMeasure: e.target.value })}
                                 className="input text-xs"

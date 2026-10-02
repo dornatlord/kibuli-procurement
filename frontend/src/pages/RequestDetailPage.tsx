@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { keepNames, namesForTitle, namesIn, useOfficials } from "../lib/officials";
+import { forgetName, keepNames, nameChoices, namesIn, useOfficials } from "../lib/officials";
+import { supplierChoices, useSupplierNames } from "../lib/suppliers";
 import { useAuth } from "../lib/auth";
 import { dayFirst as formDate } from "../lib/print";
 import {
@@ -84,6 +85,8 @@ export default function RequestDetailPage() {
   const [partTwoError, setPartTwoError] = useState("");
   // Checking the names, titles and dates a form will print, before printing it.
   const [checking, setChecking] = useState<"tform" | "calloff" | null>(null);
+  // Offered for the call-off order's provider, once its check is open.
+  const supplierNames = useSupplierNames(checking === "calloff");
   const [plan, setPlan] = useState<PlanLines | null>(null);
 
   function load() {
@@ -258,7 +261,8 @@ export default function RequestDetailPage() {
 
       {checking === "tform" && (
         <PrintCheck<TFormFill>
-          key={`tform-${Object.keys(officials).length}`}
+          // Filled in again once the officials have loaded, but not when a name is kept or removed.
+          key={`tform-${Object.keys(officials).length > 0}`}
           title="Check TFORM 5 before printing"
           sections={tformSections(request, officials, plan)}
           initial={tformFill(request, officials)}
@@ -284,13 +288,21 @@ export default function RequestDetailPage() {
       )}
       {checking === "calloff" && (
         <PrintCheck<CallOffFill>
-          key={`calloff-${Object.keys(officials).length}`}
+          key={`calloff-${Object.keys(officials).length > 0}`}
           title="Check the call-off order before printing"
           sections={[
             {
               title: "Call-off order",
               fields: [
-                { key: "provider", label: "Provider", options: linkedLpo?.supplierName ? [linkedLpo.supplierName] : [] },
+                {
+                  key: "provider",
+                  label: "Provider",
+                  // The LPO's supplier first, then every supplier, this year's list first.
+                  options: [
+                    ...(linkedLpo?.supplierName ? [{ value: linkedLpo.supplierName, hint: "The supplier on this request's LPO" }] : []),
+                    ...supplierChoices(supplierNames),
+                  ],
+                },
                 { key: "date", label: "Date of call-off order", type: "date" },
               ],
             },
@@ -300,10 +312,9 @@ export default function RequestDetailPage() {
                 {
                   key: "authorisedName",
                   label: "Name",
-                  options: (v) => [
-                    ...namesForTitle(officials, v.authorisedPosition),
-                    ...namesIn(officials, "accounting_officer", "head_teacher"),
-                  ],
+                  options: (v) =>
+                    nameChoices(officials, v.authorisedPosition, ...namesIn(officials, "accounting_officer", "head_teacher")),
+                  onRemove: (name, v) => forgetName(v.authorisedPosition, name),
                 },
                 {
                   key: "authorisedPosition",
@@ -704,8 +715,13 @@ function tformSections(
     {
       title: "Page 3 — (1) request for procurement",
       fields: [
-        // The names kept under the title chosen beside it come first.
-        { key: "requesterName", label: "Name", options: (v) => [...namesForTitle(officials, v.requesterTitle), ...people] },
+        // The names kept under the title chosen beside it come first; an × takes one off the list.
+        {
+          key: "requesterName",
+          label: "Name",
+          options: (v) => nameChoices(officials, v.requesterTitle, ...people),
+          onRemove: (name, v) => forgetName(v.requesterTitle, name),
+        },
         { key: "requesterTitle", label: "Title", options: DEPARTMENT_TITLES },
         { key: "requestedOn", label: "Date", type: "date" },
       ],
@@ -717,11 +733,8 @@ function tformSections(
         {
           key: "hodName",
           label: "Name",
-          options: (v) => [
-            ...namesForTitle(officials, v.hodTitle),
-            ...namesIn(officials, "deputy_head_teacher"),
-            ...heads,
-          ],
+          options: (v) => nameChoices(officials, v.hodTitle, ...namesIn(officials, "deputy_head_teacher"), ...heads),
+          onRemove: (name, v) => forgetName(v.hodTitle, name),
         },
         {
           key: "hodTitle",
@@ -738,10 +751,8 @@ function tformSections(
         {
           key: "aoName",
           label: "Name",
-          options: (v) => [
-            ...namesForTitle(officials, v.aoTitle),
-            ...namesIn(officials, "accounting_officer", "head_teacher"),
-          ],
+          options: (v) => nameChoices(officials, v.aoTitle, ...namesIn(officials, "accounting_officer", "head_teacher")),
+          onRemove: (name, v) => forgetName(v.aoTitle, name),
         },
         {
           key: "aoTitle",
@@ -760,7 +771,8 @@ function tformSections(
           {
             key: "pduName",
             label: "Name",
-            options: (v) => [...namesForTitle(officials, v.pduTitle), ...namesIn(officials, "pdu_head")],
+            options: (v) => nameChoices(officials, v.pduTitle, ...namesIn(officials, "pdu_head")),
+            onRemove: (name, v) => forgetName(v.pduTitle, name),
           },
           { key: "pduTitle", label: "Position", options: [officials.pdu_head?.title ?? ""] },
           { key: "pduOn", label: "Date (also the date of submission on page 4)", type: "date" },

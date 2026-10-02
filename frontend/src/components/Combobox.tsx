@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { ChevronDownIcon } from "./icons";
+import { ChevronDownIcon, XIcon } from "./icons";
 
 export interface ComboOption {
   value: string;
@@ -7,9 +7,14 @@ export interface ComboOption {
   label?: string;
   /** A second, quieter line under the label. */
   hint?: string;
+  /** Shows an × to take this entry off the list (see `onRemove`). */
+  removable?: boolean;
 }
 
 const asOption = (o: string | ComboOption): ComboOption => (typeof o === "string" ? { value: o } : o);
+
+/** The list shows this many entries at a time; the rest are a scroll away. */
+const ROWS_SHOWN = 5;
 
 /**
  * A box to type in or pick from. It looks like an ordinary text box; once it
@@ -22,6 +27,7 @@ export default function Combobox({
   onChange,
   options,
   onPick,
+  onRemove,
   placeholder,
   ariaLabel,
   required,
@@ -35,6 +41,11 @@ export default function Combobox({
   options: (string | ComboOption)[];
   /** Called when an entry is picked from the list, not when one is typed. */
   onPick?: (option: ComboOption) => void;
+  /**
+   * Takes an entry marked `removable` off the list, once the person has said
+   * they're sure. The list itself changes when `options` does.
+   */
+  onRemove?: (option: ComboOption) => void;
   placeholder?: string;
   ariaLabel?: string;
   required?: boolean;
@@ -63,19 +74,23 @@ export default function Combobox({
 
   // The list is placed against the window, under the box (or over it when
   // there's no room below), so a table or panel that scrolls can't cut it off.
+  // It is as tall as its first five entries; the rest scroll.
   const [place, setPlace] = useState<CSSProperties>({});
   useLayoutEffect(() => {
     if (!expanded) return;
     const measure = () => {
       const box = inputRef.current?.getBoundingClientRect();
       if (!box) return;
+      const entries = Array.from(listRef.current?.children ?? []).slice(0, ROWS_SHOWN) as HTMLElement[];
+      // The entries, and the list's own padding above and below them.
+      const tall = entries.reduce((h, li) => h + li.offsetHeight, 0) + 8;
       const room = window.innerHeight - box.bottom;
-      const above = room < 260 && box.top > room;
+      const above = room < tall + 12 && box.top > room;
       setPlace({
         left: box.left,
         width: box.width,
         ...(above ? { bottom: window.innerHeight - box.top + 4 } : { top: box.bottom + 4 }),
-        maxHeight: Math.max(120, Math.min(240, (above ? box.top : room) - 12)),
+        maxHeight: Math.max(Math.min(tall, 80), Math.min(tall, (above ? box.top : room) - 12)),
       });
     };
     measure();
@@ -85,7 +100,7 @@ export default function Combobox({
       window.removeEventListener("scroll", measure, true);
       window.removeEventListener("resize", measure);
     };
-  }, [expanded]);
+  }, [expanded, shown]);
 
   useEffect(() => {
     if (!open) return;
@@ -105,6 +120,16 @@ export default function Combobox({
     onPick?.(o);
     setOpen(false);
     setActive(-1);
+  }
+
+  function remove(o: ComboOption) {
+    const shownAs = o.label ?? o.value;
+    if (window.confirm(`Are you sure you want to remove ${shownAs} from this list? It won't be offered here again.`)) {
+      onRemove?.(o);
+    }
+    // The question takes the cursor away; give it back with the list still open.
+    inputRef.current?.focus();
+    setOpen(true);
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
@@ -190,12 +215,31 @@ export default function Combobox({
                 pick(o);
               }}
               onMouseEnter={() => setActive(i)}
-              className={`cursor-pointer px-3 py-2 text-sm ${i === active ? "bg-green-50" : ""} ${
+              className={`flex cursor-pointer items-start gap-2 px-3 py-2 text-sm ${i === active ? "bg-green-50" : ""} ${
                 o.value === value ? "font-medium text-green-800" : "text-gray-900"
               }`}
             >
-              <span className="block">{o.label ?? o.value}</span>
-              {o.hint && <span className="block text-xs font-normal text-gray-500">{o.hint}</span>}
+              <span className="min-w-0 flex-1">
+                <span className="block">{o.label ?? o.value}</span>
+                {o.hint && <span className="block text-xs font-normal text-gray-500">{o.hint}</span>}
+              </span>
+              {o.removable && onRemove && (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-label={`Remove ${o.label ?? o.value} from the list`}
+                  title="Remove from the list"
+                  onMouseDown={(e) => {
+                    // Not a pick: the row underneath would take this click otherwise.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    remove(o);
+                  }}
+                  className="-my-0.5 shrink-0 rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-600"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              )}
             </li>
           ))}
         </ul>

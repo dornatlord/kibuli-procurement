@@ -263,6 +263,12 @@ const ITEMS_LATER_PAGES = { landscape: 22, portrait: 30 };
 
 const tformCss = (paper: "landscape" | "portrait") => `
 ${sheetCss(paper)}
+/* Page 1 sits in the middle of its sheet, top to bottom, instead of up at the
+   top. The sheet is half a millimetre short of the page so it can't spill
+   onto a second one. */
+.sheet.middle { display: flex; flex-direction: column; justify-content: center; height: ${
+  paper === "landscape" ? "209.5mm" : "296.5mm"
+}; }
 body { font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.25; }
 table { width: 100%; border-collapse: collapse; }
 .grid td, .grid th { border: 1px solid #000; padding: 1.3mm 2mm; vertical-align: top; text-align: left; font-size: 12pt; }
@@ -328,7 +334,7 @@ export function printTForm(request: RequestRecord, fill: TFormFill) {
     ? [request.multiyearYearOne, request.multiyearYearTwo, request.multiyearYearThree, request.multiyearYearFour].map(money)
     : ["✓", "", "", ""]; // a single-year procurement needs its resources in year one
   const page1 = `
-<div class="sheet">
+<div class="sheet middle">
   <table class="head"><tr>
     <td class="badge"><img src="${KSS_BADGE}" alt="" /></td>
     <td class="text">

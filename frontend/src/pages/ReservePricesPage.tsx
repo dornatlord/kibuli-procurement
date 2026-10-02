@@ -181,6 +181,7 @@ export default function ReservePricesPage() {
             <div>
               <label className="label">Unit of Measure</label>
               <input
+                autoCapitalize="off"
                 value={form.unitOfMeasure}
                 onChange={(e) => setForm((p) => ({ ...p, unitOfMeasure: e.target.value }))}
                 className="input"
@@ -265,6 +266,7 @@ export default function ReservePricesPage() {
               <div>
                 <label className="label">Unit of Measure</label>
                 <input
+                  autoCapitalize="off"
                   value={editing.unitOfMeasure ?? ""}
                   onChange={(e) => setEditing({ ...editing, unitOfMeasure: e.target.value })}
                   className="input"

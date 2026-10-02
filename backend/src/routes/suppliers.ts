@@ -46,6 +46,27 @@ router.get("/search", requirePermission("suppliers.view"), async (req, res) => {
 });
 
 /**
+ * Every active supplier's name, this year's list first, for the boxes where a
+ * supplier is typed (Part II's shortlisted providers, a call-off order's
+ * provider) to suggest them. Whoever fills those in may read it.
+ */
+router.get(
+  "/names",
+  requirePermission("suppliers.view", "requests.prepare.committee", "requests.print", "purchase_orders.create"),
+  async (_req, res) => {
+    const onThisYearsList = sql<boolean>`exists (
+      select 1 from supplier_years sy where sy.supplier_id = ${suppliers.id} and sy.year = ${thisYear()}
+    )`;
+    const rows = await db
+      .select({ id: suppliers.id, name: suppliers.name, onThisYearsList })
+      .from(suppliers)
+      .where(eq(suppliers.isActive, true))
+      .orderBy(desc(onThisYearsList), asc(suppliers.name));
+    res.json(rows);
+  }
+);
+
+/**
  * Starts a year's list from another year's: everyone on it, or just the
  * suppliers ticked. (Starting afresh needs nothing: add suppliers one by one.)
  */

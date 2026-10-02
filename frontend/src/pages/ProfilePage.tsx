@@ -487,6 +487,7 @@ const ACTIONS: Record<string, string> = {
   "settings.terms_updated": "Changed the school terms",
   "settings.officials_updated": "Changed the officials",
   "settings.officials_names_kept": "Kept names typed on a printed form",
+  "settings.officials_name_removed": "Removed a name offered on the printed forms",
   "requests.cleared": "Cleared the test requests",
   "user.created": "Added a user",
   "user.updated": "Updated a user",

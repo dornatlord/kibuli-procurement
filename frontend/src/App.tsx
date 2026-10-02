@@ -39,6 +39,7 @@ import SettingsPage from "./pages/SettingsPage";
 import OfficialsPage from "./pages/OfficialsPage";
 import Layout from "./components/Layout";
 import SplashScreen from "./components/SplashScreen";
+import UpdateBanner from "./components/UpdateBanner";
 import NotFoundPage from "./pages/NotFoundPage";
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -357,6 +358,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
+      <UpdateBanner />
       <AppRoutes />
     </AuthProvider>
   );

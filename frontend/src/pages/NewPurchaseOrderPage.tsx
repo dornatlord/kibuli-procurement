@@ -421,6 +421,7 @@ export default function NewPurchaseOrderPage() {
                   <td className="px-3 py-2">
                     <input
                       aria-label="Unit"
+                      autoCapitalize="off"
                       value={it.unitOfMeasure}
                       onChange={(e) => updateItem(it.key, { unitOfMeasure: e.target.value })}
                       className="input"
