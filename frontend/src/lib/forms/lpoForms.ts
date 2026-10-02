@@ -96,7 +96,7 @@ th { font-size: 16px; }
 .words .line { flex: 1; font-size: 14px; }
 .sign { display: flex; justify-content: space-between; margin-top: 22px; font-weight: bold; font-size: 15px; }
 .sign > div { width: 40%; text-align: center; }
-.sign .dots { display: block; min-width: 0; margin: 26px 0 8px; }
+.sign .dots { display: block; width: 55mm; min-width: 0; margin: 26px auto 8px; }
 .sign .who { font-family: Arial, Helvetica, sans-serif; font-weight: normal; font-size: 13px; margin-top: 3px; }
 `;
 

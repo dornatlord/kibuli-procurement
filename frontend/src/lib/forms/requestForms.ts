@@ -297,7 +297,7 @@ table { width: 100%; border-collapse: collapse; }
 .block-sub { font-style: italic; font-size: 11pt; }
 .line { display: flex; align-items: flex-end; gap: 2mm; margin-top: 4.5mm; }
 .line-label { white-space: nowrap; }
-.line-value { flex: 1; border-bottom: 1px solid #000; min-height: 6.5mm; padding: 0 1mm 0.5mm; }
+.line-value { flex: 0 0 60mm; border-bottom: 1px solid #000; min-height: 6.5mm; padding: 0 1mm 0.5mm; }
 .line-text { flex: 1; padding: 0 1mm; }
 .funds-note { font-style: italic; margin: 7mm 0 1.5mm; }
 .part2-title { text-align: center; font-weight: bold; font-size: 13pt; margin: 0 18mm 5mm; }
@@ -602,7 +602,11 @@ export function printTForm(request: RequestRecord, fill: TFormFill) {
 <style>${css}</style></head><body>${page1}${page2}${page3}${macroPages}</body></html>`);
 }
 
-// ── List of Supplies and Price Schedule ────────────────────────────────────
+// ── Call-Off Order with its List of Supplies and Price Schedule ───────────
+//
+// One document: the call-off order is its first page, and the school's "List
+// of Supplies and Price Schedule" follows it. The badge goes on the first
+// page only.
 
 const SCHEDULE_FIRST_PAGE = 25;
 const SCHEDULE_LATER_PAGES = 30;
@@ -628,16 +632,34 @@ table { width: 100%; border-collapse: collapse; }
 .pto { text-align: right; font-size: 11px; font-style: italic; margin-top: 6px; }
 `;
 
+/** The call-off order's page, set apart from the schedule's styles. */
+const CALLOFF_CSS = `
+.sheet.calloff { padding: 22mm 20mm 14mm 26mm; font-size: 13pt; line-height: 1.35; }
+.calloff h1 { text-align: center; font-size: 21pt; margin: 0; }
+.calloff h2 { text-align: center; font-size: 14pt; margin: 1mm 0 10mm; }
+.calloff .fields { width: auto; border-collapse: collapse; margin-bottom: 4mm; }
+.calloff .fields td { padding: 1.4mm 0; vertical-align: top; }
+.calloff .fields td:first-child { font-weight: bold; width: 74mm; }
+.calloff .fields td:last-child { font-weight: bold; }
+.calloff p { margin: 0 0 3.5mm; text-align: justify; }
+.calloff .auth { width: 100%; border-collapse: collapse; margin-top: 4mm; }
+.calloff .auth td, .calloff .auth th { border: 1px solid #000; padding: 2.5mm 3mm; text-align: left; }
+.calloff .auth th { font-weight: bold; }
+.calloff .auth td:first-child { width: 30mm; }
+.calloff .auth .sign td { height: 11mm; }
+`;
+
 /**
- * The school's "List of Supplies and Price Schedule". Its references split the
- * request's number the way the school's own do: KSS/SUPLS/26/029 as the
- * procurement reference, and the running number (246) as the call-off order.
+ * The school's "List of Supplies and Price Schedule", as the sheets that
+ * follow the call-off order. Its references split the request's number the
+ * way the school's own do: KSS/SUPLS/26/029 as the procurement reference, and
+ * the running number (246) as the call-off order.
  */
-export function printPriceSchedule(request: RequestRecord) {
+function scheduleSheets(request: RequestRecord) {
   const { procurementRef, callOff } = splitReference(request.referenceNumber);
   const total = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
 
-  const sheets = tableSheets({
+  return tableSheets({
     css: SCHEDULE_CSS,
     paper: "portrait",
     items: request.items,
@@ -653,8 +675,7 @@ export function printPriceSchedule(request: RequestRecord) {
 <div class="sheet">
   ${
     first
-      ? `${cornerBadge}
-  <h1>List of Supplies and Price Schedule</h1>
+      ? `<h1>List of Supplies and Price Schedule</h1>
   <div class="refs">
     <div>Procurement Reference No:<span class="v">${esc(procurementRef)}</span></div>
     <div>Call-Off Order Reference No:<span class="v">${esc(callOff)}</span></div>
@@ -680,12 +701,7 @@ export function printPriceSchedule(request: RequestRecord) {
   }
 </div>`,
   });
-
-  openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Price schedule — ${esc(request.referenceNumber)}</title>
-<style>${SCHEDULE_CSS}</style></head><body>${sheets}</body></html>`);
 }
-
-// ── Call-Off Order ─────────────────────────────────────────────────────────
 
 /** "Four Million Seventy-Five Thousand Shillings Only" → "Four million seventy five thousand shillings only". */
 function sentenceWords(amount: number) {
@@ -714,29 +730,16 @@ export function callOffFill(
   };
 }
 
-/** The Call-Off Order that goes out with the price schedule under a framework contract. */
+/**
+ * The Call-Off Order under a framework contract, with its List of Supplies
+ * and Price Schedule after it, printed as the one document they are.
+ */
 export function printCallOffOrder(request: RequestRecord, fill: CallOffFill) {
   const { procurementRef, callOff } = splitReference(request.referenceNumber);
   const total = request.items.reduce((s, it) => s + Number(it.totalCost || 0), 0);
 
-  openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Call-Off Order — ${esc(request.referenceNumber)}</title>
-<style>
-${sheetCss("portrait", "22mm 20mm 14mm 26mm")}
-body { font-family: "Times New Roman", Times, serif; font-size: 13pt; line-height: 1.35; }
-h1 { text-align: center; font-size: 21pt; margin: 0; }
-h2 { text-align: center; font-size: 14pt; margin: 1mm 0 10mm; }
-.fields { border-collapse: collapse; margin-bottom: 4mm; }
-.fields td { padding: 1.4mm 0; vertical-align: top; }
-.fields td:first-child { font-weight: bold; width: 74mm; }
-.fields td:last-child { font-weight: bold; }
-p { margin: 0 0 3.5mm; text-align: justify; }
-.auth { width: 100%; border-collapse: collapse; margin-top: 4mm; }
-.auth td, .auth th { border: 1px solid #000; padding: 2.5mm 3mm; text-align: left; }
-.auth th { font-weight: bold; }
-.auth td:first-child { width: 30mm; }
-.auth .sign td { height: 11mm; }
-</style></head><body>
-<div class="sheet">
+  const callOffPage = `
+<div class="sheet calloff">
   ${cornerBadge}
   <h1>Call-Off Order</h1>
   <h2>Under a Framework Contract</h2>
@@ -758,6 +761,8 @@ p { margin: 0 0 3.5mm; text-align: justify; }
     <tr><td>Name:</td><td>${esc(fill.authorisedName.toUpperCase())}</td></tr>
     <tr><td>Position:</td><td>${esc(fill.authorisedPosition)}</td></tr>
   </table>
-</div>
-</body></html>`);
+</div>`;
+
+  openPrint(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Call-Off Order — ${esc(request.referenceNumber)}</title>
+<style>${SCHEDULE_CSS}${CALLOFF_CSS}</style></head><body>${callOffPage}${scheduleSheets(request)}</body></html>`);
 }

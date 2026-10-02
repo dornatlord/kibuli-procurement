@@ -69,7 +69,7 @@ const GUIDES: Topic[] = [
     id: "printing",
     title: "Print the forms",
     steps: [
-      "Open a request. At the top are **Print TFORM 5**, **Price schedule** and **Call-off order**.",
+      "Open a request. At the top are **Print TFORM 5** and **Call-off order & price schedule**: the call-off order prints as the first page, with the List of Supplies and Price Schedule after it.",
       "Open an LPO for **Print LPO** and **Completion certificate**.",
       "The **Monthly Report** and **Termly Report** pages have **Print FORM 2** and **Print FORM 27**.",
       "TFORM 5, the call-off order and the LPO first show the names, titles and dates they will print, filled in already. Change any that's wrong (click a box to pick another name in that office), then press **Print**.",

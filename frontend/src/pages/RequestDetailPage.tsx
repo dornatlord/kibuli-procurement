@@ -10,7 +10,6 @@ import {
   callOffFill,
   headsFor,
   printCallOffOrder,
-  printPriceSchedule,
   printTForm,
   tformFill,
 } from "../lib/forms/requestForms";
@@ -225,13 +224,9 @@ export default function RequestDetailPage() {
           <div className="flex flex-wrap gap-2">
             {can("requests.print") && (
               <>
-                <button type="button" onClick={() => printPriceSchedule(request)} className="btn btn-secondary">
-                  <PrinterIcon className="h-4 w-4" />
-                  Price schedule
-                </button>
                 <button type="button" onClick={() => setChecking("calloff")} className="btn btn-secondary">
                   <PrinterIcon className="h-4 w-4" />
-                  Call-off order
+                  Call-off order & price schedule
                 </button>
                 <button type="button" onClick={checkTForm} className="btn btn-secondary">
                   <PrinterIcon className="h-4 w-4" />
