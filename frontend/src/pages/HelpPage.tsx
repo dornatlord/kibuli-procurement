@@ -63,7 +63,8 @@ const GUIDES: Topic[] = [
       "The department: **Submit to HoD**.",
       "Head of Department: **Approve → Accounting Officer**, or **Reject**.",
       "Accounting Officer: for a micro request, **Approve**, and it's approved. For a macro request, **Approve → Contracts Committee**. Or **Reject**.",
-      "Contracts Committee, for macro requests only: **Approve** or **Reject**. The Procurement and Disposal Unit first prepares **Part II** on the request page: for each row, the method or the names, and separately, the justification. Click a justification box to type, or pick from the list that drops down. Each shortlisted provider has a box of its own that suggests the school's suppliers as you type; **+ Add another provider** adds the next.",
+      "Contracts Committee, for macro requests only: **Approve** or **Reject**. The Procurement and Disposal Unit first prepares **Part II** on the request page: for each row, the method or the names, and separately, the justification. Click a justification box to type, or pick from the list that drops down. Each shortlisted provider has a box of its own: click it and it lists the suppliers pre-qualified for the request's budget line (for Food expenses, category 2, Food), or type to find any other supplier. **+ Add another provider** adds the next.",
+      "The first provider shortlisted fills in by itself wherever the request needs its provider again: the call-off order, a new LPO and a contract.",
       "The request page shows every step with who did it and when.",
     ],
   },
@@ -75,6 +76,7 @@ const GUIDES: Topic[] = [
       "Open an LPO for **Print LPO** and **Completion certificate**.",
       "The **Monthly Report** and **Termly Report** pages have **Print FORM 2** and **Print FORM 27**.",
       "TFORM 5, the call-off order and the LPO first show the names, titles and dates they will print, filled in already. Change any that's wrong (click a box to pick another name in that office), then press **Print**.",
+      "The call-off order's **Provider** is the supplier on the request's LPO, or before there is one, the first provider shortlisted in Part II. Its box also lists the suppliers pre-qualified for the request's budget line.",
       "Every date on TFORM 5 is the day the request was made. **Date Required** is the delivery date.",
       "On page 3, the confirmation of the request is signed by the Deputy Head Teacher: the deputy in **Officials** is filled in, and the box offers every deputy.",
       "A name you type there, such as a Head of Department, is kept in **Officials** under its title. Next time, it's offered in the box for that title. Someone who signed once and won't again? Click the **×** beside their name in the list and confirm, and they're taken off it.",
@@ -88,7 +90,8 @@ const GUIDES: Topic[] = [
     title: "Order from a supplier (LPO)",
     steps: [
       "Open the request and press **Create LPO**. The items, delivery date and delivery place come from the request.",
-      "Choose the supplier, or add one there with **New supplier**, and save. The LPO gets the year's next number: numbers start again at 1 every year, like the LPO book.",
+      "The supplier fills in from the request: the provider shortlisted first in its Part II. To choose another, clear the box: it lists the suppliers pre-qualified for the request's budget line. Or type a name, or add one there with **New supplier**.",
+      "Save. The LPO gets the year's next number: numbers start again at 1 every year, like the LPO book.",
       "**Print LPO**, then **Issue to supplier**. An LPO can be issued once its request is approved.",
       "When the supplier confirms the order, press **Mark acknowledged**.",
       "To find an old LPO, open **LPOs** and choose the **Year**, or type in **Find**: 3 finds LPO 3, and 3/2025 finds LPO 3 of 2025.",
@@ -210,7 +213,7 @@ const QUESTIONS: Topic[] = [
     id: "new-year-suppliers",
     title: "How do I start a new year's supplier list?",
     steps: [
-      "Open **Suppliers** and choose the new year. It offers to carry everyone forward, to choose who to carry, or to start a fresh list.",
+      "Open **Suppliers**, then **All suppliers**, and choose the new year. It offers to carry everyone forward, to choose who to carry, or to start a fresh list.",
       "Taking a supplier off a year's list never touches its LPOs or contracts.",
     ],
   },
@@ -261,6 +264,24 @@ const QUESTIONS: Topic[] = [
     id: "supplier",
     title: "How do I add a supplier?",
     steps: ["On the **Suppliers** page, press **+ Add Supplier**. Or, while creating an LPO, add one there with **New supplier**."],
+  },
+  {
+    id: "prequalified",
+    title: "Where is the pre-qualified list of suppliers?",
+    steps: [
+      "Open **Suppliers**: the **Pre-qualified list** shows the year's list as the Contracts Committee approved it, numbered straight through: Supplies 1–16, Services 17–29, Works 30.",
+      "Each category shows its reference, its suppliers with their phone numbers and addresses, and the budget lines whose requests offer its suppliers. Food lists the heading each supplier is listed under (Maize flour, Beans…).",
+      "**All suppliers** shows the whole register, pre-qualified or not.",
+    ],
+    link: { to: "/suppliers", label: "Open Suppliers" },
+  },
+  {
+    id: "provider-list",
+    title: "Why does the provider box list only a few suppliers?",
+    steps: [
+      "Once the request's budget line (vote) is chosen, the provider boxes list the suppliers pre-qualified for it: Food expenses lists category 2, Food; the Generator lists Plant maintenance (A).",
+      "Type any name to find a supplier who isn't on that category. A budget line no category covers, such as bank charges, lists every supplier.",
+    ],
   },
   {
     id: "lost-connection",

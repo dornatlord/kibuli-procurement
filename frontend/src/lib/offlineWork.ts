@@ -40,6 +40,10 @@ export async function saveForOffline(can: Can): Promise<boolean> {
   await loadAll([
     ...(can("requests.view.own", "requests.view.department", "requests.view.all") ? ["/requests"] : []),
     ...(can("requests.create") ? ["/lookup/votes", "/procurement-plan/lines"] : []),
+    // Part II's provider boxes on the New Request form, which asks for this year's list.
+    ...(can("requests.create") && can("requests.prepare.committee")
+      ? ["/suppliers/names", `/suppliers/prequalified?year=${new Date().getFullYear()}`]
+      : []),
     ...(can("reserve_prices.view") ? ["/reserve-prices"] : []),
     ...(can("requests.create", "reserve_prices.manage") ? ["/baskets"] : []),
     ...(can("purchase_orders.view") ? ["/purchase-orders"] : []),

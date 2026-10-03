@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import PageHeader from "../components/PageHeader";
 import { PlusIcon, XIcon } from "../components/icons";
+import {
+  categoryHint,
+  lineSuppliers,
+  providerSource,
+  usePrequalifiedList,
+  useRequestProviders,
+  type SupplierCategoryRef,
+} from "../lib/suppliers";
 
 interface Supplier {
   id: number;
@@ -12,6 +20,8 @@ interface Supplier {
   address?: string | null;
   /** From the search: false for a supplier not on this year’s list, who joins it with this LPO. */
   onThisYearsList?: boolean;
+  /** From the search: its categories on the pre-qualified list. */
+  categories?: SupplierCategoryRef[];
 }
 
 interface LpoItem {
@@ -57,6 +67,17 @@ export default function NewPurchaseOrderPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [newSupplier, setNewSupplier] = useState<NewSupplier | null>(null);
   const [savingSupplier, setSavingSupplier] = useState(false);
+  // The box has the cursor: while it's empty, it lists the pre-qualified suppliers.
+  const [focused, setFocused] = useState(false);
+
+  // The request's provider (its LPO's supplier, or Part II's first shortlisted
+  // provider) fills in the supplier, and the suppliers pre-qualified for its
+  // budget line are offered first.
+  const providers = useRequestProviders(requestId);
+  const prequalified = usePrequalifiedList(providers?.request.year, !!providers?.line);
+  const forLine = useMemo(() => lineSuppliers(prequalified, providers?.line?.key), [prequalified, providers?.line?.key]);
+  const [filledFrom, setFilledFrom] = useState<string | null>(null);
+  const prefilled = useRef(false);
 
   const [issueDate, setIssueDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
@@ -109,6 +130,7 @@ export default function NewPurchaseOrderPage() {
     setSupplierQuery(value);
     setSupplier(null);
     setNewSupplier(null);
+    setFilledFrom(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => search(value), 250);
   }
@@ -118,7 +140,25 @@ export default function NewPurchaseOrderPage() {
     setSupplierQuery(s.name);
     setShowSuggestions(false);
     setNewSupplier(null);
+    setFilledFrom(null);
   }
+
+  // Once, when the request's provider is known, unless a supplier was typed or
+  // chosen meanwhile. A provider not in the register (typed into Part II) is
+  // searched for, so it can be picked or added.
+  useEffect(() => {
+    const p = providers?.provider;
+    if (!p || prefilled.current) return;
+    prefilled.current = true;
+    if (supplier || supplierQuery.trim()) return;
+    if (p.supplierId) {
+      chooseSupplier({ id: p.supplierId, name: p.name });
+    } else {
+      setSupplierQuery(p.name);
+      void search(p.name);
+    }
+    setFilledFrom(providerSource(p));
+  }, [providers]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveNewSupplier() {
     if (!newSupplier?.name.trim()) return;
@@ -218,12 +258,44 @@ export default function NewPurchaseOrderPage() {
             id="supplier"
             value={supplierQuery}
             onChange={(e) => onSupplierInput(e.target.value)}
-            onFocus={() => suggestions.length > 0 && !supplier && setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            onFocus={() => {
+              setFocused(true);
+              if (suggestions.length > 0 && !supplier) setShowSuggestions(true);
+            }}
+            onBlur={() =>
+              setTimeout(() => {
+                setShowSuggestions(false);
+                setFocused(false);
+              }, 150)
+            }
             className="input"
-            placeholder="Start typing the supplier's name"
+            placeholder={forLine.length ? "Pick a pre-qualified supplier, or type a name" : "Start typing the supplier's name"}
             autoComplete="off"
           />
+          {focused && !supplier && !query && forLine.length > 0 && (
+            <div
+              role="listbox"
+              aria-label="Pre-qualified suppliers"
+              className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-raised"
+            >
+              <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                Pre-qualified for {providers?.line?.label}
+              </p>
+              {forLine.map((s) => (
+                <button
+                  key={s.supplierId}
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onMouseDown={() => chooseSupplier({ id: s.supplierId, name: s.name })}
+                  className="block w-full px-3 py-2 text-left text-sm hover:bg-green-50"
+                >
+                  <span className="block font-medium text-gray-900">{s.name}</span>
+                  <span className="block text-xs text-gray-500">{s.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {showSuggestions && suggestions.length > 0 && !supplier && (
             <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-raised">
               {suggestions.map((s) => (
@@ -238,6 +310,9 @@ export default function NewPurchaseOrderPage() {
                   {s.onThisYearsList === false && (
                     <span className="ml-2 text-xs text-amber-700">not on this year’s list yet: joins it with this LPO</span>
                   )}
+                  {categoryHint(s.categories) && (
+                    <span className="block text-xs text-gray-500">{categoryHint(s.categories)}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -246,6 +321,12 @@ export default function NewPurchaseOrderPage() {
             <p className="mt-1.5 text-sm text-green-700">
               Selected: {supplier.name}
               {supplier.phone ? `, ${supplier.phone}` : ""}
+              {filledFrom && <span className="text-gray-500"> (filled in from {filledFrom})</span>}
+            </p>
+          )}
+          {!supplier && filledFrom && query && (
+            <p className="mt-1.5 text-sm text-gray-500">
+              Filled in from {filledFrom}, but that name isn’t in the supplier register yet: pick it below, or add it.
             </p>
           )}
           {!supplier && searched && query.length >= 2 && !newSupplier &&

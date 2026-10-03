@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, FormEvent } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import { ListSkeleton } from "../components/Loading";
 import YearSelect from "../components/YearSelect";
+import PrequalifiedView from "../components/PrequalifiedView";
 import { thisYear, yearChoices } from "../lib/years";
 
 interface Supplier {
@@ -45,14 +46,19 @@ const EMPTY_FORM = {
 const onList = (s: Supplier, year: number) => (s.years ?? []).includes(year);
 
 /**
- * The provider register, kept as a list for each year. At the start of a year
- * the school carries last year's list forward, picks who to keep, or starts
- * afresh; "All years" shows every supplier the school has had.
+ * The year's pre-qualified list, laid out as the school's own (numbered
+ * categories with their suppliers), and the provider register behind it, kept
+ * as a list for each year. At the start of a year the school carries last
+ * year's register forward, picks who to keep, or starts afresh; "All years"
+ * shows every supplier the school has had.
  */
 export default function SuppliersPage() {
   const { can } = useAuth();
   const allowed = can("suppliers.view");
   const canManage = can("suppliers.manage");
+  // Which view: the pre-qualified list (the default) or the whole register.
+  const [params, setParams] = useSearchParams();
+  const view = params.get("view") === "register" ? "register" : "prequalified";
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [year, setYear] = useState<number | "all">(thisYear());
@@ -182,8 +188,9 @@ export default function SuppliersPage() {
         <div>
           <h1 className="page-title">Suppliers</h1>
           <p className="text-sm text-gray-500 mt-1">
-            The provider register, kept as a list for each year. Taking a supplier off a year's list never touches its
-            LPOs or contracts.
+            {view === "prequalified"
+              ? "The pre-qualified list of suppliers, service providers and works, by category, as the Contracts Committee approved it."
+              : "The provider register, kept as a list for each year. Taking a supplier off a year's list never touches its LPOs or contracts."}
           </p>
         </div>
         {canManage && (
@@ -197,6 +204,28 @@ export default function SuppliersPage() {
             + Add Supplier
           </button>
         )}
+      </div>
+
+      <div role="tablist" aria-label="Suppliers" className="flex gap-1 border-b border-gray-200">
+        {(
+          [
+            ["prequalified", "Pre-qualified list"],
+            ["register", "All suppliers"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={view === key}
+            onClick={() => setParams(key === "register" ? { view: "register" } : {}, { replace: true })}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              view === key ? "border-green-700 text-green-800" : "border-transparent text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -319,6 +348,18 @@ export default function SuppliersPage() {
         </div>
       )}
 
+      {view === "prequalified" ? (
+        <>
+          <YearSelect
+            id="prequalified-year"
+            value={year === "all" ? thisYear() : year}
+            years={years}
+            onChange={(y) => setYear(y)}
+          />
+          <PrequalifiedView year={year === "all" ? thisYear() : year} />
+        </>
+      ) : (
+      <>
       {offerStart && earlier && (
         <div className="card border-amber-200 bg-amber-50 p-5">
           <h2 className="text-sm font-semibold text-amber-900">Start {year}'s supplier list</h2>
@@ -467,6 +508,8 @@ export default function SuppliersPage() {
           </table>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

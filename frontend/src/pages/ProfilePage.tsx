@@ -482,6 +482,7 @@ const ACTIONS: Record<string, string> = {
   "supplier.listed": "Put a supplier on a year's list",
   "supplier.unlisted": "Took a supplier off a year's list",
   "suppliers.list_started": "Started a year's supplier list",
+  "suppliers.prequalified_imported": "Put a year's pre-qualified list into the system",
   "request.corrected": "Corrected a request",
   "purchase_order.corrected": "Corrected an LPO",
   "settings.terms_updated": "Changed the school terms",
@@ -550,6 +551,7 @@ function linkFor(entry: Entry): string | null {
     case "item_basket":
       return id && !gone ? `/baskets/${id}` : "/baskets";
     case "supplier":
+    case "supplier_list":
       return "/suppliers";
     case "invoice":
       return "/invoices";

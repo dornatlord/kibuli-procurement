@@ -723,13 +723,18 @@ export type CallOffFill = {
   authorisedPosition: string;
 };
 
-/** The call-off order's starting values: the LPO's supplier and date, and the Accounting Officer. */
+/**
+ * The call-off order's starting values: the LPO's supplier and date, and the
+ * Accounting Officer. Before there's an LPO, the provider is `provider`: the
+ * one shortlisted first in Part II.
+ */
 export function callOffFill(
   officials: Officials,
-  lpo: { supplierName: string | null; issueDate: string | null } | null
+  lpo: { supplierName: string | null; issueDate: string | null } | null,
+  provider?: string | null
 ): CallOffFill {
   return {
-    provider: lpo?.supplierName ?? "",
+    provider: lpo?.supplierName ?? provider ?? "",
     date: kampalaDay(lpo?.issueDate) || kampalaDay(new Date().toISOString()),
     authorisedName: officials.accounting_officer?.name ?? "",
     authorisedPosition: officials.accounting_officer?.title || "Accounting Officer",

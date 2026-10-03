@@ -1187,6 +1187,10 @@ export default function NewRequestPage() {
             <PartTwoTable
               submission={partTwo}
               onSubmissionChange={(patch) => setPartTwo((p) => ({ ...p, ...patch }))}
+              // The vote's budget line chosen in Part III: its pre-qualified suppliers fill the provider lists.
+              supplierLine={
+                lineKey ? { key: lineKey, label: [projectCode, lineName].filter(Boolean).join(" "), year } : null
+              }
             />
           </div>
         </section>

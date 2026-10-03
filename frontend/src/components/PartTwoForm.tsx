@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Combobox from "./Combobox";
 import { XIcon } from "./icons";
-import { supplierChoices, useSupplierNames } from "../lib/suppliers";
+import { lineCategories, lineSuppliers, providerChoices, usePrequalifiedList, useSupplierNames } from "../lib/suppliers";
 
 /**
  * PPDA FORM 5 Part II — the Procurement and Disposal Unit's request to the
@@ -193,10 +193,22 @@ const PAIRS: Record<
   },
 };
 
+/** The budget line a request spends ("vote"), whose pre-qualified suppliers the provider boxes offer. */
+export interface SupplierLine {
+  /** The request form's key for the line: "bi:<budget item id>" or "sp:<sub-programme id>". */
+  key: string;
+  /** How the form names it: "2204-1 Food expenses". */
+  label: string;
+  /** The request's year, whose pre-qualified list applies. */
+  year: number;
+}
+
 interface Props {
   submission: PartTwoSubmission;
   /** Leave out to show the submission read-only. */
   onSubmissionChange?: (patch: Partial<PartTwoSubmission>) => void;
+  /** The request's budget line, once chosen: row 2's boxes offer its pre-qualified suppliers. */
+  supplierLine?: SupplierLine | null;
   /** Show the Contracts Committee's decision and conditions columns. */
   showCommittee?: boolean;
   rowDecisions?: RowDecisions;
@@ -214,23 +226,29 @@ const joined = (lines: string[]) =>
     .join("\n");
 
 /**
- * Row 2's shortlisted providers, a box for each that suggests the school's
- * suppliers as you type, this year's list first. They're kept one name per
- * line, as they print.
+ * Row 2's shortlisted providers, a box for each. Once the request's budget
+ * line is chosen, a box's list holds the suppliers pre-qualified for it (Food
+ * expenses: the Food category's); typing finds any other supplier. Without a
+ * line, or for a line no category serves, it suggests every supplier, this
+ * year's list first. They're kept one name per line, as they print.
  */
 function ProviderLines({
   value,
   onChange,
   ariaLabel,
   placeholder,
+  supplierLine,
 }: {
   value: string;
   onChange: (value: string) => void;
   ariaLabel: string;
   placeholder: string;
+  supplierLine?: SupplierLine | null;
 }) {
   const suppliers = useSupplierNames();
-  const choices = useMemo(() => supplierChoices(suppliers), [suppliers]);
+  const prequalified = usePrequalifiedList(supplierLine?.year, !!supplierLine);
+  const forLine = useMemo(() => lineSuppliers(prequalified, supplierLine?.key), [prequalified, supplierLine?.key]);
+  const categories = useMemo(() => lineCategories(prequalified, supplierLine?.key), [prequalified, supplierLine?.key]);
   // The boxes as shown, an empty one included while it's being filled in.
   const [lines, setLines] = useState(() => linesOf(value));
   // A saved Part II loading in replaces what's shown.
@@ -251,7 +269,8 @@ function ProviderLines({
             ariaLabel={`${ariaLabel} ${i + 1}`}
             value={line}
             onChange={(v) => change(lines.map((l, j) => (j === i ? v : l)))}
-            options={choices}
+            // A provider already shortlisted in another box isn't offered twice.
+            options={providerChoices({ value: line, line: forLine, names: suppliers, leaveOut: lines.filter((_, j) => j !== i) })}
             placeholder={placeholder}
             className="min-w-0 flex-1"
             inputClassName="text-xs"
@@ -276,6 +295,15 @@ function ProviderLines({
       >
         + Add another provider
       </button>
+      {supplierLine && prequalified && (
+        <p className="text-[11px] leading-4 text-gray-500">
+          {forLine.length
+            ? `The list shows the ${forLine.length === 1 ? "supplier" : `${forLine.length} suppliers`} pre-qualified for ${
+                supplierLine.label
+              } (${categories.join("; ")}). Type to find any other supplier.`
+            : `No pre-qualified category covers ${supplierLine.label}, so every supplier is offered.`}
+        </p>
+      )}
     </div>
   );
 }
@@ -283,6 +311,7 @@ function ProviderLines({
 export default function PartTwoTable({
   submission,
   onSubmissionChange,
+  supplierLine,
   showCommittee = false,
   rowDecisions = {},
   onRowDecisionChange,
@@ -337,6 +366,7 @@ export default function PartTwoTable({
             value={submission.shortlistedProviders}
             onChange={(v) => set({ shortlistedProviders: v })}
             placeholder={pair.answerHint}
+            supplierLine={supplierLine}
           />
         ) : (
           <textarea

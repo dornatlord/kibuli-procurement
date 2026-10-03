@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { forgetName, keepNames, nameChoices, namesIn, useOfficials } from "../lib/officials";
-import { supplierChoices, useSupplierNames } from "../lib/suppliers";
+import { lineSuppliers, providerChoices, usePrequalifiedList, useSupplierNames } from "../lib/suppliers";
 import { useAuth } from "../lib/auth";
 import { dayFirst as formDate } from "../lib/print";
 import {
@@ -22,7 +22,7 @@ import type { CheckSection } from "../components/PrintCheck";
 import StatusBadge from "../components/StatusBadge";
 import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
 import PartTwoTable, { rowDecisionsFrom, submissionFrom } from "../components/PartTwoForm";
-import type { PartTwoSubmission, RowDecisions } from "../components/PartTwoForm";
+import type { PartTwoSubmission, RowDecisions, SupplierLine } from "../components/PartTwoForm";
 import CorrectionPanel, { CorrectionHistory, toEditLines } from "../components/CorrectionPanel";
 
 /** Part II while it is being edited on the request page. */
@@ -85,8 +85,10 @@ export default function RequestDetailPage() {
   const [partTwoError, setPartTwoError] = useState("");
   // Checking the names, titles and dates a form will print, before printing it.
   const [checking, setChecking] = useState<"tform" | "calloff" | null>(null);
-  // Offered for the call-off order's provider, once its check is open.
+  // Offered for the call-off order's provider, once its check is open: the
+  // suppliers pre-qualified for the request's budget line first.
   const supplierNames = useSupplierNames(checking === "calloff");
+  const prequalified = usePrequalifiedList(request?.year, checking === "calloff" && !!request);
   const [plan, setPlan] = useState<PlanLines | null>(null);
 
   function load() {
@@ -198,6 +200,21 @@ export default function RequestDetailPage() {
     .filter(Boolean)
     .join(" / ");
   const itemsTotal = request.items.reduce((sum, it) => sum + Number(it.totalCost || 0), 0);
+  // The budget line ("vote") the request spends, whose pre-qualified suppliers
+  // the provider boxes offer, and the providers Part II shortlisted, the first
+  // of whom fills in the call-off order until there's an LPO.
+  const lineKey = request.budgetItemId ? `bi:${request.budgetItemId}` : request.subProgrammeId ? `sp:${request.subProgrammeId}` : null;
+  const supplierLine: SupplierLine | null = lineKey
+    ? { key: lineKey, label: [request.projectCode, request.projectTitle].filter(Boolean).join(" "), year: request.year }
+    : null;
+  const shortlisted = (request.decision?.shortlistedProviders ?? "")
+    .split("\n")
+    .map((n) => n.trim())
+    .filter(Boolean);
+  const providersFirst = [
+    ...(linkedLpo?.supplierName ? [{ value: linkedLpo.supplierName, hint: "The supplier on this request's LPO" }] : []),
+    ...shortlisted.map((name) => ({ value: name, hint: "Shortlisted in Part II" })),
+  ];
   // A step counts as done once it has a signature or a recorded date — the
   // administrator approves without signing, so the date is often all there is.
   const chain = [
@@ -297,11 +314,16 @@ export default function RequestDetailPage() {
                 {
                   key: "provider",
                   label: "Provider",
-                  // The LPO's supplier first, then every supplier, this year's list first.
-                  options: [
-                    ...(linkedLpo?.supplierName ? [{ value: linkedLpo.supplierName, hint: "The supplier on this request's LPO" }] : []),
-                    ...supplierChoices(supplierNames),
-                  ],
+                  // The LPO's supplier and Part II's shortlist first, then the
+                  // suppliers pre-qualified for the request's budget line; typing
+                  // finds every other supplier.
+                  options: (v) =>
+                    providerChoices({
+                      value: v.provider,
+                      line: lineSuppliers(prequalified, lineKey),
+                      names: supplierNames,
+                      first: providersFirst,
+                    }),
                 },
                 { key: "date", label: "Date of call-off order", type: "date" },
               ],
@@ -324,7 +346,7 @@ export default function RequestDetailPage() {
               ],
             },
           ]}
-          initial={callOffFill(officials, linkedLpo)}
+          initial={callOffFill(officials, linkedLpo, shortlisted[0])}
           onPrint={(fill, start) => {
             printCallOffOrder(request, fill);
             if (fill.authorisedName.trim() !== start.authorisedName.trim() || fill.authorisedPosition !== start.authorisedPosition) {
@@ -567,6 +589,7 @@ export default function RequestDetailPage() {
                           setPartTwoEdit((p) => p && { ...p, submission: { ...p.submission, ...patch } })
                       : undefined
                   }
+                  supplierLine={supplierLine}
                   showCommittee
                   rowDecisions={partTwoEdit.rowDecisions}
                   onRowDecisionChange={

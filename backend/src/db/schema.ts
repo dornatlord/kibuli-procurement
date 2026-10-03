@@ -376,6 +376,62 @@ export const supplierYears = pgTable(
   (t) => [primaryKey({ columns: [t.supplierId, t.year] })]
 );
 
+/**
+ * A category of a year's pre-qualified list (migration 018), numbered 1, 2, 3 …
+ * straight through Supplies, Services and Works. Lines on paper that share one
+ * reference are one category; their headings are its `groups`.
+ */
+export const supplierCategories = pgTable(
+  "supplier_categories",
+  {
+    id: serial("id").primaryKey(),
+    year: integer("year").notNull(),
+    number: integer("number").notNull(),
+    section: categoryEnum("section").notNull(),
+    reference: text("reference"),
+    name: text("name").notNull(),
+    groups: text("groups").array().notNull().default(sql`'{}'`),
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => [unique().on(t.year, t.number)]
+);
+
+/** A supplier on a category, in the list's order, with the headings (1-based) it's listed under. */
+export const supplierCategoryMembers = pgTable(
+  "supplier_category_members",
+  {
+    categoryId: integer("category_id")
+      .notNull()
+      .references(() => supplierCategories.id, { onDelete: "cascade" }),
+    supplierId: integer("supplier_id")
+      .notNull()
+      .references(() => suppliers.id),
+    position: integer("position").notNull(),
+    groups: integer("groups").array().notNull().default(sql`'{}'`),
+    // The list's own spelling, where the register spells the supplier differently.
+    printedName: text("printed_name"),
+    addedBy: integer("added_by").references(() => users.id),
+    addedAt: timestamp("added_at").defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.categoryId, t.supplierId] })]
+);
+
+/**
+ * A budget line whose providers come from a category: a budget item, or a
+ * sub-programme with no items of its own. `groups` narrows it to some of the
+ * category's headings; empty means all of them.
+ */
+export const supplierCategoryLines = pgTable("supplier_category_lines", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id")
+    .notNull()
+    .references(() => supplierCategories.id, { onDelete: "cascade" }),
+  budgetItemId: integer("budget_item_id").references(() => budgetItems.id),
+  subProgrammeId: integer("sub_programme_id").references(() => subProgrammes.id),
+  groups: integer("groups").array().notNull().default(sql`'{}'`),
+});
+
 export const purchaseOrders = pgTable("purchase_orders", {
   id: serial("id").primaryKey(),
   // Numbered from 1 again each year, like the school's LPO books (migration 013):
