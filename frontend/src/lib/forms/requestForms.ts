@@ -103,6 +103,10 @@ export interface RequestRecord {
   items: RequestLineItem[];
   /** When it was corrected, by whom and why. */
   corrections?: { at: string; by: string | null; reason: string | null }[];
+  /** What the printed form still lacks; until it's empty the request can't go on or be printed. */
+  missing?: string[];
+  /** Who may edit it: the person who raised it, someone who corrects records, or nobody. */
+  editAccess?: "requester" | "corrector" | null;
   signatures: RequestSignature[];
   decision: CommitteeDecision | null;
   stepDates?: StepDates;

@@ -28,8 +28,63 @@ import { logAudit } from "../lib/audit.js";
 import { visibleRequestFilter } from "../lib/requestAccess.js";
 import { lineNumberOf } from "../lib/budgetLines.js";
 import { getTerms, termAndWeek, wholeNumberIn } from "../lib/terms.js";
+import { budgetLineOf, missingDetails, missingMessage } from "../lib/requestEssentials.js";
 
 const router = asyncRouter();
+
+/** Whether this person may correct records: by their role, or a right given to them. */
+async function hasCorrectionRight(session: { userId?: number; role?: string }) {
+  if (!session.userId) return false;
+  if (hasPermission(session.role ?? "", "records.correct")) return true;
+  const [user] = await db
+    .select({ canCorrect: users.canCorrectRecords, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, session.userId));
+  return !!(user?.isActive && user.canCorrect);
+}
+
+/** What a saved request still lacks for its printed form (see requestEssentials). */
+async function missingFromSaved(
+  request: typeof procurementRequests.$inferSelect,
+  items: { description: string | null; quantity: string | null; unitOfMeasure: string | null; estimatedUnitCost: string | null }[]
+) {
+  // Week and term: requests saved before these were asked for take them from their date.
+  const shown = request.term
+    ? { week: request.weekNumber, term: request.term }
+    : termAndWeek(await getTerms(), request.createdAt ?? new Date());
+  const { missing } = await budgetLineOf(request);
+  return [
+    ...missing,
+    ...missingDetails({
+      subjectOfProcurement: request.subjectOfProcurement,
+      dateRequired: request.dateRequired,
+      locationForDelivery: request.locationForDelivery,
+      weekNumber: shown.week,
+      term: shown.term,
+      items,
+    }),
+  ];
+}
+
+/**
+ * Who may edit a saved request. The person who raised it, while it's a draft,
+ * or at any stage before it's decided if it is missing something the form
+ * needs (so a skipped programme can still be filled in). Anyone allowed to
+ * correct records, at any stage, giving a reason.
+ */
+function editAccessFor(
+  request: typeof procurementRequests.$inferSelect,
+  userId: number | undefined,
+  corrector: boolean,
+  missing: string[]
+): "corrector" | "requester" | null {
+  if (corrector) return "corrector";
+  const decided = request.status === "approved" || request.status === "rejected";
+  if (userId && request.createdBy === userId && (request.status === "draft" || (missing.length > 0 && !decided))) {
+    return "requester";
+  }
+  return null;
+}
 
 function getWeekNumber(date: Date, yearType: "calendar" | "financial"): { year: number; week: number } {
   let startOfYear: Date;
@@ -148,7 +203,8 @@ router.get(
   const items = await db
     .select()
     .from(procurementItems)
-    .where(eq(procurementItems.procurementRequestId, request.id));
+    .where(eq(procurementItems.procurementRequestId, request.id))
+    .orderBy(asc(procurementItems.itemNo), asc(procurementItems.id));
   const signatures = await db
     .select()
     .from(requestSignatures)
@@ -249,6 +305,7 @@ router.get(
   // FORM 5's "Week 5, Term 3". Requests saved before these were asked for
   // take them from the day they were made.
   const fromDate = termAndWeek(await getTerms(), request.createdAt ?? new Date());
+  const missing = await missingFromSaved(request, items);
 
   res.json({
     ...request,
@@ -276,6 +333,10 @@ router.get(
     projectTitle: budgetItem?.name ?? subProg?.name ?? null,
     // When the request was corrected, by whom and why; the audit trail has the details.
     corrections: await correctionsOf("procurement_request", request.id, "request.corrected"),
+    // What the printed form still lacks: until it's empty, the request can't
+    // be sent on, approved or printed.
+    missing,
+    editAccess: editAccessFor(request, req.session.userId, await hasCorrectionRight(req.session), missing),
   });
   }
 );
@@ -398,6 +459,149 @@ router.put("/:id/correct", requireCorrectionRight, async (req, res) => {
   res.json({ ok: true });
 });
 
+/**
+ * Edits a saved request: everything the New Request form holds, the budget
+ * line included. The person who raised it may while it's a draft, or while it
+ * still lacks something its form needs and hasn't been decided; anyone allowed
+ * to correct records may at any stage, saying why. The result must be
+ * complete. The reference keeps its running number, while its category and
+ * supply code follow what the request now is. Every change goes in the audit
+ * trail, as a correction.
+ */
+router.put("/:id", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const [request] = await db.select().from(procurementRequests).where(eq(procurementRequests.id, id));
+  if (!request) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const current = await db
+    .select()
+    .from(procurementItems)
+    .where(eq(procurementItems.procurementRequestId, id))
+    .orderBy(asc(procurementItems.itemNo), asc(procurementItems.id));
+  const corrector = await hasCorrectionRight(req.session);
+  const access = editAccessFor(request, req.session.userId, corrector, await missingFromSaved(request, current));
+  if (!access) {
+    res.status(403).json({
+      error:
+        "Only the person who raised this request (while it's a draft, or still incomplete) or someone allowed to correct records can edit it.",
+    });
+    return;
+  }
+  const body = (req.body ?? {}) as Record<string, any>;
+  const own = request.createdBy === req.session.userId;
+  const reason = textFrom(body.reason, 500);
+  // Someone else's request, or one already on its way: say why it changed.
+  if (!(own && (request.status === "draft" || access === "requester")) && (!reason || reason.length < 3)) {
+    res.status(400).json({ error: "Say what was wrong, so the audit trail records why it was changed." });
+    return;
+  }
+
+  const week = blankValue(body.weekNumber) ? null : wholeNumberIn(body.weekNumber, 1, 53);
+  const term = blankValue(body.term) ? null : wholeNumberIn(body.term, 1, 3);
+  if ((!blankValue(body.weekNumber) && week === null) || (!blankValue(body.term) && term === null)) {
+    res.status(400).json({ error: "The week is a number from 1 to 53, and the term 1, 2 or 3." });
+    return;
+  }
+  const rows = (Array.isArray(body.items) ? body.items : []).filter((it: any) => String(it?.description ?? "").trim());
+  const { line, missing: lineMissing } = await budgetLineOf(body);
+  const missing = [...lineMissing, ...missingDetails({ ...body, weekNumber: week, term, items: rows })];
+  if (missing.length) {
+    res.status(400).json({ error: missingMessage(missing), missing });
+    return;
+  }
+  const lines = readLines(rows.map((it: any) => ({ ...it, unitPrice: it.estimatedUnitCost })));
+  if (typeof lines === "string") {
+    res.status(400).json({ error: lines });
+    return;
+  }
+  const known = new Set(current.map((i) => i.id));
+  if (lines.some((l) => l.id && !known.has(l.id))) {
+    res.status(400).json({ error: "An item sent doesn't belong to this request." });
+    return;
+  }
+  const category = ["supplies", "works", "non_consultancy"].includes(body.category) ? body.category : request.category;
+  const budgetCategory = ["recurrent", "development"].includes(body.budgetCategory) ? body.budgetCategory : request.budgetCategory;
+  // Micro or macro decides the approvals, so it changes only while it's a draft.
+  const procurementSize =
+    request.status === "draft" && ["micro", "macro"].includes(body.procurementSize) ? body.procurementSize : request.procurementSize;
+  // KSS/SUPLS/26/017/00612: the running number stays; category and code follow the request.
+  const parts = request.referenceNumber.split("/");
+  const referenceNumber =
+    parts.length === 5
+      ? [parts[0], categoryCode(category), parts[2], line.supplyCode ?? "000", parts[4]].join("/")
+      : request.referenceNumber;
+  const isMultiyear = body.isMultiyear === true;
+  const total = lines.reduce((sum, l) => sum + l.quantity * l.unitPrice, 0);
+
+  const fields = {
+    referenceNumber,
+    category,
+    budgetCategory,
+    procurementSize,
+    subjectOfProcurement: textFrom(body.subjectOfProcurement),
+    procurementPlanReference: textFrom(body.procurementPlanReference, 200),
+    locationForDelivery: textFrom(body.locationForDelivery, 200),
+    dateRequired: dateFrom(body.dateRequired) ?? null,
+    weekNumber: week,
+    term,
+    isMultiyear,
+    multiyearYearOne: isMultiyear ? amountOrNull(body.multiyearYearOne) : null,
+    multiyearYearTwo: isMultiyear ? amountOrNull(body.multiyearYearTwo) : null,
+    multiyearYearThree: isMultiyear ? amountOrNull(body.multiyearYearThree) : null,
+    multiyearYearFour: isMultiyear ? amountOrNull(body.multiyearYearFour) : null,
+    voteId: line.voteId,
+    subProgrammeId: line.subProgrammeId,
+    budgetItemId: line.budgetItemId,
+    supplyCode: line.supplyCode,
+    balanceRemainingManual: amountOrNull(body.balanceRemainingManual),
+  };
+  const changes = changesBetween(
+    Object.fromEntries(Object.keys(fields).map((k) => [k, (request as Record<string, unknown>)[k]])),
+    fields
+  );
+  const itemChanges = lineChanges(
+    current.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, unitOfMeasure: i.unitOfMeasure, unitPrice: i.estimatedUnitCost })),
+    lines
+  );
+  if (nothingChanged(changes, itemChanges)) {
+    res.status(400).json({ error: "Nothing was changed." });
+    return;
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(procurementRequests)
+      .set({ ...(fields as any), estimatedTotalCost: String(total), updatedAt: new Date() })
+      .where(eq(procurementRequests.id, id));
+    const keep = new Set(lines.filter((l) => l.id).map((l) => l.id));
+    const drop = current.filter((i) => !keep.has(i.id)).map((i) => i.id);
+    if (drop.length) await tx.delete(procurementItems).where(inArray(procurementItems.id, drop));
+    for (const [n, l] of lines.entries()) {
+      const values = {
+        itemNo: n + 1,
+        description: l.description,
+        quantity: String(l.quantity),
+        unitOfMeasure: l.unitOfMeasure,
+        estimatedUnitCost: String(l.unitPrice),
+        totalCost: String(l.quantity * l.unitPrice),
+      };
+      if (l.id) await tx.update(procurementItems).set(values).where(eq(procurementItems.id, l.id));
+      else await tx.insert(procurementItems).values({ ...values, procurementRequestId: id, marketPrice: String(l.unitPrice) });
+    }
+  });
+
+  await logAudit(req.session.userId!, "request.corrected", "procurement_request", id, {
+    referenceNumber,
+    reason: reason ?? "Completed by the person who raised it",
+    changes,
+    items: itemChanges,
+    total: { from: request.estimatedTotalCost, to: String(total) },
+  });
+  res.json({ ok: true, id, referenceNumber });
+});
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isUniqueViolation(err: unknown) {
@@ -444,30 +648,17 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
 
   // Part III names one budget line: take its vote, sub-programme and supply
   // code from the most specific choice rather than trusting the form to keep
-  // them in step.
-  let voteId = body.voteId || null;
-  let subProgrammeId = body.subProgrammeId || null;
-  let supplyCode: string | null = null;
-  if (body.budgetItemId) {
-    const [line] = await db
-      .select()
-      .from(budgetItems)
-      .where(eq(budgetItems.id, Number(body.budgetItemId)));
-    if (line) {
-      voteId = line.voteId;
-      subProgrammeId = line.subProgrammeId;
-      supplyCode = line.supplyCode;
-    }
-  } else if (subProgrammeId) {
-    const [sub] = await db
-      .select()
-      .from(subProgrammes)
-      .where(eq(subProgrammes.id, Number(subProgrammeId)));
-    if (sub) {
-      voteId = sub.voteId;
-      supplyCode = sub.supplyCode;
-    }
+  // them in step. Nothing the printed form needs may be left out.
+  const { line, missing: lineMissing } = await budgetLineOf(body);
+  const missing = [
+    ...lineMissing,
+    ...missingDetails({ ...body, weekNumber: week, term, items: Array.isArray(body.items) ? body.items : [] }),
+  ];
+  if (missing.length) {
+    res.status(400).json({ error: missingMessage(missing), missing });
+    return;
   }
+  const { voteId, subProgrammeId, supplyCode } = line;
 
   // Two requests saved at the same moment can be given the same running number,
   // as when several laptops send work done offline once they reconnect. The
@@ -506,7 +697,7 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
           multiyearYearFour: body.multiyearYearFour,
           voteId,
           subProgrammeId,
-          budgetItemId: body.budgetItemId,
+          budgetItemId: line.budgetItemId,
           balanceRemainingManual: body.balanceRemainingManual,
           status: "draft",
           clientRef,
@@ -521,9 +712,11 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
     }
   }
 
-  // Insert procurement items
+  // Insert procurement items: only rows with something in them, numbered in order.
   if (body.items?.length) {
-    for (const item of body.items) {
+    const filled = (body.items as Record<string, any>[]).filter((it) => String(it.description ?? "").trim());
+    for (const [n, item] of filled.entries()) {
+      item.itemNo = n + 1;
       const total =
         item.quantity && item.estimatedUnitCost
           ? String(Number(item.quantity) * Number(item.estimatedUnitCost))
@@ -609,6 +802,17 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
   }
 
   const role = req.session.role!;
+
+  // Nothing goes on for approval, or is approved, while the printed form would
+  // have gaps. Rejecting is always possible.
+  if (status !== "rejected") {
+    const items = await db.select().from(procurementItems).where(eq(procurementItems.procurementRequestId, id));
+    const missing = await missingFromSaved(request, items);
+    if (missing.length) {
+      res.status(400).json({ error: `This request is missing what its form needs. ${missingMessage(missing)}`, missing });
+      return;
+    }
+  }
 
   // Each target status requires a specific permission. The administrator holds
   // all of them, so it can move a request through any stage.

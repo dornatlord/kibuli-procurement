@@ -119,6 +119,14 @@ function AppRoutes() {
             </Guard>
           }
         />
+        <Route
+          path="requests/:id/edit"
+          element={
+            <Guard permissions={viewRequests}>
+              <NewRequestPage />
+            </Guard>
+          }
+        />
 
         <Route
           path="baskets"

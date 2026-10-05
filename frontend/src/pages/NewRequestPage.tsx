@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api, OfflineError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { newClientRef, queueRequest } from "../lib/outbox";
@@ -15,6 +15,19 @@ import { planOptions, suggestPlanReference } from "../lib/planLines";
 import type { PlanLines } from "../lib/planLines";
 import { termAndWeek } from "../lib/terms";
 import type { SchoolTerm } from "../lib/terms";
+import { LABELS, itemGaps, missingFromForm, startedItem } from "../lib/requestEssentials";
+import type { RequestRecord } from "../lib/forms/requestForms";
+
+/** A saved request as the edit form reads it. */
+type SavedRequest = RequestRecord & {
+  voteId: number | null;
+  subProgrammeId: number | null;
+  budgetItemId: number | null;
+  createdBy: number | null;
+};
+
+/** The red outline on a box that still needs filling in. */
+const NEEDED = "border-red-400 ring-2 ring-red-200";
 
 interface Vote { id: number; code: string; name: string; }
 /** `lineNumber` is the line's number in its vote (2202-5), for a sub-programme with no items of its own. */
@@ -36,6 +49,8 @@ interface Suggestion {
 
 interface LineItem {
   key: string;
+  /** The saved item's id, when editing a saved request. */
+  id?: number;
   savedItemId: number | null;
   /** The price-list entry the row came from, so a saved basket stays linked to it. */
   reservePriceItemId: number | null;
@@ -101,6 +116,16 @@ function getFinancialWeek(date: Date): { year: number; week: number } {
 export default function NewRequestPage() {
   const navigate = useNavigate();
   const { can, user } = useAuth();
+  // At /requests/:id/edit the same form edits a saved request.
+  const { id: editId } = useParams();
+  const editing = !!editId;
+  const [saved, setSaved] = useState<SavedRequest | null>(null);
+  const [reason, setReason] = useState("");
+  // The budget line of the request being edited, chosen again step by step as
+  // each list loads (choosing a vote clears the sub-programme, and so on).
+  const pendingLine = useRef<{ sp: number | null; bi: number | null } | null>(null);
+  // After a save is refused for missing boxes, they stay outlined until filled.
+  const [showNeeded, setShowNeeded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const debounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -214,6 +239,61 @@ export default function NewRequestPage() {
     api.get<BasketSummary[]>("/baskets").then(setBaskets).catch(() => setBaskets([]));
   }, []);
 
+  // Editing: fill the form with the saved request.
+  useEffect(() => {
+    if (!editId) return;
+    api
+      .get<SavedRequest>(`/requests/${editId}`)
+      .then((r) => {
+        setSaved(r);
+        if (!r.editAccess) {
+          setError("You can't edit this request. Ask the person who raised it, or someone allowed to correct records.");
+          return;
+        }
+        setProcurementSize(r.procurementSize === "macro" ? "macro" : "micro");
+        setYearType(r.yearType === "financial" ? "financial" : "calendar");
+        setCategory(r.category);
+        setBudgetCategory(r.budgetCategory);
+        setSubject(r.subjectOfProcurement ?? "");
+        setPlanRef(r.procurementPlanReference ?? "");
+        setPlanRefTyped(true);
+        setWeekNumber(r.weekNumber ? String(r.weekNumber) : "");
+        setTerm(r.term ? String(r.term) : "");
+        setLocation(r.locationForDelivery || "Kibuli Secondary School");
+        setDateRequired(r.dateRequired ? r.dateRequired.slice(0, 10) : "");
+        setIsMultiyear(!!r.isMultiyear);
+        setMyYears({
+          one: plain(r.multiyearYearOne ?? null),
+          two: plain(r.multiyearYearTwo ?? null),
+          three: plain(r.multiyearYearThree ?? null),
+          four: plain(r.multiyearYearFour ?? null),
+        });
+        setBalanceManual(plain(r.balanceRemainingManual ?? null));
+        setItems(
+          r.items.length
+            ? r.items.map((it) => {
+                const quantity = plain(it.quantity);
+                const estimatedUnitCost = plain(it.estimatedUnitCost);
+                return {
+                  ...makeItem(),
+                  id: it.id,
+                  description: it.description ?? "",
+                  quantity,
+                  unitOfMeasure: it.unitOfMeasure ?? "",
+                  estimatedUnitCost,
+                  totalCost: lineTotal(quantity, estimatedUnitCost),
+                };
+              })
+            : [makeItem()]
+        );
+        pendingLine.current = r.voteId ? { sp: r.subProgrammeId, bi: r.budgetItemId } : null;
+        setVoteId(r.voteId ?? "");
+        // Show straight away what this request is missing.
+        if (r.missing?.length) setShowNeeded(true);
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Couldn't load the request"));
+  }, [editId]);
+
   useEffect(() => {
     api.get<PlanLines>("/procurement-plan/lines").then(setPlanLines).catch(() => setPlanLines(null));
     api.get<string[]>("/requests/subjects").then(setPastSubjects).catch(() => setPastSubjects([]));
@@ -243,11 +323,20 @@ export default function NewRequestPage() {
       .then((sps) => {
         if (cancelled) return;
         setSubProgrammes(sps);
+        const pending = pendingLine.current;
+        if (pending?.sp && sps.some((s) => s.id === pending.sp)) setSubProgrammeId(pending.sp);
+        else if (pending && sps.length > 0) pendingLine.current = null;
         if (sps.length === 0) {
           api
             .get<BudgetItem[]>(`/lookup/votes/${voteId}/items`)
             .then((rows) => {
-              if (!cancelled) setBudgetItems(rows);
+              if (cancelled) return;
+              setBudgetItems(rows);
+              const p = pendingLine.current;
+              if (p) {
+                if (p.bi && rows.some((r) => r.id === p.bi)) setBudgetItemId(p.bi);
+                pendingLine.current = null;
+              }
             })
             .catch(showLoadError);
         }
@@ -270,6 +359,12 @@ export default function NewRequestPage() {
       .then((rows) => {
         if (cancelled) return;
         setBudgetItems(rows);
+        const p = pendingLine.current;
+        if (p) {
+          if (p.bi && rows.some((r) => r.id === p.bi)) setBudgetItemId(p.bi);
+          pendingLine.current = null;
+          return;
+        }
         // Tuition Stores departments have no budget items, so choosing the
         // sub-programme is the last step of the fund availability check.
         if (rows.length === 0 && sp) offerPicker(sp.name, sp.priceCategories, `sp:${sp.id}`);
@@ -496,16 +591,81 @@ export default function NewRequestPage() {
   const itemsTotal =
     Math.round(items.reduce((sum, it) => sum + (Number(it.totalCost) || 0), 0) * 100) / 100;
 
-  // Part II belongs to macro procurements and is the PDU's to fill.
-  const showPartTwo = procurementSize === "macro" && can("requests.prepare.committee");
+  // Part II belongs to macro procurements and is the PDU's to fill. When
+  // editing, it stays on the request's own page.
+  const showPartTwo = procurementSize === "macro" && can("requests.prepare.committee") && !editing;
+
+  // Everything TFORM 5 needs that only this form can supply.
+  const missing = missingFromForm({
+    weekNumber,
+    term,
+    subject,
+    location,
+    dateRequired,
+    voteId,
+    hasSubProgrammes: subProgrammes.length > 0,
+    subProgrammeId,
+    lineChosen: !!lineKey,
+    items,
+  });
+  const needs = (label: string) => showNeeded && missing.includes(label);
+  // Item rows are counted as the server counts them: started rows only.
+  const startedIndex = new Map(items.filter(startedItem).map((it, i) => [it.key, i]));
+
+  // A correction of someone else's request (or of one already sent on) says why.
+  const ownDraft = !!saved && saved.createdBy === user?.id && saved.status === "draft";
+  const needsReason = editing && saved?.editAccess === "corrector" && !ownDraft;
+
+  // Leaving with something filled in asks first: closing the tab, Cancel, or a link.
+  const snapshot = JSON.stringify([category, budgetCategory, subject, planRef, weekNumber, dateRequired, isMultiyear, myYears, voteId, subProgrammeId, budgetItemId, balanceManual, items.map((it) => [it.description, it.quantity, it.unitOfMeasure, it.estimatedUnitCost])]);
+  const baseline = useRef<string | null>(null);
+  const leaving = useRef(false);
+  useEffect(() => {
+    // The starting point: the empty form once a type is chosen, or the saved request once loaded.
+    if (baseline.current !== null || !procurementSize) return;
+    if (editing && (!saved || pendingLine.current || (saved.voteId && !voteId))) return;
+    baseline.current = snapshot;
+  });
+  const dirty = baseline.current !== null && snapshot !== baseline.current;
+  const LEAVE = "Leave without saving? What you've filled in on this request will be lost.";
+  useEffect(() => {
+    if (!dirty) return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (leaving.current) return;
+      e.preventDefault();
+      e.returnValue = LEAVE;
+    };
+    // Links elsewhere in the app (the side menu, the header) ask too.
+    const onClick = (e: MouseEvent) => {
+      if (leaving.current || e.defaultPrevented || e.button !== 0) return;
+      const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.target === "_blank") return;
+      if (!window.confirm(LEAVE)) {
+        e.preventDefault();
+        e.stopPropagation();
+      } else leaving.current = true;
+    };
+    window.addEventListener("beforeunload", onUnload);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [dirty]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    // The browser asks for it too; this covers one that lets a blank box through.
-    if (!weekNumber.trim()) {
-      setError("Type the week of the term before saving: it's one of the must-fill boxes.");
-      weekRef.current?.focus();
+    // Nothing the printed form needs may be left out: say what's missing, and outline it.
+    if (missing.length) {
+      setShowNeeded(true);
+      setError(`Fill these in before saving: ${missing.join("; ")}.`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (needsReason && reason.trim().length < 3) {
+      setShowNeeded(true);
+      setError("Say what was wrong, so the audit trail records why the request was changed.");
       return;
     }
     setSubmitting(true);
@@ -531,7 +691,8 @@ export default function NewRequestPage() {
         subProgrammeId: subProgrammeId || null,
         budgetItemId: budgetItemId || null,
         balanceRemainingManual: balanceManual || null,
-        items: items.map((it, i) => ({
+        items: items.filter(startedItem).map((it, i) => ({
+          id: it.id,
           itemNo: i + 1,
           savedItemId: it.savedItemId,
           description: it.description,
@@ -541,11 +702,25 @@ export default function NewRequestPage() {
           marketPrice: it.marketPrice || null,
         })),
         partTwo: showPartTwo ? partTwo : undefined,
+        reason: editing ? reason.trim() || undefined : undefined,
         // Lets the server recognise this request if it arrives more than once.
         clientRef: newClientRef(),
       };
+      if (editing) {
+        // Editing needs the server: a change can't wait in the outbox.
+        try {
+          await api.put(`/requests/${editId}`, payload);
+        } catch (err) {
+          if (err instanceof OfflineError) throw new Error("You're offline. Changes to a saved request can only be saved online.");
+          throw err;
+        }
+        leaving.current = true;
+        navigate(`/requests/${editId}`, { state: { edited: true } });
+        return;
+      }
       try {
         const req = await api.post<{ id: number }>("/requests", payload);
+        leaving.current = true;
         navigate(`/requests/${req.id}`);
       } catch (err) {
         if (!(err instanceof OfflineError) || !user) throw err;
@@ -562,6 +737,7 @@ export default function NewRequestPage() {
             total: itemsTotal || null,
           },
         });
+        leaving.current = true;
         navigate("/requests", { state: { queued: subject.trim() || "Untitled request" } });
       }
     } catch (err: unknown) {
@@ -583,6 +759,14 @@ export default function NewRequestPage() {
     (budgetItemId ? selectedBudgetItem?.supplyCode : null) ??
     (budgetItems.length === 0 ? selectedSubProgramme?.supplyCode : null) ??
     null;
+
+  if (editing && !procurementSize) {
+    return (
+      <div className="mx-auto max-w-3xl py-10 text-center text-sm text-gray-500">
+        {error ? <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3">{error}</div> : "Loading the request…"}
+      </div>
+    );
+  }
 
   // Gate: must choose procurement type first
   if (!procurementSize) {
@@ -638,11 +822,14 @@ export default function NewRequestPage() {
 
   return (
     <>
-    <form onSubmit={handleSubmit} className="max-w-5xl mx-auto space-y-6">
+    <form onSubmit={handleSubmit} noValidate className="max-w-5xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="page-title">New Procurement Request</h1>
+        <h1 className="page-title">{editing ? `Edit ${saved?.referenceNumber ?? "request"}` : "New Procurement Request"}</h1>
         <div className="text-xs text-gray-500">PPDA Act 2003 — TFORM 5</div>
       </div>
+      <p className="text-sm text-gray-500">
+        Boxes marked * are printed on TFORM 5 and must be filled in before the request can be saved.
+      </p>
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{error}</div>
@@ -663,10 +850,10 @@ export default function NewRequestPage() {
           <div>
             <label className="label">Sequence Number</label>
             <input
-              value=""
+              value={saved?.sequenceNumber ? String(saved.sequenceNumber) : ""}
               readOnly
               placeholder="(System generated on save)"
-              className="input bg-gray-50 cursor-not-allowed text-gray-400"
+              className="input bg-gray-50 cursor-not-allowed text-gray-700"
             />
           </div>
 
@@ -682,7 +869,7 @@ export default function NewRequestPage() {
                 step="1"
                 value={weekNumber}
                 onChange={(e) => setWeekNumber(e.target.value)}
-                className="input"
+                className={`input ${needs(LABELS.week) ? NEEDED : ""}`}
                 placeholder="Type the week of the term"
                 required
               />
@@ -693,7 +880,7 @@ export default function NewRequestPage() {
                 id="request-term"
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
-                className="input"
+                className={`input ${needs(LABELS.term) ? NEEDED : ""}`}
                 required
               >
                 <option value="">— Select term —</option>
@@ -754,7 +941,14 @@ export default function NewRequestPage() {
           <div className="col-span-2">
             <label className="label">Reference Number (auto-generated)</label>
             <input
-              value={`KSS/${catCode}/${yearCode}/${supplyCode ?? "(###)"}/(#####)`}
+              value={
+                saved && saved.referenceNumber.split("/").length === 5
+                  ? (() => {
+                      const parts = saved.referenceNumber.split("/");
+                      return `${parts[0]}/${catCode}/${parts[2]}/${supplyCode ?? "(###)"}/${parts[4]}`;
+                    })()
+                  : `KSS/${catCode}/${yearCode}/${supplyCode ?? "(###)"}/(#####)`
+              }
               readOnly
               className="input bg-gray-50 font-mono text-xs"
             />
@@ -774,14 +968,16 @@ export default function NewRequestPage() {
               <button
                 type="button"
                 onClick={() => setProcurementSize("micro")}
-                className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${isMicro ? "bg-green-700 text-white border-green-700" : "border-gray-300 text-gray-700"}`}
+                disabled={editing && saved?.status !== "draft"}
+                className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors disabled:opacity-50 ${isMicro ? "bg-green-700 text-white border-green-700" : "border-gray-300 text-gray-700"}`}
               >
                 Micro (&lt; 1,000,000 UGX)
               </button>
               <button
                 type="button"
                 onClick={() => setProcurementSize("macro")}
-                className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${!isMicro ? "bg-green-700 text-white border-green-700" : "border-gray-300 text-gray-700"}`}
+                disabled={editing && saved?.status !== "draft"}
+                className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors disabled:opacity-50 ${!isMicro ? "bg-green-700 text-white border-green-700" : "border-gray-300 text-gray-700"}`}
               >
                 Macro (&ge; 1,000,000 UGX)
               </button>
@@ -796,6 +992,7 @@ export default function NewRequestPage() {
         <div className="p-4 grid grid-cols-2 gap-4">
           <div className="col-span-2">
             <label className="label" htmlFor="request-subject">Subject of Procurement *</label>
+            <div className={needs(LABELS.subject) ? `rounded-lg ${NEEDED}` : ""}>
             <Combobox
               id="request-subject"
               value={subject}
@@ -804,6 +1001,7 @@ export default function NewRequestPage() {
               placeholder={pastSubjects.length ? "Type, or pick an earlier subject" : undefined}
               required
             />
+            </div>
           </div>
           <div>
             <label className="label" htmlFor="request-plan-ref">Procurement Plan Line</label>
@@ -829,8 +1027,15 @@ export default function NewRequestPage() {
             <input value={location} readOnly className="input bg-gray-100 cursor-not-allowed" />
           </div>
           <div>
-            <label className="label">Date Required (delivery date)</label>
-            <input type="date" value={dateRequired} onChange={(e) => setDateRequired(e.target.value)} className="input" />
+            <label className="label" htmlFor="request-date">Date Required (delivery date) *</label>
+            <input
+              id="request-date"
+              type="date"
+              value={dateRequired}
+              onChange={(e) => setDateRequired(e.target.value)}
+              className={`input ${needs(LABELS.date) ? NEEDED : ""}`}
+              required
+            />
             <p className="mt-1 text-xs text-gray-500">Printed as the delivery date on the LPO.</p>
           </div>
           <div>
@@ -879,11 +1084,12 @@ export default function NewRequestPage() {
         <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">PART III — FUND AVAILABILITY CHECK</div>
         <div className="p-4 grid grid-cols-2 gap-4">
           <div>
-            <label className="label">Vote</label>
+            <label className="label">Vote (Programme) *</label>
             <select
               value={voteId}
               onChange={(e) => setVoteId(e.target.value ? Number(e.target.value) : "")}
-              className="input"
+              className={`input ${needs(LABELS.vote) ? NEEDED : ""}`}
+              required
             >
               <option value="">— Select Vote —</option>
               {votes.map((v) => (
@@ -896,11 +1102,12 @@ export default function NewRequestPage() {
 
           {subProgrammes.length > 0 && (
             <div>
-              <label className="label">Sub-Programme</label>
+              <label className="label">Sub-Programme *</label>
               <select
                 value={subProgrammeId}
                 onChange={(e) => setSubProgrammeId(e.target.value ? Number(e.target.value) : "")}
-                className="input"
+                className={`input ${needs(LABELS.sub) ? NEEDED : ""}`}
+                required
               >
                 <option value="">— Select Sub-Programme —</option>
                 {subProgrammes.map((sp) => (
@@ -917,9 +1124,10 @@ export default function NewRequestPage() {
 
           {budgetItems.length > 0 && (
             <div>
-              <label className="label">Budget Item</label>
+              <label className="label">Budget Item *</label>
               <select
                 value={budgetItemId}
+                required
                 onChange={(e) => {
                   const id = e.target.value ? Number(e.target.value) : "";
                   setBudgetItemId(id);
@@ -928,7 +1136,7 @@ export default function NewRequestPage() {
                     offerPicker(bi.name, bi.priceCategories ?? selectedSubProgramme?.priceCategories, `bi:${bi.id}`);
                   }
                 }}
-                className="input"
+                className={`input ${needs(LABELS.line) ? NEEDED : ""}`}
               >
                 <option value="">— Select Budget Item —</option>
                 {budgetItems.map((bi) => (
@@ -989,14 +1197,18 @@ export default function NewRequestPage() {
                 <th className="px-2 py-2 text-left w-8">#</th>
                 <th className="px-2 py-2 text-left">Description</th>
                 <th className="px-2 py-2 text-left w-28">Qty</th>
-                <th className="px-2 py-2 text-left w-24">Unit</th>
-                <th className="px-2 py-2 text-right w-32">Unit Cost</th>
+                <th className="px-2 py-2 text-left w-24">Unit *</th>
+                <th className="px-2 py-2 text-right w-32">Unit Cost *</th>
                 <th className="px-2 py-2 text-right w-32">Estimated Cost</th>
                 <th className="px-2 py-2 w-8"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {items.map((item, idx) => (
+              {items.map((item, idx) => {
+                // A started row with gaps, once a save has been tried, outlines them.
+                const gaps = showNeeded && startedIndex.has(item.key) ? itemGaps(item) : [];
+                const gap = (g: string) => (gaps.includes(g) ? NEEDED : "");
+                return (
                 <tr key={item.key}>
                   <td className="px-2 py-2 text-gray-400 text-xs">{idx + 1}</td>
                   <td className="px-2 py-2 relative">
@@ -1009,7 +1221,7 @@ export default function NewRequestPage() {
                           150
                         )
                       }
-                      className="input text-xs"
+                      className={`input text-xs ${gap("description")}`}
                       placeholder={isMicro ? "Type to search catalog…" : "Description"}
                       required
                     />
@@ -1046,7 +1258,7 @@ export default function NewRequestPage() {
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateItem(item.key, { quantity: e.target.value })}
-                      className="input text-xs text-right"
+                      className={`input text-xs text-right ${gap("quantity")}`}
                       placeholder="Qty"
                       min="0"
                       step="0.01"
@@ -1058,8 +1270,9 @@ export default function NewRequestPage() {
                       autoCapitalize="off"
                       value={item.unitOfMeasure}
                       onChange={(e) => updateItem(item.key, { unitOfMeasure: e.target.value })}
-                      className="input text-xs"
+                      className={`input text-xs ${gap("unit")}`}
                       placeholder="pcs / kg…"
+                      required
                     />
                   </td>
                   <td className="px-2 py-2">
@@ -1072,9 +1285,10 @@ export default function NewRequestPage() {
                         Number(item.estimatedUnitCost) > Number(item.reserveMaxPrice)
                           ? "border-amber-400 bg-amber-50"
                           : ""
-                      }`}
+                      } ${gap("unit cost")}`}
                       min="0"
                       step="1"
+                      required
                     />
                     {item.reserveMaxPrice &&
                       Number(item.estimatedUnitCost) > Number(item.reserveMaxPrice) && (
@@ -1099,7 +1313,8 @@ export default function NewRequestPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="border-t border-gray-200">
@@ -1196,20 +1411,41 @@ export default function NewRequestPage() {
         </section>
       )}
 
+      {needsReason && (
+        <section className="card p-4">
+          <label className="label" htmlFor="edit-reason">What was wrong? *</label>
+          <textarea
+            id="edit-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className={`input min-h-[72px] ${showNeeded && reason.trim().length < 3 ? NEEDED : ""}`}
+            placeholder="e.g. The programme and sub-programme were left out."
+          />
+          <p className="mt-1 text-xs text-gray-500">Recorded in the Audit Trail with what changed.</p>
+        </section>
+      )}
+
+      {missing.length > 0 && (
+        <p className="text-right text-xs text-gray-500">Still to fill in: {missing.join("; ")}</p>
+      )}
       <div className="flex justify-end gap-3">
         <button
           type="button"
-          onClick={() => navigate(-1)}
+          onClick={() => {
+            if (dirty && !window.confirm(LEAVE)) return;
+            leaving.current = true;
+            navigate(editing ? `/requests/${editId}` : "/requests");
+          }}
           className="btn btn-secondary"
         >
           Cancel
         </button>
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || (editing && !saved?.editAccess)}
           className="btn btn-primary px-6"
         >
-          {submitting ? "Saving…" : "Save Request"}
+          {submitting ? "Saving…" : editing ? "Save changes" : "Save Request"}
         </button>
       </div>
     </form>

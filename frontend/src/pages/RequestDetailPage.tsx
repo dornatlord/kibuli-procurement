@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import { forgetName, keepNames, nameChoices, namesIn, useOfficials } from "../lib/officials";
 import { lineSuppliers, providerChoices, usePrequalifiedList, useSupplierNames } from "../lib/suppliers";
@@ -23,7 +23,7 @@ import StatusBadge from "../components/StatusBadge";
 import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
 import PartTwoTable, { rowDecisionsFrom, submissionFrom } from "../components/PartTwoForm";
 import type { PartTwoSubmission, RowDecisions, SupplierLine } from "../components/PartTwoForm";
-import CorrectionPanel, { CorrectionHistory, toEditLines } from "../components/CorrectionPanel";
+import { CorrectionHistory } from "../components/CorrectionPanel";
 
 /** Part II while it is being edited on the request page. */
 interface PartTwoDraft {
@@ -72,14 +72,13 @@ const NEXT_STATUS: Record<
 export default function RequestDetailPage() {
   const { id } = useParams();
   const { can } = useAuth();
+  // Arriving from the edit form, after saving.
+  const edited = !!(useLocation().state as { edited?: boolean } | null)?.edited;
   const officials = useOfficials();
   const [request, setRequest] = useState<Request | null>(null);
   const [linkedLpo, setLinkedLpo] = useState<LinkedLpo | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  // Correcting the saved request (administrators and those given the right).
-  const [correcting, setCorrecting] = useState(false);
-  const [corrected, setCorrected] = useState(false);
   const [partTwoEdit, setPartTwoEdit] = useState<PartTwoDraft | null>(null);
   const [partTwoSaving, setPartTwoSaving] = useState(false);
   const [partTwoError, setPartTwoError] = useState("");
@@ -194,6 +193,11 @@ export default function RequestDetailPage() {
         ]
       : NEXT_STATUS[request.status] || [];
   const actions = steps.filter((a) => can(a.permission));
+  // What TFORM 5 would print blank: until it's filled in, the request can be
+  // rejected but not sent on, approved or printed.
+  const missing = request.missing ?? [];
+  const incomplete = missing.length > 0;
+  const editLink = `/requests/${request.id}/edit`;
   const canPrepare = can("requests.prepare.committee");
   const canDecide = can("requests.approve.committee");
   const meetingLine = [formDate(request.stepDates?.committeeMeeting), request.decision?.meetingReference]
@@ -244,27 +248,32 @@ export default function RequestDetailPage() {
           <div className="flex flex-wrap gap-2">
             {can("requests.print") && (
               <>
-                <button type="button" onClick={() => setChecking("calloff")} className="btn btn-secondary">
+                <button
+                  type="button"
+                  onClick={() => setChecking("calloff")}
+                  disabled={incomplete}
+                  title={incomplete ? "Fill in what's missing first" : undefined}
+                  className="btn btn-secondary"
+                >
                   <PrinterIcon className="h-4 w-4" />
                   Call-off order & price schedule
                 </button>
-                <button type="button" onClick={checkTForm} className="btn btn-secondary">
+                <button
+                  type="button"
+                  onClick={checkTForm}
+                  disabled={incomplete}
+                  title={incomplete ? "Fill in what's missing first" : undefined}
+                  className="btn btn-secondary"
+                >
                   <PrinterIcon className="h-4 w-4" />
                   Print TFORM 5
                 </button>
               </>
             )}
-            {can("records.correct") && !correcting && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCorrecting(true);
-                  setCorrected(false);
-                }}
-                className="btn btn-secondary"
-              >
-                Correct
-              </button>
+            {request.editAccess && (
+              <Link to={editLink} className="btn btn-secondary">
+                Edit
+              </Link>
             )}
             {can("purchase_orders.create") && request.status !== "rejected" && (
               <Link to={`/purchase-orders/new?requestId=${request.id}`} className="btn btn-primary">
@@ -357,47 +366,35 @@ export default function RequestDetailPage() {
         />
       )}
 
-      {correcting && (
-        <CorrectionPanel
-          title={`Correct ${request.referenceNumber}`}
-          fields={[
-            { key: "subjectOfProcurement", label: "Subject of procurement" },
-            { key: "procurementPlanReference", label: "Procurement plan reference" },
-            { key: "locationForDelivery", label: "Location for delivery" },
-            { key: "dateRequired", label: "Date required (delivery date)", type: "date" },
-            { key: "weekNumber", label: "Week (of the term)" },
-            { key: "term", label: "Term" },
-          ]}
-          initial={{
-            subjectOfProcurement: request.subjectOfProcurement ?? "",
-            procurementPlanReference: request.procurementPlanReference ?? "",
-            locationForDelivery: request.locationForDelivery ?? "",
-            dateRequired: request.dateRequired ? request.dateRequired.slice(0, 10) : "",
-            weekNumber: request.weekNumber ? String(request.weekNumber) : "",
-            term: request.term ? String(request.term) : "",
-          }}
-          lines={toEditLines(
-            request.items.map((it) => ({
-              id: it.id,
-              description: it.description,
-              quantity: it.quantity,
-              unitOfMeasure: it.unitOfMeasure,
-              price: it.estimatedUnitCost,
-            }))
-          )}
-          priceLabel="Estimated unit cost"
-          onSave={async ({ values, items, reason }) => {
-            await api.put(`/requests/${request.id}/correct`, { ...values, items, reason });
-            setCorrecting(false);
-            setCorrected(true);
-            load();
-          }}
-          onClose={() => setCorrecting(false)}
-        />
+      {incomplete && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-red-900">This request is incomplete</p>
+              <p className="mt-1 text-sm text-red-800">
+                TFORM 5 would print these blank, so it can't be sent on, approved or printed until they're filled in:
+              </p>
+              <ul className="mt-2 list-disc pl-5 text-sm text-red-800">
+                {missing.map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+            </div>
+            {request.editAccess ? (
+              <Link to={editLink} className="btn btn-primary">
+                Fill them in
+              </Link>
+            ) : (
+              <p className="max-w-xs text-sm text-red-800">
+                Ask the person who raised it, or someone allowed to correct records, to fill them in.
+              </p>
+            )}
+          </div>
+        </div>
       )}
-      {corrected && (
+      {edited && !incomplete && (
         <p role="status" className="rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
-          Corrected. The Audit Trail records what changed, and printing shows the corrected request.
+          Saved. The Audit Trail records what changed, and printing shows the request as it is now.
         </p>
       )}
 
@@ -413,7 +410,8 @@ export default function RequestDetailPage() {
                 key={a.next}
                 type="button"
                 onClick={() => transition(a.next)}
-                disabled={acting}
+                disabled={acting || (incomplete && a.next !== "rejected")}
+                title={incomplete && a.next !== "rejected" ? "Fill in what's missing first" : undefined}
                 className={`btn ${a.next === "rejected" ? "btn-danger" : "btn-primary"}`}
               >
                 {a.label}
