@@ -731,3 +731,54 @@ export const userSessions = pgTable("user_sessions", {
   sess: json("sess").notNull(),
   expire: timestamp("expire", { precision: 6 }).notNull(),
 });
+
+/** The names, titles and dates a request's forms print, saved as entered. */
+export const requestFormDetails = pgTable("request_form_details", {
+  procurementRequestId: integer("procurement_request_id")
+    .primaryKey()
+    .references(() => procurementRequests.id, { onDelete: "cascade" }),
+  tform: jsonb("tform"),
+  calloff: jsonb("calloff"),
+  updatedBy: integer("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/** A Contracts Committee meeting and its minutes. */
+export const committeeMeetings = pgTable("committee_meetings", {
+  id: serial("id").primaryKey(),
+  referenceNumber: text("reference_number").unique().notNull(),
+  meetingType: text("meeting_type").notNull().default("ordinary"),
+  meetingDate: date("meeting_date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  venue: text("venue"),
+  attendees: jsonb("attendees").notNull().default(sql`'[]'::jsonb`),
+  opening: text("opening"),
+  previousMinutes: text("previous_minutes"),
+  mattersArising: text("matters_arising"),
+  otherBusiness: text("other_business"),
+  nextMeetingDate: date("next_meeting_date"),
+  chairName: text("chair_name"),
+  secretaryName: text("secretary_name"),
+  status: text("status").notNull().default("draft"),
+  finalizedBy: integer("finalized_by").references(() => users.id),
+  finalizedAt: timestamp("finalized_at"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/** One matter taken at a meeting, often a request the committee decided. */
+export const committeeMeetingItems = pgTable("committee_meeting_items", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id")
+    .notNull()
+    .references(() => committeeMeetings.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+  requestId: integer("request_id").references(() => procurementRequests.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  discussion: text("discussion"),
+  decision: text("decision"),
+  resolution: text("resolution"),
+  conditions: text("conditions"),
+});

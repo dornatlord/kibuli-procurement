@@ -75,6 +75,9 @@ export type Permission =
   // Disposals
   | "disposals.view"
   | "disposals.manage"
+  // Contracts Committee meeting minutes
+  | "meetings.view"
+  | "meetings.manage"
   // Correcting a saved request or LPO: administrators, plus anyone given it
   // on Users & Roles (users.can_correct_records). No other role has it.
   | "records.correct"
@@ -126,6 +129,8 @@ const ALL_PERMISSIONS: Permission[] = [
   "reports.prepare",
   "disposals.view",
   "disposals.manage",
+  "meetings.view",
+  "meetings.manage",
   "records.correct",
   "system.settings",
 ];
@@ -186,6 +191,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "reports.view",
     "reports.prepare",
     "disposals.view",
+    "meetings.view",
   ],
 
   // The PDU — operates suppliers, POs, receiving, contracts and the plan
@@ -216,6 +222,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "reports.prepare",
     "disposals.view",
     "disposals.manage",
+    "meetings.view",
   ],
 
   // Records committee decisions on macro procurements
@@ -230,6 +237,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "procurement_plan.view",
     "reports.view",
     "disposals.view",
+    "meetings.view",
+    "meetings.manage",
   ],
 
   contracts_secretary: [
@@ -243,6 +252,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "procurement_plan.view",
     "reports.view",
     "disposals.view",
+    "meetings.view",
+    "meetings.manage",
   ],
 
   // Read-only across everything reasonable
@@ -258,6 +269,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "inventory.view",
     "reports.view",
     "disposals.view",
+    "meetings.view",
   ],
 };
 

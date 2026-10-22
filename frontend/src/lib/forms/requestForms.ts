@@ -103,6 +103,15 @@ export interface RequestRecord {
   items: RequestLineItem[];
   /** When it was corrected, by whom and why. */
   corrections?: { at: string; by: string | null; reason: string | null }[];
+  /** The names, titles and dates its forms print, as last saved (null until saved). */
+  formDetails?: {
+    tform: Partial<Record<string, string>> | null;
+    calloff: Partial<Record<string, string>> | null;
+    updatedAt: string | null;
+    by: string | null;
+  } | null;
+  /** The Contracts Committee meeting whose minutes took this request. */
+  minutesMeeting?: { id: number; referenceNumber: string; meetingDate: string; status: string; decision: string | null } | null;
   /** What the printed form still lacks; until it's empty the request can't go on or be printed. */
   missing?: string[];
   /** Who may edit it: the person who raised it, someone who corrects records, or nobody. */
@@ -254,7 +263,8 @@ export function tformFill(request: RequestRecord, officials: Officials): TFormFi
     chairOn: day,
     secretaryName: officials.committee_secretary?.name ?? "",
     secretaryOn: day,
-    meetingOn: day,
+    // The committee's own minutes give the date, once there are some.
+    meetingOn: request.minutesMeeting?.meetingDate ? kampalaDay(request.minutesMeeting.meetingDate) : day,
   };
 }
 

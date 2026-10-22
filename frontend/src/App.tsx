@@ -35,6 +35,9 @@ import BasketsPage from "./pages/BasketsPage";
 import BasketEditorPage from "./pages/BasketEditorPage";
 import TermlyReportPage from "./pages/TermlyReportPage";
 import DisposalsPage from "./pages/DisposalsPage";
+import MinutesListPage from "./pages/MinutesListPage";
+import MinutesEditorPage from "./pages/MinutesEditorPage";
+import MinutesDetailPage from "./pages/MinutesDetailPage";
 import SettingsPage from "./pages/SettingsPage";
 import OfficialsPage from "./pages/OfficialsPage";
 import Layout from "./components/Layout";
@@ -294,6 +297,38 @@ function AppRoutes() {
           element={
             <Guard permissions={["reports.view"]}>
               <ReportsPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="minutes"
+          element={
+            <Guard permissions={["meetings.view"]}>
+              <MinutesListPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="minutes/new"
+          element={
+            <Guard permissions={["meetings.manage"]}>
+              <MinutesEditorPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="minutes/:id"
+          element={
+            <Guard permissions={["meetings.view"]}>
+              <MinutesDetailPage />
+            </Guard>
+          }
+        />
+        <Route
+          path="minutes/:id/edit"
+          element={
+            <Guard permissions={["meetings.manage"]}>
+              <MinutesEditorPage />
             </Guard>
           }
         />

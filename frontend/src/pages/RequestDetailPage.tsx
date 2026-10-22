@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import { forgetName, keepNames, nameChoices, namesIn, useOfficials } from "../lib/officials";
@@ -17,7 +17,8 @@ import {
 import type { CallOffFill, RequestRecord, TFormFill } from "../lib/forms/requestForms";
 import { planOptions } from "../lib/planLines";
 import type { PlanLines } from "../lib/planLines";
-import PrintCheck from "../components/PrintCheck";
+import FormDetailsPanel from "../components/FormDetailsPanel";
+import type { FormTab } from "../components/FormDetailsPanel";
 import type { CheckSection } from "../components/PrintCheck";
 import StatusBadge from "../components/StatusBadge";
 import { CheckIcon, ChevronLeftIcon, PlusIcon, PrinterIcon, SpinnerIcon } from "../components/icons";
@@ -82,13 +83,21 @@ export default function RequestDetailPage() {
   const [partTwoEdit, setPartTwoEdit] = useState<PartTwoDraft | null>(null);
   const [partTwoSaving, setPartTwoSaving] = useState(false);
   const [partTwoError, setPartTwoError] = useState("");
-  // Checking the names, titles and dates a form will print, before printing it.
-  const [checking, setChecking] = useState<"tform" | "calloff" | null>(null);
-  // Offered for the call-off order's provider, once its check is open: the
-  // suppliers pre-qualified for the request's budget line first.
-  const supplierNames = useSupplierNames(checking === "calloff");
-  const prequalified = usePrequalifiedList(request?.year, checking === "calloff" && !!request);
+  // The names, titles and dates the forms print live beside the request: the
+  // starting suggestions, what was saved with the request, and what has been
+  // changed since it was last saved.
+  const [edits, setEdits] = useState<{ tform: Partial<TFormFill>; calloff: Partial<CallOffFill> }>({ tform: {}, calloff: {} });
+  const [printError, setPrintError] = useState("");
+  // Offered for the call-off order's provider: the suppliers pre-qualified for
+  // the request's budget line first.
+  const supplierNames = useSupplierNames(can("requests.print"));
+  const prequalified = usePrequalifiedList(request?.year, can("requests.print") && !!request);
   const [plan, setPlan] = useState<PlanLines | null>(null);
+  const suggested = useMemo(() => {
+    if (!request) return null;
+    const first = (request.decision?.shortlistedProviders ?? "").split("\n").map((n) => n.trim()).filter(Boolean)[0];
+    return { tform: tformFill(request, officials), calloff: callOffFill(officials, linkedLpo, first) };
+  }, [request, officials, linkedLpo]);
 
   function load() {
     setLoading(true);
@@ -109,13 +118,18 @@ export default function RequestDetailPage() {
       .catch(() => setLinkedLpo(null));
   }, [id]);
 
-  /** Opens the check before printing TFORM 5, with the year's plan lines to offer for page 2. */
-  async function checkTForm() {
-    if (!plan && request) {
-      const lines = await api.get<PlanLines>(`/procurement-plan/lines?year=${request.year}`).catch(() => null);
-      setPlan(lines);
-    }
-    setChecking("tform");
+  // The year's plan lines, to offer for page 2 of TFORM 5.
+  useEffect(() => {
+    if (!request || !can("requests.print")) return;
+    api
+      .get<PlanLines>(`/procurement-plan/lines?year=${request.year}`)
+      .then(setPlan)
+      .catch(() => setPlan(null));
+  }, [request?.year]);
+
+  /** The request as it is now, without the page's loading spinner. */
+  async function refresh() {
+    setRequest(await api.get<Request>(`/requests/${id}`));
   }
 
   async function transition(next: string) {
@@ -219,6 +233,142 @@ export default function RequestDetailPage() {
     ...(linkedLpo?.supplierName ? [{ value: linkedLpo.supplierName, hint: "The supplier on this request's LPO" }] : []),
     ...shortlisted.map((name) => ({ value: name, hint: "Shortlisted in Part II" })),
   ];
+  // What each form would print: the saved details over the suggestions, then any change not yet saved.
+  const savedT = (request.formDetails?.tform ?? {}) as Partial<TFormFill>;
+  const savedC = (request.formDetails?.calloff ?? {}) as Partial<CallOffFill>;
+  const baseT = { ...suggested!.tform, ...savedT } as TFormFill;
+  const baseC = { ...suggested!.calloff, ...savedC } as CallOffFill;
+  const valuesT = { ...baseT, ...edits.tform } as TFormFill;
+  const valuesC = { ...baseC, ...edits.calloff } as CallOffFill;
+  const dirtyT = Object.keys(edits.tform).length > 0;
+  const dirtyC = Object.keys(edits.calloff).length > 0;
+
+  function change(kind: "tform" | "calloff", key: string, value: string, base: Record<string, string>) {
+    setEdits((e) => {
+      const next = { ...(e[kind] as Record<string, string>) };
+      if (value === base[key]) delete next[key];
+      else next[key] = value;
+      return { ...e, [kind]: next };
+    });
+  }
+  function resetToSuggested(kind: "tform" | "calloff", base: Record<string, string>) {
+    const want = suggested![kind] as Record<string, string>;
+    const diff: Record<string, string> = {};
+    for (const k of Object.keys(want)) if (want[k] !== base[k]) diff[k] = want[k];
+    setEdits((e) => ({ ...e, [kind]: diff }));
+  }
+  /** Keeps what's entered with the request, and the names under their titles for the next request. */
+  async function saveForm(kind: "tform" | "calloff") {
+    const values = kind === "tform" ? valuesT : valuesC;
+    await api.put(`/requests/${request!.id}/form-details`, { [kind]: values });
+    if (kind === "tform") {
+      const start = suggested!.tform;
+      const changed = (name: keyof TFormFill, title?: keyof TFormFill) =>
+        valuesT[name].trim() !== start[name].trim() || (!!title && valuesT[title].trim() !== start[title].trim());
+      keepNames([
+        changed("requesterName", "requesterTitle") && { title: valuesT.requesterTitle, name: valuesT.requesterName },
+        changed("hodName", "hodTitle") && { title: valuesT.hodTitle, name: valuesT.hodName },
+        changed("aoName", "aoTitle") && { title: valuesT.aoTitle, name: valuesT.aoName },
+        request!.procurementSize === "macro" &&
+          changed("pduName", "pduTitle") && { title: valuesT.pduTitle, name: valuesT.pduName },
+        request!.procurementSize === "macro" &&
+          changed("chairName") && { office: "committee_chairperson", name: valuesT.chairName },
+        request!.procurementSize === "macro" &&
+          changed("secretaryName") && { office: "committee_secretary", name: valuesT.secretaryName },
+      ]);
+    } else if (
+      valuesC.authorisedName.trim() !== suggested!.calloff.authorisedName.trim() ||
+      valuesC.authorisedPosition !== suggested!.calloff.authorisedPosition
+    ) {
+      keepNames([{ title: valuesC.authorisedPosition, name: valuesC.authorisedName }]);
+    }
+    await refresh();
+    setEdits((e) => ({ ...e, [kind]: {} }));
+  }
+  /** Prints with what's shown, saving it first if it hasn't been saved as it stands. */
+  async function printForm(kind: "tform" | "calloff") {
+    const unsaved = kind === "tform" ? dirtyT || !request!.formDetails?.tform : dirtyC || !request!.formDetails?.calloff;
+    if (unsaved) await saveForm(kind);
+    if (kind === "tform") printTForm(request!, valuesT);
+    else printCallOffOrder(request!, valuesC);
+  }
+  async function runPrint(kind: "tform" | "calloff") {
+    setPrintError("");
+    try {
+      await printForm(kind);
+    } catch (err) {
+      setPrintError(err instanceof Error ? err.message : "Couldn't print");
+    }
+  }
+  const blocked = incomplete ? "Fill in what's missing first." : undefined;
+  const tabs: FormTab[] = [
+    {
+      key: "tform",
+      label: "TFORM 5",
+      sections: tformSections(request, officials, plan),
+      values: valuesT,
+      dirty: dirtyT,
+      saved: !!request.formDetails?.tform,
+      onChange: (k, v) => change("tform", k, v, baseT),
+      onReset: () => resetToSuggested("tform", baseT),
+      onSave: () => saveForm("tform"),
+      onPrint: () => printForm("tform"),
+      blocked,
+    },
+    {
+      key: "calloff",
+      label: "Call-off order",
+      sections: [
+        {
+          title: "Call-off order",
+          fields: [
+            {
+              key: "provider",
+              label: "Provider",
+              // The LPO's supplier and Part II's shortlist first, then the
+              // suppliers pre-qualified for the request's budget line; typing
+              // finds every other supplier.
+              options: (v) =>
+                providerChoices({
+                  value: v.provider,
+                  line: lineSuppliers(prequalified, lineKey),
+                  names: supplierNames,
+                  first: providersFirst,
+                }),
+              wide: true,
+            },
+            { key: "date", label: "Date of call-off order", type: "date" },
+          ],
+        },
+        {
+          title: "Authorised by",
+          fields: [
+            {
+              key: "authorisedName",
+              label: "Name",
+              options: (v) =>
+                nameChoices(officials, v.authorisedPosition, ...namesIn(officials, "accounting_officer", "head_teacher")),
+              onRemove: (name, v) => forgetName(v.authorisedPosition, name),
+            },
+            {
+              key: "authorisedPosition",
+              label: "Position",
+              options: [officials.accounting_officer?.title ?? "", "Accounting Officer", "Head Teacher"],
+            },
+          ],
+        },
+      ],
+      values: valuesC,
+      dirty: dirtyC,
+      saved: !!request.formDetails?.calloff,
+      onChange: (k, v) => change("calloff", k, v, baseC),
+      onReset: () => resetToSuggested("calloff", baseC),
+      onSave: () => saveForm("calloff"),
+      onPrint: () => printForm("calloff"),
+      blocked,
+    },
+  ];
+
   // A step counts as done once it has a signature or a recorded date — the
   // administrator approves without signing, so the date is often all there is.
   const chain = [
@@ -228,7 +378,7 @@ export default function RequestDetailPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <Link
           to="/requests"
@@ -250,7 +400,7 @@ export default function RequestDetailPage() {
               <>
                 <button
                   type="button"
-                  onClick={() => setChecking("calloff")}
+                  onClick={() => runPrint("calloff")}
                   disabled={incomplete}
                   title={incomplete ? "Fill in what's missing first" : undefined}
                   className="btn btn-secondary"
@@ -260,7 +410,7 @@ export default function RequestDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={checkTForm}
+                  onClick={() => runPrint("tform")}
                   disabled={incomplete}
                   title={incomplete ? "Fill in what's missing first" : undefined}
                   className="btn btn-secondary"
@@ -285,87 +435,14 @@ export default function RequestDetailPage() {
         </div>
       </div>
 
-      {checking === "tform" && (
-        <PrintCheck<TFormFill>
-          // Filled in again once the officials have loaded, but not when a name is kept or removed.
-          key={`tform-${Object.keys(officials).length > 0}`}
-          title="Check TFORM 5 before printing"
-          sections={tformSections(request, officials, plan)}
-          initial={tformFill(request, officials)}
-          onPrint={(fill, start) => {
-            printTForm(request, fill);
-            // Names typed or changed here are kept under their title, to be offered next time.
-            const changed = (name: keyof TFormFill, title?: keyof TFormFill) =>
-              fill[name].trim() !== start[name].trim() || (!!title && fill[title].trim() !== start[title].trim());
-            keepNames([
-              changed("requesterName", "requesterTitle") && { title: fill.requesterTitle, name: fill.requesterName },
-              changed("hodName", "hodTitle") && { title: fill.hodTitle, name: fill.hodName },
-              changed("aoName", "aoTitle") && { title: fill.aoTitle, name: fill.aoName },
-              request.procurementSize === "macro" &&
-                changed("pduName", "pduTitle") && { title: fill.pduTitle, name: fill.pduName },
-              request.procurementSize === "macro" &&
-                changed("chairName") && { office: "committee_chairperson", name: fill.chairName },
-              request.procurementSize === "macro" &&
-                changed("secretaryName") && { office: "committee_secretary", name: fill.secretaryName },
-            ]);
-          }}
-          onClose={() => setChecking(null)}
-        />
-      )}
-      {checking === "calloff" && (
-        <PrintCheck<CallOffFill>
-          key={`calloff-${Object.keys(officials).length > 0}`}
-          title="Check the call-off order before printing"
-          sections={[
-            {
-              title: "Call-off order",
-              fields: [
-                {
-                  key: "provider",
-                  label: "Provider",
-                  // The LPO's supplier and Part II's shortlist first, then the
-                  // suppliers pre-qualified for the request's budget line; typing
-                  // finds every other supplier.
-                  options: (v) =>
-                    providerChoices({
-                      value: v.provider,
-                      line: lineSuppliers(prequalified, lineKey),
-                      names: supplierNames,
-                      first: providersFirst,
-                    }),
-                },
-                { key: "date", label: "Date of call-off order", type: "date" },
-              ],
-            },
-            {
-              title: "Authorised by",
-              fields: [
-                {
-                  key: "authorisedName",
-                  label: "Name",
-                  options: (v) =>
-                    nameChoices(officials, v.authorisedPosition, ...namesIn(officials, "accounting_officer", "head_teacher")),
-                  onRemove: (name, v) => forgetName(v.authorisedPosition, name),
-                },
-                {
-                  key: "authorisedPosition",
-                  label: "Position",
-                  options: [officials.accounting_officer?.title ?? "", "Accounting Officer", "Head Teacher"],
-                },
-              ],
-            },
-          ]}
-          initial={callOffFill(officials, linkedLpo, shortlisted[0])}
-          onPrint={(fill, start) => {
-            printCallOffOrder(request, fill);
-            if (fill.authorisedName.trim() !== start.authorisedName.trim() || fill.authorisedPosition !== start.authorisedPosition) {
-              keepNames([{ title: fill.authorisedPosition, name: fill.authorisedName }]);
-            }
-          }}
-          onClose={() => setChecking(null)}
-        />
+      {printError && (
+        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+          {printError}
+        </p>
       )}
 
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_25rem]">
+      <div className="min-w-0 space-y-6">
       {incomplete && (
         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -421,7 +498,7 @@ export default function RequestDetailPage() {
         </div>
       )}
 
-      <dl className="card grid gap-px overflow-hidden bg-gray-100 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="card grid gap-px overflow-hidden bg-gray-100 sm:grid-cols-2 xl:grid-cols-3">
         <Field label="Category">
           <span className="capitalize">{request.category?.replace("_", "-")}</span>
         </Field>
@@ -441,6 +518,17 @@ export default function RequestDetailPage() {
         <Field label="Location">{request.locationForDelivery || "—"}</Field>
         <Field label="Date required (delivery)">{formDate(request.dateRequired) || "—"}</Field>
         <Field label="Plan reference">{request.procurementPlanReference || "—"}</Field>
+        {request.minutesMeeting && (
+          <Field label="Contracts Committee meeting">
+            {can("meetings.view") ? (
+              <Link to={`/minutes/${request.minutesMeeting.id}`} className="text-green-700 hover:underline">
+                {request.minutesMeeting.referenceNumber}
+              </Link>
+            ) : (
+              request.minutesMeeting.referenceNumber
+            )}
+          </Field>
+        )}
         <Field label="Estimated total">
           {request.estimatedTotalCost
             ? `UGX ${Number(request.estimatedTotalCost).toLocaleString("en-UG")}`
@@ -700,6 +788,18 @@ export default function RequestDetailPage() {
       )}
 
       <CorrectionHistory corrections={request.corrections} />
+      </div>
+      {can("requests.print") && (
+        <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+          <FormDetailsPanel
+            tabs={tabs}
+            savedAt={request.formDetails?.updatedAt ?? null}
+            savedBy={request.formDetails?.by ?? null}
+            canEdit={can("requests.print")}
+          />
+        </div>
+      )}
+      </div>
     </div>
   );
 }

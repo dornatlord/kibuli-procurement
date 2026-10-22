@@ -145,6 +145,8 @@ export const PERMISSION_GROUPS: { title: string; items: [permission: string, lab
       ["procurement_plan.manage", "Edit the procurement plan"],
       ["reports.view", "See reports"],
       ["reports.prepare", "Prepare and save PPDA returns"],
+      ["meetings.view", "See Contracts Committee minutes"],
+      ["meetings.manage", "Write and finalise the minutes"],
     ],
   },
   {

@@ -484,6 +484,12 @@ const ACTIONS: Record<string, string> = {
   "suppliers.list_started": "Started a year's supplier list",
   "suppliers.prequalified_imported": "Put a year's pre-qualified list into the system",
   "request.corrected": "Corrected a request",
+  "request.form_details_saved": "Saved the names and dates on a request's forms",
+  "meeting.created": "Started minutes for a committee meeting",
+  "meeting.updated": "Updated committee minutes",
+  "meeting.finalized": "Finalised committee minutes",
+  "meeting.reopened": "Reopened committee minutes",
+  "meeting.deleted": "Deleted draft committee minutes",
   "purchase_order.corrected": "Corrected an LPO",
   "settings.terms_updated": "Changed the school terms",
   "settings.officials_updated": "Changed the officials",
@@ -557,6 +563,8 @@ function linkFor(entry: Entry): string | null {
       return "/invoices";
     case "disposal":
       return "/disposals";
+    case "committee_meeting":
+      return id && !gone ? `/minutes/${id}` : "/minutes";
     case "asset":
       return "/inventory";
     case "procurement_plan_item":

@@ -11,6 +11,9 @@ import {
   budgetItems,
   users,
   auditLogs,
+  requestFormDetails,
+  committeeMeetings,
+  committeeMeetingItems,
 } from "../db/schema.js";
 import { eq, and, asc, desc, sql, inArray } from "drizzle-orm";
 import { requireAuth, requirePermission, requireCorrectionRight } from "../middleware/auth.js";
@@ -29,6 +32,7 @@ import { visibleRequestFilter } from "../lib/requestAccess.js";
 import { lineNumberOf } from "../lib/budgetLines.js";
 import { getTerms, termAndWeek, wholeNumberIn } from "../lib/terms.js";
 import { budgetLineOf, missingDetails, missingMessage } from "../lib/requestEssentials.js";
+import { CALLOFF_KEYS, TFORM_KEYS, cleanDetails } from "../lib/formDetails.js";
 
 const router = asyncRouter();
 
@@ -306,6 +310,32 @@ router.get(
   // take them from the day they were made.
   const fromDate = termAndWeek(await getTerms(), request.createdAt ?? new Date());
   const missing = await missingFromSaved(request, items);
+  const [savedDetails] = await db
+    .select({
+      tform: requestFormDetails.tform,
+      calloff: requestFormDetails.calloff,
+      updatedAt: requestFormDetails.updatedAt,
+      by: users.name,
+    })
+    .from(requestFormDetails)
+    .leftJoin(users, eq(users.id, requestFormDetails.updatedBy))
+    .where(eq(requestFormDetails.procurementRequestId, request.id));
+  const formDetails = savedDetails
+    ? { tform: savedDetails.tform ?? null, calloff: savedDetails.calloff ?? null, updatedAt: savedDetails.updatedAt, by: savedDetails.by }
+    : null;
+  const [minutesMeeting] = await db
+    .select({
+      id: committeeMeetings.id,
+      referenceNumber: committeeMeetings.referenceNumber,
+      meetingDate: committeeMeetings.meetingDate,
+      status: committeeMeetings.status,
+      decision: committeeMeetingItems.decision,
+    })
+    .from(committeeMeetingItems)
+    .innerJoin(committeeMeetings, eq(committeeMeetings.id, committeeMeetingItems.meetingId))
+    .where(eq(committeeMeetingItems.requestId, request.id))
+    .orderBy(desc(committeeMeetings.meetingDate), desc(committeeMeetings.id))
+    .limit(1);
 
   res.json({
     ...request,
@@ -333,6 +363,10 @@ router.get(
     projectTitle: budgetItem?.name ?? subProg?.name ?? null,
     // When the request was corrected, by whom and why; the audit trail has the details.
     corrections: await correctionsOf("procurement_request", request.id, "request.corrected"),
+    // The names, titles and dates its forms print, as last saved.
+    formDetails,
+    // The committee meeting whose minutes took this request, if any.
+    minutesMeeting: minutesMeeting ?? null,
     // What the printed form still lacks: until it's empty, the request can't
     // be sent on, approved or printed.
     missing,
@@ -600,6 +634,57 @@ router.put("/:id", requireAuth, async (req, res) => {
     total: { from: request.estimatedTotalCost, to: String(total) },
   });
   res.json({ ok: true, id, referenceNumber });
+});
+
+/**
+ * Saves the names, titles and dates a request's forms print, as entered, so
+ * they're seen again and printed as saved. Whoever may print the request's
+ * forms may save them; each box is kept only if it's one of the forms' own.
+ */
+router.put("/:id/form-details", requirePermission("requests.print"), async (req, res) => {
+  const id = Number(req.params.id);
+  const filter = await visibleRequestFilter(req.session);
+  const idMatch = eq(procurementRequests.id, id);
+  const [request] = await db
+    .select({ id: procurementRequests.id, referenceNumber: procurementRequests.referenceNumber })
+    .from(procurementRequests)
+    .where(filter ? and(idMatch, filter) : idMatch);
+  if (!request) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const tform = cleanDetails(req.body?.tform, TFORM_KEYS);
+  const calloff = cleanDetails(req.body?.calloff, CALLOFF_KEYS);
+  for (const part of [tform, calloff]) {
+    if (typeof part === "string") {
+      res.status(400).json({ error: part });
+      return;
+    }
+  }
+  if (tform === undefined && calloff === undefined) {
+    res.status(400).json({ error: "Nothing to save." });
+    return;
+  }
+  const [before] = await db.select().from(requestFormDetails).where(eq(requestFormDetails.procurementRequestId, id));
+  const merged = (old: unknown, sent: Record<string, string> | string | undefined) =>
+    sent && typeof sent === "object" ? { ...((old as Record<string, string> | null) ?? {}), ...sent } : (old ?? null);
+  const values = {
+    tform: merged(before?.tform, tform as Record<string, string> | undefined),
+    calloff: merged(before?.calloff, calloff as Record<string, string> | undefined),
+    updatedBy: req.session.userId!,
+    updatedAt: new Date(),
+  };
+  await db
+    .insert(requestFormDetails)
+    .values({ procurementRequestId: id, ...values })
+    .onConflictDoUpdate({ target: requestFormDetails.procurementRequestId, set: values });
+  const changed = (a: unknown, b: unknown) =>
+    Object.keys((b as object) ?? {}).filter((k) => ((a as Record<string, string> | null) ?? {})[k] !== (b as Record<string, string>)[k]);
+  await logAudit(req.session.userId!, "request.form_details_saved", "procurement_request", id, {
+    referenceNumber: request.referenceNumber,
+    changed: [...changed(before?.tform, values.tform), ...changed(before?.calloff, values.calloff)],
+  });
+  res.json({ ok: true, updatedAt: values.updatedAt });
 });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

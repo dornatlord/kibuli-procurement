@@ -84,6 +84,21 @@ export const MODULES: ProcurementModule[] = [
     ),
   },
   {
+    key: "minutes",
+    label: "Committee Minutes",
+    to: "/minutes",
+    group: "Procurement",
+    status: "live",
+    permissions: ["meetings.view"],
+    description: "Contracts Committee meetings: who attended, what was decided",
+    icon: (
+      <Svg>
+        <path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M9 8h6M9 12h6M9 16h3" />
+      </Svg>
+    ),
+  },
+  {
     key: "tenders",
     label: "Bids & Tenders",
     to: "/tenders",
