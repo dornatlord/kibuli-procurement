@@ -206,10 +206,6 @@ export type TFormFill = {
 /** Who confirms a request on page 3 at Kibuli: always the Deputy Head Teacher. */
 export const CONFIRMED_BY_TITLE = "Deputy Head Teacher";
 
-/** The title for page 3 that fits someone's role in the system. */
-const departmentTitleFor = (role: string | null | undefined) =>
-  role === "head_of_dept" ? "Head of Department" : role === "user_dept_member" ? "Member of Department" : "Representative";
-
 /** Heads of department, those of the requester's department first. */
 export function headsFor(request: RequestRecord) {
   const dept = request.requestedBy?.department?.trim().toLowerCase();
@@ -226,42 +222,30 @@ export function headsFor(request: RequestRecord) {
  * made, as the school fills the form in; Date Required, the delivery date,
  * is the only other date on it.
  */
-export function tformFill(request: RequestRecord, officials: Officials): TFormFill {
-  const sig = (role: string) => request.signatures.find((s) => s.role === role);
-  const people = request.stepPeople;
+export function tformFill(request: RequestRecord, _officials: Officials): TFormFill {
   const day = kampalaDay(request.createdAt);
-
-  const requester = request.requestedBy;
-  const hodActed = people?.headOfDepartment?.role === "head_of_dept" ? people.headOfDepartment.name : null;
-  const aoActed = people?.accountingOfficer?.role === "accounting_officer" ? people.accountingOfficer.name : null;
-  // A head of department raising a request confirms it too.
-  const requesterIsHead = requester?.role === "head_of_dept" ? requester.name : null;
 
   return {
     // The school's rule: the box carries the request's own reference number.
     planReference: request.referenceNumber,
-    requesterName: sig("user_dept")?.name ?? requester?.name ?? "",
-    requesterTitle: departmentTitleFor(requester?.role),
+    // Every name and title starts blank: whoever prepares the forms enters
+    // them (or picks them from the list in each box), and they're saved with
+    // the request. A box left blank prints as a ruled line.
+    requesterName: "",
+    requesterTitle: "",
     requestedOn: day,
-    // The Deputy Head Teacher confirms every request, so the deputy in Officials signs here.
-    hodName:
-      officials.deputy_head_teacher?.name ??
-      sig("head_of_dept")?.name ??
-      hodActed ??
-      requesterIsHead ??
-      headsFor(request)[0]?.name ??
-      "",
-    hodTitle: officials.deputy_head_teacher?.title || CONFIRMED_BY_TITLE,
+    hodName: "",
+    hodTitle: "",
     hodOn: day,
-    aoName: sig("accounting_officer")?.name ?? aoActed ?? officials.accounting_officer?.name ?? "",
-    aoTitle: officials.accounting_officer?.title || "Accounting Officer",
+    aoName: "",
+    aoTitle: "",
     aoOn: day,
-    pduName: officials.pdu_head?.name ?? "",
-    pduTitle: officials.pdu_head?.title || "Head, Procurement and Disposal Unit",
+    pduName: "",
+    pduTitle: "",
     pduOn: day,
-    chairName: officials.committee_chairperson?.name ?? "",
+    chairName: "",
     chairOn: day,
-    secretaryName: officials.committee_secretary?.name ?? "",
+    secretaryName: "",
     secretaryOn: day,
     // The committee's own minutes give the date, once there are some.
     meetingOn: request.minutesMeeting?.meetingDate ? kampalaDay(request.minutesMeeting.meetingDate) : day,
@@ -750,8 +734,9 @@ export function callOffFill(
   return {
     provider: lpo?.supplierName ?? provider ?? "",
     date: kampalaDay(lpo?.issueDate) || kampalaDay(new Date().toISOString()),
-    authorisedName: officials.accounting_officer?.name ?? "",
-    authorisedPosition: officials.accounting_officer?.title || "Accounting Officer",
+    // Entered by whoever prepares it, like the names on TFORM 5.
+    authorisedName: "",
+    authorisedPosition: "",
   };
 }
 
