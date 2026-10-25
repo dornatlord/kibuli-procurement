@@ -16,6 +16,10 @@ import type { PlanLines } from "../lib/planLines";
 import { termAndWeek } from "../lib/terms";
 import type { SchoolTerm } from "../lib/terms";
 import { LABELS, itemGaps, missingFromForm, startedItem } from "../lib/requestEssentials";
+import DetailFields from "../components/DetailFields";
+import { PAGE_THREE_KEYS, tformSections } from "../lib/forms/tformFields";
+import { keepNames, useOfficials } from "../lib/officials";
+import { kampalaDay } from "../lib/print";
 import type { RequestRecord } from "../lib/forms/requestForms";
 
 /** A saved request as the edit form reads it. */
@@ -24,6 +28,33 @@ type SavedRequest = RequestRecord & {
   subProgrammeId: number | null;
   budgetItemId: number | null;
   createdBy: number | null;
+};
+
+/** The names, titles and dates TFORM 5 prints, as the form asks for them. Names and titles start blank; dates start as today. */
+const blankTform = (): Record<string, string> => {
+  const today = kampalaDay(new Date().toISOString());
+  return {
+    requesterName: "", requesterTitle: "", requestedOn: today,
+    hodName: "", hodTitle: "", hodOn: today,
+    aoName: "", aoTitle: "", aoOn: today,
+    pduName: "", pduTitle: "", pduOn: today,
+    meetingOn: today,
+    chairName: "", chairOn: today,
+    secretaryName: "", secretaryOn: today,
+  };
+};
+
+/** What page 3's boxes are called when one is left empty. */
+const TFORM_LABELS: Record<string, string> = {
+  requesterName: "Request for procurement: name",
+  requesterTitle: "Request for procurement: title",
+  requestedOn: "Request for procurement: date",
+  hodName: "Confirmation of request: name",
+  hodTitle: "Confirmation of request: title",
+  hodOn: "Confirmation of request: date",
+  aoName: "Accounting Officer: name",
+  aoTitle: "Accounting Officer: title",
+  aoOn: "Accounting Officer: date",
 };
 
 /** The red outline on a box that still needs filling in. */
@@ -158,6 +189,10 @@ export default function NewRequestPage() {
   const [subProgrammeId, setSubProgrammeId] = useState<number | "">("");
   const [budgetItemId, setBudgetItemId] = useState<number | "">("");
   const [balanceManual, setBalanceManual] = useState("");
+  // The names, titles and dates printed on TFORM 5, filled in here and saved with the request.
+  const officials = useOfficials();
+  const [tformVals, setTformVals] = useState<Record<string, string>>(blankTform);
+  const setTformVal = (key: string, value: string) => setTformVals((v) => ({ ...v, [key]: value }));
   const [items, setItems] = useState<LineItem[]>([makeItem()]);
   // Latest rows, for async handlers that finish after a re-render.
   const itemsRef = useRef(items);
@@ -269,6 +304,14 @@ export default function NewRequestPage() {
           four: plain(r.multiyearYearFour ?? null),
         });
         setBalanceManual(plain(r.balanceRemainingManual ?? null));
+        // What was saved; a date nobody entered is the day the request was made.
+        const made = kampalaDay(r.createdAt);
+        const saved = (r.formDetails?.tform ?? {}) as Record<string, string>;
+        setTformVals({
+          ...blankTform(),
+          requestedOn: made, hodOn: made, aoOn: made, pduOn: made, meetingOn: made, chairOn: made, secretaryOn: made,
+          ...saved,
+        });
         setItems(
           r.items.length
             ? r.items.map((it) => {
@@ -608,6 +651,10 @@ export default function NewRequestPage() {
     lineChosen: !!lineKey,
     items,
   });
+  // A new request needs page 3's three signatories (name and title; the dates start filled). Someone editing an older request isn't held up by them.
+  const tformEmpty = editing ? [] : PAGE_THREE_KEYS.filter((k) => !(tformVals[k] ?? "").trim());
+  const tformNeeded = new Set<string>(showNeeded ? tformEmpty : []);
+  const allMissing = [...missing, ...tformEmpty.map((k) => TFORM_LABELS[k])];
   const needs = (label: string) => showNeeded && missing.includes(label);
   // Item rows are counted as the server counts them: started rows only.
   const startedIndex = new Map(items.filter(startedItem).map((it, i) => [it.key, i]));
@@ -617,7 +664,7 @@ export default function NewRequestPage() {
   const needsReason = editing && saved?.editAccess === "corrector" && !ownDraft;
 
   // Leaving with something filled in asks first: closing the tab, Cancel, or a link.
-  const snapshot = JSON.stringify([category, budgetCategory, subject, planRef, weekNumber, dateRequired, isMultiyear, myYears, voteId, subProgrammeId, budgetItemId, balanceManual, items.map((it) => [it.description, it.quantity, it.unitOfMeasure, it.estimatedUnitCost])]);
+  const snapshot = JSON.stringify([category, budgetCategory, subject, planRef, weekNumber, dateRequired, isMultiyear, myYears, voteId, subProgrammeId, budgetItemId, balanceManual, tformVals, items.map((it) => [it.description, it.quantity, it.unitOfMeasure, it.estimatedUnitCost])]);
   const baseline = useRef<string | null>(null);
   const leaving = useRef(false);
   useEffect(() => {
@@ -657,9 +704,9 @@ export default function NewRequestPage() {
     e.preventDefault();
     setError("");
     // Nothing the printed form needs may be left out: say what's missing, and outline it.
-    if (missing.length) {
+    if (allMissing.length) {
       setShowNeeded(true);
-      setError(`Fill these in before saving: ${missing.join("; ")}.`);
+      setError(`Fill these in before saving: ${allMissing.join("; ")}.`);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -702,6 +749,7 @@ export default function NewRequestPage() {
           marketPrice: it.marketPrice || null,
         })),
         partTwo: showPartTwo ? partTwo : undefined,
+        formDetails: { tform: tformVals },
         reason: editing ? reason.trim() || undefined : undefined,
         // Lets the server recognise this request if it arrives more than once.
         clientRef: newClientRef(),
@@ -720,6 +768,15 @@ export default function NewRequestPage() {
       }
       try {
         const req = await api.post<{ id: number }>("/requests", payload);
+        // Names typed here are kept under their titles, to be offered on the next request.
+        keepNames([
+          { title: tformVals.requesterTitle, name: tformVals.requesterName },
+          { title: tformVals.hodTitle, name: tformVals.hodName },
+          { title: tformVals.aoTitle, name: tformVals.aoName },
+          procurementSize === "macro" && { title: tformVals.pduTitle, name: tformVals.pduName },
+          procurementSize === "macro" && { office: "committee_chairperson", name: tformVals.chairName },
+          procurementSize === "macro" && { office: "committee_secretary", name: tformVals.secretaryName },
+        ]);
         leaving.current = true;
         navigate(`/requests/${req.id}`);
       } catch (err) {
@@ -1387,6 +1444,33 @@ export default function NewRequestPage() {
         </div>
       </section>
 
+      {/* ── NAMES, TITLES AND DATES PRINTED ON TFORM 5 ───────────────── */}
+      <section className="card overflow-hidden">
+        <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">
+          FORM 5 — NAMES, TITLES AND DATES ON THE PRINTED FORM
+        </div>
+        <div className="space-y-5 p-4">
+          <p className="text-xs text-gray-500">
+            Enter who signs page 3: type each name and title, or click the box to pick one kept from before. They're saved with
+            the request and printed exactly as entered. Dates start as today.
+            {isMicro ? "" : " The Procurement and Disposal Unit and the Contracts Committee's boxes can be left for them to fill in later."}
+          </p>
+          <div className="grid gap-5 md:grid-cols-2">
+            <DetailFields
+              sections={tformSections(
+                { referenceNumber: "", procurementPlanReference: planRef, procurementSize: procurementSize || "micro", requestedBy: null, stepPeople: undefined, departmentHeads: [] },
+                officials,
+                null
+              ).filter((sec) => !sec.title.startsWith("Page 2"))}
+              values={tformVals}
+              onChange={setTformVal}
+              idPrefix="nr-tform"
+              needed={tformNeeded}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* ── FORM 5 PART II: SUBMISSION TO THE CONTRACTS COMMITTEE (macro) ── */}
       {showPartTwo && (
         <section className="card overflow-hidden">
@@ -1425,8 +1509,8 @@ export default function NewRequestPage() {
         </section>
       )}
 
-      {missing.length > 0 && (
-        <p className="text-right text-xs text-gray-500">Still to fill in: {missing.join("; ")}</p>
+      {allMissing.length > 0 && (
+        <p className="text-right text-xs text-gray-500">Still to fill in: {allMissing.join("; ")}</p>
       )}
       <div className="flex justify-end gap-3">
         <button

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import Combobox from "./Combobox";
+import DetailFields from "./DetailFields";
 import type { CheckSection } from "./PrintCheck";
 import { PrinterIcon } from "./icons";
 
@@ -97,40 +97,13 @@ export default function FormDetailsPanel({
             : "Suggested from the request and the school's officials. Save once they're right."}
         </p>
 
-        {tab.sections.map((s) => (
-          <fieldset key={s.title} disabled={!canEdit}>
-            <legend className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">{s.title}</legend>
-            <div className="grid grid-cols-2 gap-2">
-              {s.fields.map((f, i) => {
-                const whole = f.wide || s.fields.length === 1 || (s.fields.length === 3 && i === 0);
-                return (
-                  <div key={f.key} className={whole ? "col-span-2" : ""}>
-                    <label htmlFor={`fd-${tab.key}-${f.key}`} className="label">
-                      {f.label}
-                    </label>
-                    {f.type === "date" ? (
-                      <input
-                        id={`fd-${tab.key}-${f.key}`}
-                        type="date"
-                        value={tab.values[f.key] ?? ""}
-                        onChange={(e) => tab.onChange(f.key, e.target.value)}
-                        className="input"
-                      />
-                    ) : (
-                      <Combobox
-                        id={`fd-${tab.key}-${f.key}`}
-                        value={tab.values[f.key] ?? ""}
-                        onChange={(v) => tab.onChange(f.key, v)}
-                        options={typeof f.options === "function" ? f.options(tab.values) : f.options ?? []}
-                        onRemove={f.onRemove ? (o) => f.onRemove!(o.value, tab.values) : undefined}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </fieldset>
-        ))}
+        <DetailFields
+          sections={tab.sections}
+          values={tab.values}
+          onChange={tab.onChange}
+          idPrefix={`fd-${tab.key}`}
+          disabled={!canEdit}
+        />
 
         {error && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
         {tab.blocked && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{tab.blocked}</p>}

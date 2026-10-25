@@ -555,6 +555,16 @@ router.put("/:id", requireAuth, async (req, res) => {
     res.status(400).json({ error: "An item sent doesn't belong to this request." });
     return;
   }
+  const formTform = cleanDetails(body.formDetails?.tform, TFORM_KEYS);
+  if (typeof formTform === "string") {
+    res.status(400).json({ error: formTform });
+    return;
+  }
+  const [savedDetails] = await db.select().from(requestFormDetails).where(eq(requestFormDetails.procurementRequestId, id));
+  const savedTform = (savedDetails?.tform ?? {}) as Record<string, string>;
+  const detailChanges = formTform
+    ? Object.keys(formTform).filter((k) => (savedTform[k] ?? "") !== formTform[k])
+    : [];
   const category = ["supplies", "works", "non_consultancy"].includes(body.category) ? body.category : request.category;
   const budgetCategory = ["recurrent", "development"].includes(body.budgetCategory) ? body.budgetCategory : request.budgetCategory;
   // Micro or macro decides the approvals, so it changes only while it's a draft.
@@ -599,12 +609,19 @@ router.put("/:id", requireAuth, async (req, res) => {
     current.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, unitOfMeasure: i.unitOfMeasure, unitPrice: i.estimatedUnitCost })),
     lines
   );
-  if (nothingChanged(changes, itemChanges)) {
+  if (nothingChanged(changes, itemChanges) && detailChanges.length === 0) {
     res.status(400).json({ error: "Nothing was changed." });
     return;
   }
 
   await db.transaction(async (tx) => {
+    if (formTform && detailChanges.length) {
+      const values = { tform: { ...savedTform, ...formTform }, updatedBy: req.session.userId!, updatedAt: new Date() };
+      await tx
+        .insert(requestFormDetails)
+        .values({ procurementRequestId: id, ...values })
+        .onConflictDoUpdate({ target: requestFormDetails.procurementRequestId, set: values });
+    }
     await tx
       .update(procurementRequests)
       .set({ ...(fields as any), estimatedTotalCost: String(total), updatedAt: new Date() })
@@ -631,6 +648,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     reason: reason ?? "Completed by the person who raised it",
     changes,
     items: itemChanges,
+    formDetails: detailChanges,
     total: { from: request.estimatedTotalCost, to: String(total) },
   });
   res.json({ ok: true, id, referenceNumber });
@@ -711,6 +729,14 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
   const term = blankValue(body.term) ? thisWeek.term : wholeNumberIn(body.term, 1, 3);
   if (week === null || term === null) {
     res.status(400).json({ error: "The week is a number from 1 to 53, and the term 1, 2 or 3." });
+    return;
+  }
+
+  // The names, titles and dates TFORM 5 prints, filled in on the form, are
+  // kept with the request. Checked first, so a bad one saves nothing.
+  const formTform = cleanDetails(body.formDetails?.tform, TFORM_KEYS);
+  if (typeof formTform === "string") {
+    res.status(400).json({ error: formTform });
     return;
   }
 
@@ -847,6 +873,13 @@ router.post("/", requirePermission("requests.create"), async (req, res) => {
         totalCost: total,
       });
     }
+  }
+
+  if (formTform && Object.keys(formTform).length) {
+    await db
+      .insert(requestFormDetails)
+      .values({ procurementRequestId: request.id, tform: formTform, updatedBy: req.session.userId! })
+      .onConflictDoNothing();
   }
 
   // The PDU can draft Part II (its submission to the Contracts Committee)

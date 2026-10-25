@@ -207,7 +207,7 @@ export type TFormFill = {
 export const CONFIRMED_BY_TITLE = "Deputy Head Teacher";
 
 /** Heads of department, those of the requester's department first. */
-export function headsFor(request: RequestRecord) {
+export function headsFor(request: Pick<RequestRecord, "requestedBy" | "departmentHeads">) {
   const dept = request.requestedBy?.department?.trim().toLowerCase();
   const heads = request.departmentHeads ?? [];
   return [
