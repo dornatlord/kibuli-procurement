@@ -240,6 +240,7 @@ const QUESTIONS: Topic[] = [
     title: "How do I set next year's budget?",
     steps: [
       "Open **Budget** and choose next year. Press **Copy** to start from this year's amounts, then change what's different.",
+      "Or press **Import a budget** and choose the new budget as an Excel or CSV file. Pick the column with the budget line names and the column with the amounts; the page shows which lines will change, and nothing is saved until you press **Import**. **Download the budget lines to fill in** gives a file with every line, ready to type the new amounts into.",
       "Each year keeps its own amounts, and the reports read each year's own budget.",
     ],
   },

@@ -6,6 +6,7 @@ import { thisYear, yearChoices } from "../lib/years";
 import PageHeader from "../components/PageHeader";
 import YearSelect from "../components/YearSelect";
 import { PageLoading } from "../components/Loading";
+import BudgetImport from "../components/BudgetImport";
 
 interface Vote { id: number; code: string; name: string; }
 interface SubProgramme { id: number; voteId: number; romanNumeral: string | null; name: string; }
@@ -26,6 +27,7 @@ export default function BudgetAdminPage() {
   const [editing, setEditing] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<Record<number, boolean>>({});
   const [copying, setCopying] = useState(false);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     if (!allowed) return;
@@ -66,6 +68,11 @@ export default function BudgetAdminPage() {
   const earlier = budget?.years.filter((y) => y < year).sort((a, b) => b - a)[0];
   const empty = !!budget && budget.items.every((i) => !i.amount);
 
+  async function reload(message: string) {
+    setNotice(message);
+    setBudget(await api.get<Budget>(`/budget?year=${year}`));
+  }
+
   async function copyFrom(from: number) {
     setCopying(true);
     setError("");
@@ -89,7 +96,9 @@ export default function BudgetAdminPage() {
       />
 
       <div className="card flex flex-wrap items-end justify-between gap-4 p-4">
-        <YearSelect id="budget-year" value={year} years={years} onChange={(y) => y !== "all" && setYear(y)} />
+        <div className="flex flex-wrap items-end gap-3">
+          <YearSelect id="budget-year" value={year} years={years} onChange={(y) => y !== "all" && (setNotice(""), setYear(y))} />
+        </div>
         {budget && (
           <div className="text-right">
             <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{year} budget</div>
@@ -99,6 +108,18 @@ export default function BudgetAdminPage() {
       </div>
 
       {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+      {notice && <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
+
+      {budget && !loading && (
+        <BudgetImport
+          key={year}
+          year={year}
+          votes={budget.votes}
+          subProgrammes={budget.subProgrammes}
+          items={budget.items}
+          onDone={reload}
+        />
+      )}
 
       {loading || !budget ? (
         <PageLoading />

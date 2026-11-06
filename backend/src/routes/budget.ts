@@ -1,7 +1,7 @@
 import { asyncRouter } from "../lib/asyncRouter.js";
 import { db } from "../db/index.js";
 import { budgetAmounts, budgetItems, subProgrammes, votes } from "../db/schema.js";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { requirePermission } from "../middleware/auth.js";
 import { logAudit } from "../lib/audit.js";
 import { thisYear, yearFrom } from "../lib/years.js";
@@ -105,6 +105,59 @@ router.post("/copy", requirePermission("budget.edit"), async (req, res) => {
     : [];
   await logAudit(userId, "budget.copied", "budget", null, { from, to, lines: copied.length });
   res.json({ copied: copied.length });
+});
+
+/**
+ * Sets many lines' amounts for a year at once, from an imported spreadsheet.
+ * Each line's amount is replaced; lines not mentioned are left alone.
+ */
+router.post("/import", requirePermission("budget.edit"), async (req, res) => {
+  const year = yearFrom(req.body?.year);
+  const lines: unknown = req.body?.lines;
+  if (!year || !Array.isArray(lines) || lines.length === 0 || lines.length > 2000) {
+    res.status(400).json({ error: "Give a year and the lines to set." });
+    return;
+  }
+  const wanted = new Map<number, number>();
+  for (const l of lines) {
+    const itemId = Number((l as any)?.itemId);
+    const amount = amountFrom((l as any)?.amount);
+    if (!Number.isInteger(itemId) || amount === undefined || amount === null) {
+      res.status(400).json({ error: "Every line needs a budget line and an amount in shillings." });
+      return;
+    }
+    wanted.set(itemId, amount);
+  }
+  const known = await db.select({ id: budgetItems.id }).from(budgetItems).where(inArray(budgetItems.id, [...wanted.keys()]));
+  if (known.length !== wanted.size) {
+    res.status(400).json({ error: "Some budget lines no longer exist. Reload the page and try again." });
+    return;
+  }
+  const userId = req.session.userId!;
+  const before = await db
+    .select({ itemId: budgetAmounts.budgetItemId, amount: budgetAmounts.amount })
+    .from(budgetAmounts)
+    .where(and(eq(budgetAmounts.year, year), inArray(budgetAmounts.budgetItemId, [...wanted.keys()])));
+  const changed = [...wanted].filter(([id, amount]) => Number(before.find((b) => b.itemId === id)?.amount) !== amount);
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    for (const [itemId, amount] of wanted) {
+      await tx
+        .insert(budgetAmounts)
+        .values({ budgetItemId: itemId, year, amount: String(amount), updatedBy: userId })
+        .onConflictDoUpdate({
+          target: [budgetAmounts.budgetItemId, budgetAmounts.year],
+          set: { amount: String(amount), updatedBy: userId, updatedAt: now },
+        });
+    }
+  });
+  await logAudit(userId, "budget.imported", "budget", null, {
+    year,
+    lines: wanted.size,
+    changed: changed.length,
+    total: String([...wanted.values()].reduce((a, b) => a + b, 0)),
+  });
+  res.json({ imported: wanted.size, changed: changed.length });
 });
 
 /** For a page still running an older copy of the app: sets this year's amount. */

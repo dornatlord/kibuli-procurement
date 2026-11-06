@@ -479,6 +479,7 @@ const ACTIONS: Record<string, string> = {
   "termly_report.imported": "Imported a termly PPDA return",
   "budget.amount_set": "Set a budget amount",
   "budget.copied": "Started a year's budget from another's",
+  "budget.imported": "Imported a year's budget from a file",
   "supplier.listed": "Put a supplier on a year's list",
   "supplier.unlisted": "Took a supplier off a year's list",
   "suppliers.list_started": "Started a year's supplier list",
