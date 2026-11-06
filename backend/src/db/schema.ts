@@ -722,6 +722,23 @@ export const termlyReports = pgTable(
   (t) => [unique().on(t.year, t.term)]
 );
 
+/** A month's FORM 2 as saved: filled from the records, then corrected by hand. */
+export const monthlyReports = pgTable(
+  "monthly_reports",
+  {
+    id: serial("id").primaryKey(),
+    year: integer("year").notNull(),
+    month: integer("month").notNull(),
+    parts: jsonb("parts").notNull(),
+    declaration: jsonb("declaration"),
+    createdBy: integer("created_by").references(() => users.id),
+    updatedBy: integer("updated_by").references(() => users.id),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (t) => [unique().on(t.year, t.month)]
+);
+
 /**
  * Logins, written by connect-pg-simple (migration 010). Declared here so the
  * profile page can list and sign out a person's devices.

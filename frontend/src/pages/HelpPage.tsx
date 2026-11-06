@@ -132,6 +132,7 @@ const GUIDES: Topic[] = [
       "**Monthly Report** is PPDA FORM 2 and **Termly Report** is FORM 27. Choose the year and month, or year and term.",
       "The form fills itself from what's recorded in the system. Correct any cell or add rows, then press **Save report**.",
       "**Print FORM 27** or **Print FORM 2** gives the official layout, with the Accounting Officer's declaration.",
+      "On **Monthly Report**, **Export to Excel** downloads PPDA's own FORM 2 template with all four parts filled in, ready to send to PPDA. It exports what is on the screen, saved or not. Each part of the template holds a fixed number of rows; if there are more, the page says which part to trim.",
       "Term 1 of 2026 holds the school's own return, entered from the paper copy.",
     ],
   },

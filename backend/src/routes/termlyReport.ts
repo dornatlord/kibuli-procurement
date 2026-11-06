@@ -61,7 +61,7 @@ function firstByRequest<T extends { requestId: number | null }>(rows: T[]) {
  * has no figure (no contract signed, nothing paid yet) the cell is left blank
  * for the school to complete, rather than guessed.
  */
-async function buildParts(start: string, end: string): Promise<Parts> {
+export async function buildParts(start: string, end: string): Promise<Parts> {
   // Timestamps count by Kampala date: the term runs midnight to midnight.
   const startAt = new Date(`${start}T00:00:00+03:00`);
   const endAt = new Date(`${end}T00:00:00+03:00`);
@@ -186,6 +186,9 @@ async function buildParts(start: string, end: string): Promise<Parts> {
           reference: r.reference,
           subject: r.subject ?? "",
           provider: order?.provider ?? "",
+          // FORM 2's micro part also asks for the award date and the market price.
+          awardDate: formDate(approvalDate),
+          marketPrice: amount(r.estimatedTotalCost),
           invoiceAndDate: invoice ? `${invoice.number}, ${formDate(invoice.date)}` : formDate(delivered),
           contractValue: amount(order?.total ?? r.estimatedTotalCost),
         },
