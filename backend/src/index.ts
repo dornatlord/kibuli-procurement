@@ -20,6 +20,7 @@ import procurementPlanRouter from "./routes/procurementPlan.js";
 import inventoryRouter from "./routes/inventory.js";
 import auditLogsRouter from "./routes/auditLogs.js";
 import monthlyReportRouter from "./routes/monthlyReport.js";
+import { serviceState } from "./lib/servicePause.js";
 import reportsRouter from "./routes/reports.js";
 import settingsRouter from "./routes/settings.js";
 import disposalsRouter from "./routes/disposals.js";
@@ -74,6 +75,25 @@ app.use(express.json());
 app.use("/api", (_req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
+});
+
+// While access is paused (a payment is outstanding) every call but the
+// health check and the status check is turned away with 423 Locked.
+app.use("/api", async (req, res, next) => {
+  if (req.path === "/health" || req.path === "/service-status") {
+    next();
+    return;
+  }
+  const status = await serviceState();
+  if (status.state === "paused") {
+    res.status(423).json({ error: status.message, code: "service_paused", contact: status.contact });
+    return;
+  }
+  next();
+});
+
+app.get("/api/service-status", async (_req, res) => {
+  res.json(await serviceState());
 });
 
 // Logins live in the database, so restarts and redeploys no longer sign

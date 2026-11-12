@@ -24,6 +24,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired when the server says access is paused, so the app can show the paused screen. */
+export const PAUSED_EVENT = "kibuli:paused";
+
 /** Fired when the server turns a request away, so the app can check whether the login expired. */
 export const UNAUTHORIZED_EVENT = "kibuli:unauthorized";
 
@@ -38,6 +41,11 @@ async function request<T>(path: string, opts?: RequestInit): Promise<T> {
   } catch {
     reportServerReachable(false);
     throw new OfflineError();
+  }
+  // 423: access is paused. Kept like "offline" so waiting work isn't thrown away while it is.
+  if (res.status === 423) {
+    window.dispatchEvent(new Event(PAUSED_EVENT));
+    throw new OfflineError("Access to the system is paused. Your waiting work is kept and will be sent when it resumes.");
   }
   // Render answers these while the server is down or restarting.
   if (res.status === 502 || res.status === 503 || res.status === 504) {
