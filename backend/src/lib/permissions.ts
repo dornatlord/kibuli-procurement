@@ -223,6 +223,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "disposals.view",
     "disposals.manage",
     "meetings.view",
+    // They do the paperwork, so they fix it when it's wrong (every correction is audited with its reason).
+    "records.correct",
   ],
 
   // Records committee decisions on macro procurements

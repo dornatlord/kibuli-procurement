@@ -723,7 +723,7 @@ export type CallOffFill = {
 
 /**
  * The call-off order's starting values: the LPO's supplier and date, and the
- * Accounting Officer. Before there's an LPO, the provider is `provider`: the
+ * Head Teacher (else the Accounting Officer). Before there's an LPO, the provider is `provider`: the
  * one shortlisted first in Part II.
  */
 export function callOffFill(
@@ -731,12 +731,13 @@ export function callOffFill(
   lpo: { supplierName: string | null; issueDate: string | null } | null,
   provider?: string | null
 ): CallOffFill {
+  const authoriser = officials.head_teacher ?? officials.accounting_officer;
   return {
     provider: lpo?.supplierName ?? provider ?? "",
     date: kampalaDay(lpo?.issueDate) || kampalaDay(new Date().toISOString()),
-    // Entered by whoever prepares it, like the names on TFORM 5.
-    authorisedName: "",
-    authorisedPosition: "",
+    // The Head Teacher authorises it (else the Accounting Officer), as on the LPO; whoever prepares it can change it.
+    authorisedName: authoriser?.name ?? "",
+    authorisedPosition: authoriser?.title ?? "",
   };
 }
 

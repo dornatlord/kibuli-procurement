@@ -237,7 +237,11 @@ export default function RequestDetailPage() {
   const savedT = (request.formDetails?.tform ?? {}) as Partial<TFormFill>;
   const savedC = (request.formDetails?.calloff ?? {}) as Partial<CallOffFill>;
   const baseT = { ...suggested!.tform, ...savedT } as TFormFill;
-  const baseC = { ...suggested!.calloff, ...savedC } as CallOffFill;
+  // A name or position saved blank (before the Head Teacher was filled in) doesn't hide the suggestion.
+  const savedCFilled = Object.fromEntries(
+    Object.entries(savedC).filter(([k, v]) => !(k.startsWith("authorised") && !String(v ?? "").trim()))
+  );
+  const baseC = { ...suggested!.calloff, ...savedCFilled } as CallOffFill;
   const valuesT = { ...baseT, ...edits.tform } as TFormFill;
   const valuesC = { ...baseC, ...edits.calloff } as CallOffFill;
   const dirtyT = Object.keys(edits.tform).length > 0;
