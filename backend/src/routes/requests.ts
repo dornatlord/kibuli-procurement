@@ -560,6 +560,25 @@ router.put("/:id", requireAuth, async (req, res) => {
     res.status(400).json({ error: formTform });
     return;
   }
+  const hasPartTwoSuppliers =
+    !!body.partTwo &&
+    typeof body.partTwo === "object" &&
+    !Array.isArray(body.partTwo) &&
+    Object.prototype.hasOwnProperty.call(body.partTwo, "shortlistedProviders");
+  if (
+    hasPartTwoSuppliers &&
+    (typeof body.partTwo.shortlistedProviders !== "string" || body.partTwo.shortlistedProviders.length > 3000)
+  ) {
+    res.status(400).json({ error: "Enter a supplier shortlist no longer than 3,000 characters." });
+    return;
+  }
+  const shortlistedProviders = hasPartTwoSuppliers
+    ? body.partTwo.shortlistedProviders
+        .split("\n")
+        .map((name: string) => name.trim())
+        .filter(Boolean)
+        .join("\n") || null
+    : undefined;
   const [savedDetails] = await db.select().from(requestFormDetails).where(eq(requestFormDetails.procurementRequestId, id));
   const savedTform = (savedDetails?.tform ?? {}) as Record<string, string>;
   const detailChanges = formTform
@@ -570,6 +589,18 @@ router.put("/:id", requireAuth, async (req, res) => {
   // Micro or macro decides the approvals, so it changes only while it's a draft.
   const procurementSize =
     request.status === "draft" && ["micro", "macro"].includes(body.procurementSize) ? body.procurementSize : request.procurementSize;
+  if (hasPartTwoSuppliers && procurementSize !== "macro") {
+    res.status(400).json({ error: "Only a macro request has a Part II supplier shortlist." });
+    return;
+  }
+  const [savedPartTwo] = hasPartTwoSuppliers
+    ? await db
+        .select({ id: contractsCommitteeDecisions.id, shortlistedProviders: contractsCommitteeDecisions.shortlistedProviders })
+        .from(contractsCommitteeDecisions)
+        .where(eq(contractsCommitteeDecisions.procurementRequestId, id))
+    : [];
+  const previousShortlist = savedPartTwo?.shortlistedProviders ?? null;
+  const shortlistChanged = hasPartTwoSuppliers && previousShortlist !== shortlistedProviders;
   // KSS/SUPLS/26/017/00612: the running number stays; category and code follow the request.
   const parts = request.referenceNumber.split("/");
   const referenceNumber =
@@ -609,7 +640,7 @@ router.put("/:id", requireAuth, async (req, res) => {
     current.map((i) => ({ id: i.id, description: i.description, quantity: i.quantity, unitOfMeasure: i.unitOfMeasure, unitPrice: i.estimatedUnitCost })),
     lines
   );
-  if (nothingChanged(changes, itemChanges) && detailChanges.length === 0) {
+  if (nothingChanged(changes, itemChanges) && detailChanges.length === 0 && !shortlistChanged) {
     res.status(400).json({ error: "Nothing was changed." });
     return;
   }
@@ -621,6 +652,18 @@ router.put("/:id", requireAuth, async (req, res) => {
         .insert(requestFormDetails)
         .values({ procurementRequestId: id, ...values })
         .onConflictDoUpdate({ target: requestFormDetails.procurementRequestId, set: values });
+    }
+    if (shortlistChanged) {
+      if (savedPartTwo) {
+        await tx
+          .update(contractsCommitteeDecisions)
+          .set({ shortlistedProviders })
+          .where(eq(contractsCommitteeDecisions.id, savedPartTwo.id));
+      } else {
+        await tx
+          .insert(contractsCommitteeDecisions)
+          .values({ procurementRequestId: id, shortlistedProviders });
+      }
     }
     await tx
       .update(procurementRequests)
@@ -649,6 +692,9 @@ router.put("/:id", requireAuth, async (req, res) => {
     changes,
     items: itemChanges,
     formDetails: detailChanges,
+    shortlistedProviders: shortlistChanged
+      ? { from: previousShortlist, to: shortlistedProviders }
+      : undefined,
     total: { from: request.estimatedTotalCost, to: String(total) },
   });
   res.json({ ok: true, id, referenceNumber });
@@ -1003,81 +1049,6 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
 });
 
 // ── PPDA FORM 5 Part II ────────────────────────────────────────────────────
-
-router.put("/:id/part-two-suppliers", requireAuth, async (req, res) => {
-  const id = Number(req.params.id);
-  const [request] = await db.select().from(procurementRequests).where(eq(procurementRequests.id, id));
-  if (!request) {
-    res.status(404).json({ error: "Not found" });
-    return;
-  }
-  if (request.procurementSize !== "macro") {
-    res.status(400).json({ error: "Only a macro request has a Part II supplier shortlist." });
-    return;
-  }
-
-  const current = await db
-    .select()
-    .from(procurementItems)
-    .where(eq(procurementItems.procurementRequestId, id))
-    .orderBy(asc(procurementItems.itemNo), asc(procurementItems.id));
-  const access = editAccessFor(
-    request,
-    req.session.userId,
-    await hasCorrectionRight(req.session),
-    await missingFromSaved(request, current)
-  );
-  if (!access) {
-    res.status(403).json({ error: "You don't have edit access to this request." });
-    return;
-  }
-
-  const body = (req.body ?? {}) as Record<string, unknown>;
-  if (typeof body.shortlistedProviders !== "string" || body.shortlistedProviders.length > 3000) {
-    res.status(400).json({ error: "Enter a supplier shortlist no longer than 3,000 characters." });
-    return;
-  }
-  const shortlistedProviders = body.shortlistedProviders
-    .split("\n")
-    .map((name) => name.trim())
-    .filter(Boolean)
-    .join("\n");
-  const reason = textFrom(body.reason, 500);
-  if (access === "corrector" && (!reason || reason.length < 3)) {
-    res.status(400).json({ error: "Say what was wrong, so the audit trail records why it was changed." });
-    return;
-  }
-
-  const [existing] = await db
-    .select()
-    .from(contractsCommitteeDecisions)
-    .where(eq(contractsCommitteeDecisions.procurementRequestId, id));
-  const previous = existing?.shortlistedProviders ?? null;
-  const next = shortlistedProviders || null;
-  if (previous === next) {
-    res.status(400).json({ error: "The supplier shortlist hasn't changed." });
-    return;
-  }
-  if (existing) {
-    await db
-      .update(contractsCommitteeDecisions)
-      .set({ shortlistedProviders: next })
-      .where(eq(contractsCommitteeDecisions.id, existing.id));
-  } else {
-    await db.insert(contractsCommitteeDecisions).values({
-      procurementRequestId: id,
-      shortlistedProviders: next,
-    });
-  }
-
-  await logAudit(req.session.userId!, "committee_submission.suppliers_changed", "procurement_request", id, {
-    referenceNumber: request.referenceNumber,
-    from: previous,
-    to: next,
-    reason: reason ?? null,
-  });
-  res.json({ ok: true });
-});
 
 // Empty strings from inputs must become NULL — Postgres rejects '' for
 // numeric and date columns.

@@ -5,7 +5,7 @@ import { useAuth } from "../lib/auth";
 import { newClientRef, queueRequest } from "../lib/outbox";
 import ItemPickerModal, { itemKey } from "../components/ItemPickerModal";
 import type { PriceListItem } from "../components/ItemPickerModal";
-import PartTwoTable, { EMPTY_SUBMISSION } from "../components/PartTwoForm";
+import PartTwoTable, { EMPTY_SUBMISSION, submissionFrom } from "../components/PartTwoForm";
 import type { PartTwoSubmission } from "../components/PartTwoForm";
 import { basketLineKey, lineIds } from "../lib/baskets";
 import type { BasketDetail, BasketSummary } from "../lib/baskets";
@@ -286,6 +286,7 @@ export default function NewRequestPage() {
           return;
         }
         setProcurementSize(r.procurementSize === "macro" ? "macro" : "micro");
+        setPartTwo(submissionFrom(r.decision));
         setYearType(r.yearType === "financial" ? "financial" : "calendar");
         setCategory(r.category);
         setBudgetCategory(r.budgetCategory);
@@ -637,6 +638,7 @@ export default function NewRequestPage() {
   // Part II belongs to macro procurements and is the PDU's to fill. When
   // editing, it stays on the request's own page.
   const showPartTwo = procurementSize === "macro" && can("requests.prepare.committee") && !editing;
+  const showSavedPartTwo = editing && procurementSize === "macro";
 
   // Everything TFORM 5 needs that only this form can supply.
   const missing = missingFromForm({
@@ -664,7 +666,7 @@ export default function NewRequestPage() {
   const needsReason = editing && saved?.editAccess === "corrector" && !ownDraft;
 
   // Leaving with something filled in asks first: closing the tab, Cancel, or a link.
-  const snapshot = JSON.stringify([category, budgetCategory, subject, planRef, weekNumber, dateRequired, isMultiyear, myYears, voteId, subProgrammeId, budgetItemId, balanceManual, tformVals, items.map((it) => [it.description, it.quantity, it.unitOfMeasure, it.estimatedUnitCost])]);
+  const snapshot = JSON.stringify([category, budgetCategory, subject, planRef, weekNumber, dateRequired, isMultiyear, myYears, voteId, subProgrammeId, budgetItemId, balanceManual, tformVals, partTwo.shortlistedProviders, items.map((it) => [it.description, it.quantity, it.unitOfMeasure, it.estimatedUnitCost])]);
   const baseline = useRef<string | null>(null);
   const leaving = useRef(false);
   useEffect(() => {
@@ -748,7 +750,11 @@ export default function NewRequestPage() {
           estimatedUnitCost: it.estimatedUnitCost || null,
           marketPrice: it.marketPrice || null,
         })),
-        partTwo: showPartTwo ? partTwo : undefined,
+        partTwo: showPartTwo
+          ? partTwo
+          : showSavedPartTwo
+          ? { shortlistedProviders: partTwo.shortlistedProviders }
+          : undefined,
         formDetails: { tform: tformVals },
         reason: editing ? reason.trim() || undefined : undefined,
         // Lets the server recognise this request if it arrives more than once.
@@ -1472,23 +1478,36 @@ export default function NewRequestPage() {
       </section>
 
       {/* ── FORM 5 PART II: SUBMISSION TO THE CONTRACTS COMMITTEE (macro) ── */}
-      {showPartTwo && (
+      {(showPartTwo || showSavedPartTwo) && (
         <section className="card overflow-hidden">
           <div className="bg-green-800 text-white px-4 py-2 text-sm font-semibold">
             PART II — REQUEST BY PROCUREMENT AND DISPOSAL UNIT TO CONTRACTS COMMITTEE
           </div>
           <div className="p-4 space-y-3">
             <p className="text-xs text-gray-500">
-              Filled by the Procurement and Disposal Unit. The date of submission fills in by itself when
-              the request reaches the Contracts Committee, and the committee records its decision for each
-              row on the request's page.
+              {showPartTwo
+                ? "Filled by the Procurement and Disposal Unit. The date of submission fills in by itself when the request reaches the Contracts Committee, and the committee records its decision for each row on the request's page."
+                : "Change the shortlisted suppliers here. Other Part II details remain unchanged."}
             </p>
             <PartTwoTable
               submission={partTwo}
-              onSubmissionChange={(patch) => setPartTwo((p) => ({ ...p, ...patch }))}
+              onSubmissionChange={
+                showPartTwo ? (patch) => setPartTwo((p) => ({ ...p, ...patch })) : undefined
+              }
+              onProvidersChange={
+                showSavedPartTwo
+                  ? (shortlistedProviders) => setPartTwo((p) => ({ ...p, shortlistedProviders }))
+                  : undefined
+              }
               // The vote's budget line chosen in Part III: its pre-qualified suppliers fill the provider lists.
               supplierLine={
-                lineKey ? { key: lineKey, label: [projectCode, lineName].filter(Boolean).join(" "), year } : null
+                lineKey
+                  ? {
+                      key: lineKey,
+                      label: [projectCode, lineName].filter(Boolean).join(" "),
+                      year: saved?.year ?? year,
+                    }
+                  : null
               }
             />
           </div>
