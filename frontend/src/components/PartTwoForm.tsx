@@ -207,6 +207,8 @@ interface Props {
   submission: PartTwoSubmission;
   /** Leave out to show the submission read-only. */
   onSubmissionChange?: (patch: Partial<PartTwoSubmission>) => void;
+  /** Allow changing only the shortlisted providers while keeping the rest read-only. */
+  onProvidersChange?: (value: string) => void;
   /** The request's budget line, once chosen: row 2's boxes offer its pre-qualified suppliers. */
   supplierLine?: SupplierLine | null;
   /** Show the Contracts Committee's decision and conditions columns. */
@@ -311,6 +313,7 @@ function ProviderLines({
 export default function PartTwoTable({
   submission,
   onSubmissionChange,
+  onProvidersChange,
   supplierLine,
   showCommittee = false,
   rowDecisions = {},
@@ -361,13 +364,7 @@ export default function PartTwoTable({
             inputClassName="text-xs"
           />
         ) : key === "2" ? (
-          <ProviderLines
-            ariaLabel={`Row ${key}: provider`}
-            value={submission.shortlistedProviders}
-            onChange={(v) => set({ shortlistedProviders: v })}
-            placeholder={pair.answerHint}
-            supplierLine={supplierLine}
-          />
+          providersInput()
         ) : (
           <textarea
             aria-label={`Row ${key}: ${pair.answerLabel}`}
@@ -422,6 +419,18 @@ export default function PartTwoTable({
         className="input text-xs"
         rows={2}
         placeholder="Anything else the committee should know"
+      />
+    );
+  }
+
+  function providersInput() {
+    return (
+      <ProviderLines
+        ariaLabel="Row 2: provider"
+        value={submission.shortlistedProviders}
+        onChange={onProvidersChange ?? ((value) => set({ shortlistedProviders: value }))}
+        placeholder={PAIRS["2"].answerHint}
+        supplierLine={supplierLine}
       />
     );
   }
@@ -485,7 +494,11 @@ export default function PartTwoTable({
                   {row.label}
                   {row.hint && <em className="font-normal"> ({row.hint})</em>}
                 </div>
-                {onSubmissionChange ? submissionInput(row.key) : submissionView(row.key)}
+                {onSubmissionChange
+                  ? submissionInput(row.key)
+                  : row.key === "2" && onProvidersChange
+                  ? providersInput()
+                  : submissionView(row.key)}
               </td>
               {showCommittee && committeeCells(row.key)}
             </tr>

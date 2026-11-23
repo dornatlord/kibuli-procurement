@@ -81,8 +81,10 @@ export default function RequestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
   const [partTwoEdit, setPartTwoEdit] = useState<PartTwoDraft | null>(null);
+  const [partTwoSuppliersOnly, setPartTwoSuppliersOnly] = useState(false);
   const [partTwoSaving, setPartTwoSaving] = useState(false);
   const [partTwoError, setPartTwoError] = useState("");
+  const [partTwoReason, setPartTwoReason] = useState("");
   // The names, titles and dates the forms print live beside the request: the
   // starting suggestions, what was saved with the request, and what has been
   // changed since it was last saved.
@@ -145,6 +147,22 @@ export default function RequestDetailPage() {
   function startPartTwoEdit() {
     const d = request?.decision ?? null;
     setPartTwoError("");
+    setPartTwoReason("");
+    setPartTwoSuppliersOnly(false);
+    setPartTwoEdit({
+      submission: submissionFrom(d),
+      rowDecisions: rowDecisionsFrom(d?.rowDecisions),
+      meetingReference: d?.meetingReference ?? "",
+      decision: d?.decision ?? "",
+      decisionJustification: d?.decisionJustification ?? "",
+    });
+  }
+
+  function startPartTwoSupplierEdit() {
+    const d = request?.decision ?? null;
+    setPartTwoError("");
+    setPartTwoReason("");
+    setPartTwoSuppliersOnly(true);
     setPartTwoEdit({
       submission: submissionFrom(d),
       rowDecisions: rowDecisionsFrom(d?.rowDecisions),
@@ -160,6 +178,16 @@ export default function RequestDetailPage() {
     setPartTwoError("");
     setPartTwoSaving(true);
     try {
+      if (partTwoSuppliersOnly) {
+        await api.put(`/requests/${id}/part-two-suppliers`, {
+          shortlistedProviders: partTwoEdit.submission.shortlistedProviders,
+          reason: partTwoReason.trim() || undefined,
+        });
+        setPartTwoEdit(null);
+        setPartTwoSuppliersOnly(false);
+        load();
+        return;
+      }
       // Send only the side this person fills; the server ignores the rest anyway.
       await api.post(`/requests/${id}/committee-decision`, {
         ...(can("requests.prepare.committee") ? partTwoEdit.submission : {}),
@@ -636,15 +664,24 @@ export default function RequestDetailPage() {
       </section>
 
       {/* FORM 5 Part II — macro procurements only */}
-      {request.procurementSize === "macro" && (canPrepare || canDecide) && (
+      {request.procurementSize === "macro" && (canPrepare || canDecide || !!request.editAccess) && (
         <section className="card overflow-hidden">
           <SectionHeader
             title="Part II — Request to the Contracts Committee"
             action={
               !partTwoEdit && (
-                <button type="button" onClick={startPartTwoEdit} className="btn btn-secondary btn-sm">
-                  {request.decision ? "Edit Part II" : canPrepare ? "Prepare submission" : "Record decision"}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  {request.editAccess && !canPrepare && (
+                    <button type="button" onClick={startPartTwoSupplierEdit} className="btn btn-secondary btn-sm">
+                      Change shortlisted suppliers
+                    </button>
+                  )}
+                  {(canPrepare || canDecide) && (
+                    <button type="button" onClick={startPartTwoEdit} className="btn btn-secondary btn-sm">
+                      {request.decision ? "Edit Part II" : canPrepare ? "Prepare submission" : "Record decision"}
+                    </button>
+                  )}
+                </div>
               )
             }
           />
@@ -674,16 +711,24 @@ export default function RequestDetailPage() {
                 <PartTwoTable
                   submission={partTwoEdit.submission}
                   onSubmissionChange={
-                    canPrepare
+                    !partTwoSuppliersOnly && canPrepare
                       ? (patch) =>
                           setPartTwoEdit((p) => p && { ...p, submission: { ...p.submission, ...patch } })
                       : undefined
                   }
+                  onProvidersChange={
+                    partTwoSuppliersOnly
+                      ? (shortlistedProviders) =>
+                          setPartTwoEdit(
+                            (p) => p && { ...p, submission: { ...p.submission, shortlistedProviders } }
+                          )
+                      : undefined
+                  }
                   supplierLine={supplierLine}
-                  showCommittee
+                  showCommittee={!partTwoSuppliersOnly}
                   rowDecisions={partTwoEdit.rowDecisions}
                   onRowDecisionChange={
-                    canDecide
+                    !partTwoSuppliersOnly && canDecide
                       ? (row, patch) =>
                           setPartTwoEdit(
                             (p) =>
@@ -698,7 +743,20 @@ export default function RequestDetailPage() {
                       : undefined
                   }
                 />
-                {canDecide && (
+                {partTwoSuppliersOnly && request.editAccess === "corrector" && (
+                  <div>
+                    <label htmlFor="part-two-supplier-reason" className="label">Why is the supplier shortlist being changed?</label>
+                    <input
+                      id="part-two-supplier-reason"
+                      value={partTwoReason}
+                      onChange={(e) => setPartTwoReason(e.target.value)}
+                      className="input"
+                      minLength={3}
+                      required
+                    />
+                  </div>
+                )}
+                {!partTwoSuppliersOnly && canDecide && (
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div>
                       <label className="label">Meeting reference</label>
@@ -734,9 +792,20 @@ export default function RequestDetailPage() {
                 )}
                 <div className="flex gap-2">
                   <button type="submit" disabled={partTwoSaving} className="btn btn-primary">
-                    {partTwoSaving ? "Saving…" : "Save Part II"}
+                    {partTwoSaving
+                      ? "Saving…"
+                      : partTwoSuppliersOnly
+                      ? "Save supplier shortlist"
+                      : "Save Part II"}
                   </button>
-                  <button type="button" onClick={() => setPartTwoEdit(null)} className="btn btn-secondary">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPartTwoEdit(null);
+                      setPartTwoSuppliersOnly(false);
+                    }}
+                    className="btn btn-secondary"
+                  >
                     Cancel
                   </button>
                 </div>

@@ -1004,6 +1004,81 @@ router.patch("/:id/status", requireAuth, async (req, res) => {
 
 // ── PPDA FORM 5 Part II ────────────────────────────────────────────────────
 
+router.put("/:id/part-two-suppliers", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const [request] = await db.select().from(procurementRequests).where(eq(procurementRequests.id, id));
+  if (!request) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  if (request.procurementSize !== "macro") {
+    res.status(400).json({ error: "Only a macro request has a Part II supplier shortlist." });
+    return;
+  }
+
+  const current = await db
+    .select()
+    .from(procurementItems)
+    .where(eq(procurementItems.procurementRequestId, id))
+    .orderBy(asc(procurementItems.itemNo), asc(procurementItems.id));
+  const access = editAccessFor(
+    request,
+    req.session.userId,
+    await hasCorrectionRight(req.session),
+    await missingFromSaved(request, current)
+  );
+  if (!access) {
+    res.status(403).json({ error: "You don't have edit access to this request." });
+    return;
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  if (typeof body.shortlistedProviders !== "string" || body.shortlistedProviders.length > 3000) {
+    res.status(400).json({ error: "Enter a supplier shortlist no longer than 3,000 characters." });
+    return;
+  }
+  const shortlistedProviders = body.shortlistedProviders
+    .split("\n")
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .join("\n");
+  const reason = textFrom(body.reason, 500);
+  if (access === "corrector" && (!reason || reason.length < 3)) {
+    res.status(400).json({ error: "Say what was wrong, so the audit trail records why it was changed." });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(contractsCommitteeDecisions)
+    .where(eq(contractsCommitteeDecisions.procurementRequestId, id));
+  const previous = existing?.shortlistedProviders ?? null;
+  const next = shortlistedProviders || null;
+  if (previous === next) {
+    res.status(400).json({ error: "The supplier shortlist hasn't changed." });
+    return;
+  }
+  if (existing) {
+    await db
+      .update(contractsCommitteeDecisions)
+      .set({ shortlistedProviders: next })
+      .where(eq(contractsCommitteeDecisions.id, existing.id));
+  } else {
+    await db.insert(contractsCommitteeDecisions).values({
+      procurementRequestId: id,
+      shortlistedProviders: next,
+    });
+  }
+
+  await logAudit(req.session.userId!, "committee_submission.suppliers_changed", "procurement_request", id, {
+    referenceNumber: request.referenceNumber,
+    from: previous,
+    to: next,
+    reason: reason ?? null,
+  });
+  res.json({ ok: true });
+});
+
 // Empty strings from inputs must become NULL — Postgres rejects '' for
 // numeric and date columns.
 const blankValue = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
